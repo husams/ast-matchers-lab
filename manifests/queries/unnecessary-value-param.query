@@ -1,0 +1,16 @@
+# unnecessary-value-param.query — performance-unnecessary-value-param, approximated.
+# Run:  $LLVM/bin/clang-query -f manifests/queries/unnecessary-value-param.query manifests/capstone.cpp -- -std=c++23
+set output diag
+
+# "Expensive to copy" ~ has a user-written copy constructor (the DSL has no isTriviallyCopyable).
+let heavy cxxRecordDecl(hasMethod(cxxConstructorDecl(isCopyConstructor(), unless(isImplicit()))))
+let heavyParam parmVarDecl(hasType(heavy)).bind("p")
+# Two ways the body can mutate the parameter: a non-const method call, or operator=.
+let mutatingCall cxxMemberCallExpr(on(declRefExpr(to(equalsBoundNode("p")))),
+                                   callee(cxxMethodDecl(unless(isConst()))))
+let assignedTo cxxOperatorCallExpr(isAssignmentOperator(),
+                                   hasArgument(0, declRefExpr(to(equalsBoundNode("p")))))
+
+match functionDecl(hasAnyParameter(heavyParam),
+                   unless(hasDescendant(mutatingCall)),
+                   unless(hasDescendant(assignedTo))).bind("fn")

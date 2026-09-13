@@ -1,0 +1,13 @@
+# intro.query — a clang-query script. Run with:
+#   $LLVM/bin/clang-query -f manifests/intro.query manifests/intro.cpp -- -std=c++23
+
+set output diag
+set print-matcher true
+
+# name the pieces once ...
+let plusOp binaryOperator(hasOperatorName("+"))
+let addsSomething functionDecl(hasDescendant(plusOp))
+
+# ... then use them
+match addsSomething
+match plusOp.bind("op")

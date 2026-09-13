@@ -1,0 +1,9 @@
+# non-virtual-destructor.query — a class with virtual methods whose destructor is not virtual.
+# Run:  $LLVM/bin/clang-query -f manifests/queries/non-virtual-destructor.query manifests/capstone.cpp -- -std=c++23
+set output diag
+
+# has() = direct children only; hasDescendant() would look into nested classes too.
+let polymorphic has(cxxMethodDecl(isVirtual()))
+let virtualDtor has(cxxDestructorDecl(isVirtual()))
+
+match cxxRecordDecl(isDefinition(), polymorphic, unless(virtualDtor)).bind("class")

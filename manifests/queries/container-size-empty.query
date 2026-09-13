@@ -1,0 +1,12 @@
+# container-size-empty.query — readability-container-size-empty in pure clang-query.
+# Run:  $LLVM/bin/clang-query -f manifests/queries/container-size-empty.query manifests/capstone.cpp -- -std=c++23
+set output diag
+
+# size() on a class that also offers empty()
+let sizeOfContainer cxxMemberCallExpr(
+  callee(cxxMethodDecl(hasName("size"), ofClass(hasMethod(hasName("empty"))))))
+let zero ignoringImpCasts(integerLiteral(equals(0)))
+
+match binaryOperator(hasAnyOperatorName("==", "!=", ">"),
+                     hasEitherOperand(zero),
+                     hasEitherOperand(ignoringImpCasts(sizeOfContainer))).bind("cmp")

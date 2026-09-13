@@ -1,0 +1,37 @@
+# all.query — every capstone check in one session.
+# Run:  $LLVM/bin/clang-query -f manifests/queries/all.query manifests/capstone.cpp -- -std=c++23
+set output diag
+set print-matcher true
+
+# 12.1 use-nullptr
+match implicitCastExpr(hasCastKind("CK_NullToPointer"),
+                       hasSourceExpression(unless(cxxNullPtrLiteralExpr()))).bind("null")
+# 12.2 use-override
+match cxxMethodDecl(isOverride(), unless(anyOf(hasAttr("attr::Override"), hasAttr("attr::Final"))),
+                    unless(isImplicit())).bind("method")
+# 12.3 container-size-empty
+match binaryOperator(hasAnyOperatorName("==", "!=", ">"),
+                     hasEitherOperand(ignoringImpCasts(integerLiteral(equals(0)))),
+                     hasEitherOperand(ignoringImpCasts(cxxMemberCallExpr(callee(cxxMethodDecl(
+                         hasName("size"), ofClass(hasMethod(hasName("empty"))))))))).bind("cmp")
+# 12.4 assignment-in-if-condition
+match ifStmt(hasCondition(ignoringParenImpCasts(binaryOperator(isAssignmentOperator())))).bind("if")
+# 12.4 self-assignment (variables and this-> fields; see self-assignment.query for the third form)
+match binaryOperator(hasOperatorName("="),
+                     anyOf(allOf(hasLHS(declRefExpr(to(varDecl().bind("v")))),
+                                 hasRHS(ignoringImpCasts(declRefExpr(to(varDecl(equalsBoundNode("v"))))))),
+                           allOf(hasLHS(memberExpr(member(fieldDecl().bind("f")))),
+                                 hasRHS(ignoringImpCasts(memberExpr(member(fieldDecl(equalsBoundNode("f"))))))))).bind("self")
+# 12.5 unnecessary-value-param
+match functionDecl(hasAnyParameter(parmVarDecl(hasType(cxxRecordDecl(hasMethod(
+                       cxxConstructorDecl(isCopyConstructor(), unless(isImplicit())))))).bind("p")),
+                   unless(hasDescendant(cxxMemberCallExpr(on(declRefExpr(to(equalsBoundNode("p")))),
+                                                          callee(cxxMethodDecl(unless(isConst())))))),
+                   unless(hasDescendant(cxxOperatorCallExpr(isAssignmentOperator(),
+                                                            hasArgument(0, declRefExpr(to(equalsBoundNode("p")))))))).bind("fn")
+# 12.6 non-virtual-destructor
+match cxxRecordDecl(isDefinition(), has(cxxMethodDecl(isVirtual())),
+                    unless(has(cxxDestructorDecl(isVirtual())))).bind("class")
+# 12.7 missing-default-in-switch
+match switchStmt(hasCondition(ignoringImpCasts(hasType(enumDecl()))),
+                 unless(forEachSwitchCase(defaultStmt()))).bind("switch")

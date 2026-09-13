@@ -1,0 +1,18 @@
+# self-assignment.query — x = x, this->f = this->f, o.f = o.f via equalsBoundNode.
+# Run:  $LLVM/bin/clang-query -f manifests/queries/self-assignment.query manifests/capstone.cpp -- -std=c++23
+set output diag
+
+# Same local variable / parameter on both sides.
+let sameVar allOf(hasLHS(declRefExpr(to(varDecl().bind("v")))),
+                  hasRHS(ignoringImpCasts(declRefExpr(to(varDecl(equalsBoundNode("v")))))))
+# Same field of *this on both sides.
+let sameThisField allOf(hasLHS(memberExpr(member(fieldDecl().bind("f")), hasObjectExpression(cxxThisExpr()))),
+                        hasRHS(ignoringImpCasts(memberExpr(member(fieldDecl(equalsBoundNode("f"))),
+                                                           hasObjectExpression(cxxThisExpr())))))
+# Same field of the same named object on both sides.
+let sameObjField allOf(hasLHS(memberExpr(member(fieldDecl().bind("g")),
+                                          hasObjectExpression(ignoringImpCasts(declRefExpr(to(varDecl().bind("o"))))))),
+                       hasRHS(ignoringImpCasts(memberExpr(member(fieldDecl(equalsBoundNode("g"))),
+                                                          hasObjectExpression(ignoringImpCasts(declRefExpr(to(varDecl(equalsBoundNode("o"))))))))))
+
+match binaryOperator(hasOperatorName("="), anyOf(sameVar, sameThisField, sameObjField)).bind("self")

@@ -1,0 +1,10 @@
+# use-override.query — modernize-use-override in pure clang-query.
+# Run:  $LLVM/bin/clang-query -f manifests/queries/use-override.query manifests/capstone.cpp -- -std=c++23
+set output diag
+
+# `final` implies override, so either keyword is fine.
+let marked anyOf(hasAttr("attr::Override"), hasAttr("attr::Final"))
+# Compiler-generated overriders (implicit destructors) are not our business.
+let handWritten unless(isImplicit())
+
+match cxxMethodDecl(isOverride(), unless(marked), handWritten).bind("method")

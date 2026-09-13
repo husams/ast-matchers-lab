@@ -1,0 +1,8 @@
+# assignment-in-if-condition.query — bugprone-assignment-in-if-condition in pure clang-query.
+# Run:  $LLVM/bin/clang-query -f manifests/queries/assignment-in-if-condition.query manifests/capstone.cpp -- -std=c++23
+set output diag
+
+# The condition is wrapped in an int->bool implicit cast (and maybe parens).
+let assignment ignoringParenImpCasts(binaryOperator(isAssignmentOperator()))
+
+match ifStmt(hasCondition(assignment)).bind("if")

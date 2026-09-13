@@ -1,0 +1,10 @@
+# use-nullptr.query — modernize-use-nullptr in pure clang-query.
+# Run:  $LLVM/bin/clang-query -f manifests/queries/use-nullptr.query manifests/capstone.cpp -- -std=c++23
+set output diag
+
+# A null constant that is not the nullptr keyword ...
+let notNullptr hasSourceExpression(unless(cxxNullPtrLiteralExpr()))
+# ... being converted to a pointer.
+let nullConst implicitCastExpr(hasCastKind("CK_NullToPointer"), notNullptr)
+
+match nullConst.bind("null")

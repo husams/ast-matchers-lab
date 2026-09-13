@@ -1,0 +1,10 @@
+# missing-default-in-switch.query — switch over an enum with no default: label.
+# Run:  $LLVM/bin/clang-query -f manifests/queries/missing-default-in-switch.query manifests/capstone.cpp -- -std=c++23
+set output diag
+
+# Unscoped enums are promoted to int in the condition: look through the cast.
+let overEnum hasCondition(ignoringImpCasts(hasType(enumDecl())))
+# forEachSwitchCase only visits this switch's own labels, not a nested switch's.
+let hasDefault forEachSwitchCase(defaultStmt())
+
+match switchStmt(overEnum, unless(hasDefault)).bind("switch")
