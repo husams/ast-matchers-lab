@@ -76,8 +76,8 @@ first declaration it finds — for `XAlias aliased;` that is the typedef, not th
 `class X`, so the variable matches. `XAlias aliased;` on line 9 does **not**: the
 declaration behind its written type is the typedef, and `cxxRecordDecl` rejects it.
 
-```text
-clang-query> match varDecl(hasType(cxxRecordDecl(hasName("X"))))
+```clang-query
+match varDecl(hasType(cxxRecordDecl(hasName("X"))))
 ```
 
 **Expected:** 1 match — `z` at `trav_types.cpp:13`. `aliased` (line 9) is missed — that is the sugar trap.
@@ -85,16 +85,16 @@ clang-query> match varDecl(hasType(cxxRecordDecl(hasName("X"))))
 **ValueDecl, QualType-matcher form.** Any `Matcher<QualType>` works inside: `asString`
 compares the *written* spelling, so again only `z` matches.
 
-```text
-clang-query> match varDecl(hasType(asString("X")))
+```clang-query
+match varDecl(hasType(asString("X")))
 ```
 
 **Expected:** 1 match — `z` at `trav_types.cpp:13`.
 
 To reach `aliased` through its typedef, ask for the typedef explicitly:
 
-```text
-clang-query> match varDecl(hasType(qualType(hasDeclaration(typedefDecl(hasName("XAlias"))))))
+```clang-query
+match varDecl(hasType(qualType(hasDeclaration(typedefDecl(hasName("XAlias"))))))
 ```
 
 **Expected:** 1 match — `aliased` at `trav_types.cpp:9`.
@@ -104,20 +104,20 @@ implicit construction of `z` both have type `X`. Note that the expression `x` ha
 `X`, not `X &` — expression types never carry references (they carry a value category
 instead).
 
-```text
-clang-query> match expr(hasType(cxxRecordDecl(hasName("X"))))
+```clang-query
+match expr(hasType(cxxRecordDecl(hasName("X"))))
 ```
 
 **Expected:** 2 matches — the `DeclRefExpr` `x` at `trav_types.cpp:13:25` and the `CXXConstructExpr` for `z` at `13:30`.
 
-```text
-clang-query> match declRefExpr(hasType(references(cxxRecordDecl(hasName("X")))))
+```clang-query
+match declRefExpr(hasType(references(cxxRecordDecl(hasName("X")))))
 ```
 
 **Expected:** 0 matches — the *parameter* `x` is an `X &`, but the *expression* `x` is an lvalue of type `X`.
 
-```text
-clang-query> match parmVarDecl(hasName("x"), hasType(references(cxxRecordDecl(hasName("X")))))
+```clang-query
+match parmVarDecl(hasName("x"), hasType(references(cxxRecordDecl(hasName("X")))))
 ```
 
 **Expected:** 1 match — parameter `x` at `trav_types.cpp:13:11`.
@@ -125,14 +125,14 @@ clang-query> match parmVarDecl(hasName("x"), hasType(references(cxxRecordDecl(ha
 **CXXBaseSpecifier.** A base specifier cannot be a top-level match in `clang-query`, so
 reach it through `hasAnyBase` / `hasDirectBase` (Part 8). Both inner forms work:
 
-```text
-clang-query> match cxxRecordDecl(hasAnyBase(hasType(cxxRecordDecl(hasName("Base")))))
+```clang-query
+match cxxRecordDecl(hasAnyBase(hasType(cxxRecordDecl(hasName("Base")))))
 ```
 
 **Expected:** 2 matches — `Derived` at `trav_types.cpp:11` and `Sub` at `trav_types.cpp:89`.
 
-```text
-clang-query> match cxxRecordDecl(hasAnyBase(hasType(asString("Base"))))
+```clang-query
+match cxxRecordDecl(hasAnyBase(hasType(asString("Base"))))
 ```
 
 **Expected:** 2 matches — `Derived` (line 11) and `Sub` (line 89).
@@ -140,14 +140,14 @@ clang-query> match cxxRecordDecl(hasAnyBase(hasType(asString("Base"))))
 **FriendDecl.** `friend class X;` names a type; `asString` sees the elaborated spelling
 `class X` here because the keyword was written.
 
-```text
-clang-query> match friendDecl(hasType(cxxRecordDecl(hasName("X"))))
+```clang-query
+match friendDecl(hasType(cxxRecordDecl(hasName("X"))))
 ```
 
 **Expected:** 1 match — the friend declaration at `trav_types.cpp:12:11`.
 
-```text
-clang-query> match friendDecl(hasType(asString("class X")))
+```clang-query
+match friendDecl(hasType(asString("class X")))
 ```
 
 **Expected:** 1 match — the same friend declaration at `trav_types.cpp:12:11`.
@@ -155,14 +155,14 @@ clang-query> match friendDecl(hasType(asString("class X")))
 **TypedefNameDecl.** For a typedef or alias, `hasType` looks at the *underlying* type
 (only the QualType form exists here).
 
-```text
-clang-query> match typedefDecl(hasType(asString("int")))
+```clang-query
+match typedefDecl(hasType(asString("int")))
 ```
 
 **Expected:** 1 match — `typedef int Int` at `trav_types.cpp:8`.
 
-```text
-clang-query> match typedefNameDecl(hasType(asString("X")))
+```clang-query
+match typedefNameDecl(hasType(asString("X")))
 ```
 
 **Expected:** 1 match — `typedef X XAlias` at `trav_types.cpp:7`.
@@ -173,14 +173,14 @@ Replaces the sugared type with its canonical form before matching. `seedRef` is
 declared with the typedef `int_ref`; its written type is a `TypedefType`, not a
 `ReferenceType`, so a plain `referenceType()` fails and the canonical one succeeds.
 
-```text
-clang-query> match varDecl(hasName("seedRef"), hasType(qualType(referenceType())))
+```clang-query
+match varDecl(hasName("seedRef"), hasType(qualType(referenceType())))
 ```
 
 **Expected:** 0 matches — the written type is the typedef `int_ref`.
 
-```text
-clang-query> match varDecl(hasName("seedRef"), hasType(qualType(hasCanonicalType(referenceType()))))
+```clang-query
+match varDecl(hasName("seedRef"), hasType(qualType(hasCanonicalType(referenceType()))))
 ```
 
 **Expected:** 1 match — `seedRef` at `trav_types.cpp:16`.
@@ -191,9 +191,9 @@ The reference's recommended cure for the sugar trap: strip every layer of sugar 
 the top-level qualifiers, then hand the bare `Type` to the inner matcher. Now both the
 alias-declared `aliased` and the plainly-declared `z` match.
 
-```text
-clang-query> match varDecl(hasType(hasUnqualifiedDesugaredType(
-                 recordType(hasDeclaration(cxxRecordDecl(hasName("X")))))))
+```clang-query
+match varDecl(hasType(hasUnqualifiedDesugaredType(
+    recordType(hasDeclaration(cxxRecordDecl(hasName("X")))))))
 ```
 
 **Expected:** 2 matches — `aliased` at `trav_types.cpp:9` and `z` at `trav_types.cpp:13`.
@@ -214,14 +214,14 @@ the `operator new` of a `CXXNewExpr`, the label of an `AddrLabelExpr`. For a
 **Expressions (6 overloads).** Start with the everyday ones — a reference to an
 enumerator, a call, a member access, a constructor call, a `new`, and a label address.
 
-```text
-clang-query> match declRefExpr(hasDeclaration(enumConstantDecl(hasName("Green"))))
+```clang-query
+match declRefExpr(hasDeclaration(enumConstantDecl(hasName("Green"))))
 ```
 
 **Expected:** 1 match — the `Green` in `Color color = Green;` at `trav_types.cpp:20:15`.
 
-```text
-clang-query> match callExpr(hasDeclaration(functionDecl(hasName("readValue"))))
+```clang-query
+match callExpr(hasDeclaration(functionDecl(hasName("readValue"))))
 ```
 
 **Expected:** 1 match — the call inside `callIt` at `trav_types.cpp:30:28`.
@@ -230,35 +230,35 @@ clang-query> match callExpr(hasDeclaration(functionDecl(hasName("readValue"))))
 *implicitly defined* copy constructor (which `Node local(node)` forces Clang to
 synthesize). Switch to the source-only traversal mode to see just the one you wrote.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match memberExpr(hasDeclaration(fieldDecl(hasName("value"))))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match memberExpr(hasDeclaration(fieldDecl(hasName("value"))))
 ```
 
 **Expected:** 1 match — `node.value` at `trav_types.cpp:27:27`.
 
-```text
-clang-query> match cxxConstructExpr(hasDeclaration(cxxConstructorDecl(isCopyConstructor())))
+```clang-query
+match cxxConstructExpr(hasDeclaration(cxxConstructorDecl(isCopyConstructor())))
 ```
 
 **Expected:** 1 match — `Node local(node)` at `trav_types.cpp:29:26`.
 
-```text
-clang-query> match cxxNewExpr(hasDeclaration(functionDecl(hasName("operator new"))))
+```clang-query
+match cxxNewExpr(hasDeclaration(functionDecl(hasName("operator new"))))
 ```
 
 **Expected:** 1 match — `new Node{2, nullptr}` at `trav_types.cpp:28:28` (the declaration is Clang's implicit global `operator new`).
 
-```text
-clang-query> match addrLabelExpr(hasDeclaration(labelDecl(hasName("done"))))
+```clang-query
+match addrLabelExpr(hasDeclaration(labelDecl(hasName("done"))))
 ```
 
 **Expected:** 1 match — `&&done` at `trav_types.cpp:33:18`.
 
 **Statements (1 overload).** The label itself.
 
-```text
-clang-query> match labelStmt(hasDeclaration(labelDecl(hasName("done"))))
+```clang-query
+match labelStmt(hasDeclaration(labelDecl(hasName("done"))))
 ```
 
 **Expected:** 1 match — `done:` at `trav_types.cpp:36`.
@@ -266,8 +266,8 @@ clang-query> match labelStmt(hasDeclaration(labelDecl(hasName("done"))))
 **QualType (1 overload).** On a `QualType` the declaration is that of the *sugared*
 type — for `aliased` that is the typedef, exactly as in 10.1.
 
-```text
-clang-query> match varDecl(hasName("aliased"), hasType(qualType(hasDeclaration(typedefDecl()))))
+```clang-query
+match varDecl(hasName("aliased"), hasType(qualType(hasDeclaration(typedefDecl()))))
 ```
 
 **Expected:** 1 match — `aliased` at `trav_types.cpp:9`.
@@ -279,51 +279,51 @@ declaration is the obvious one: `enumType` → `enumDecl`, `recordType` → `rec
 specialization, `typedefType` → the typedef, `usingType` → the using-shadow, and
 `unresolvedUsingType` → a `using typename T::type;` inside a template.
 
-```text
-clang-query> match varDecl(hasType(enumType(hasDeclaration(enumDecl(hasName("Color"))))))
+```clang-query
+match varDecl(hasType(enumType(hasDeclaration(enumDecl(hasName("Color"))))))
 ```
 
 **Expected:** 1 match — `color` at `trav_types.cpp:20`.
 
-```text
-clang-query> match varDecl(hasType(recordType(hasDeclaration(recordDecl(hasName("Node"))))))
+```clang-query
+match varDecl(hasType(recordType(hasDeclaration(recordDecl(hasName("Node"))))))
 ```
 
 **Expected:** 2 matches — `node` at `trav_types.cpp:26` and `local` at `trav_types.cpp:29:21`.
 
-```text
-clang-query> match varDecl(hasType(tagType(hasDeclaration(tagDecl(hasName("Node"))))))
+```clang-query
+match varDecl(hasType(tagType(hasDeclaration(tagDecl(hasName("Node"))))))
 ```
 
 **Expected:** 2 matches — the same `node` (line 26) and `local` (line 29); `tagType` covers records and enums alike.
 
-```text
-clang-query> match fieldDecl(hasType(templateTypeParmType(hasDeclaration(templateTypeParmDecl(hasName("T"))))))
+```clang-query
+match fieldDecl(hasType(templateTypeParmType(hasDeclaration(templateTypeParmDecl(hasName("T"))))))
 ```
 
 **Expected:** 1 match — `T held;` inside `Wrap` at `trav_types.cpp:41:3`.
 
-```text
-clang-query> match parmVarDecl(hasType(injectedClassNameType(hasDeclaration(cxxRecordDecl(hasName("Wrap"))))))
+```clang-query
+match parmVarDecl(hasType(injectedClassNameType(hasDeclaration(cxxRecordDecl(hasName("Wrap"))))))
 ```
 
 **Expected:** 1 match — the parameter `other` of `Wrap take(Wrap other)` at `trav_types.cpp:42:13`.
 
-```text
-clang-query> match varDecl(hasType(templateSpecializationType(
-                 hasDeclaration(classTemplateSpecializationDecl(hasName("Wrap"))))))
+```clang-query
+match varDecl(hasType(templateSpecializationType(
+    hasDeclaration(classTemplateSpecializationDecl(hasName("Wrap"))))))
 ```
 
 **Expected:** 1 match — `Wrap<int> wrapped` at `trav_types.cpp:44`.
 
-```text
-clang-query> match varDecl(hasType(typedefType(hasDeclaration(typedefDecl(hasName("XAlias"))))))
+```clang-query
+match varDecl(hasType(typedefType(hasDeclaration(typedefDecl(hasName("XAlias"))))))
 ```
 
 **Expected:** 1 match — `aliased` at `trav_types.cpp:9`.
 
-```text
-clang-query> match varDecl(hasType(usingType(hasDeclaration(usingShadowDecl()))))
+```clang-query
+match varDecl(hasType(usingType(hasDeclaration(usingShadowDecl()))))
 ```
 
 **Expected:** 1 match — `Widget widget` at `trav_types.cpp:54` (`Widget` is visible only through `using lib::Widget`).
@@ -332,8 +332,8 @@ clang-query> match varDecl(hasType(usingType(hasDeclaration(usingShadowDecl())))
 through the `QualType` one: the field `type field;` in `Inherit` has an
 `UnresolvedUsingType` whose declaration is the `using typename T::type;` on line 47.
 
-```text
-clang-query> match fieldDecl(hasType(hasDeclaration(unresolvedUsingTypenameDecl())))
+```clang-query
+match fieldDecl(hasType(hasDeclaration(unresolvedUsingTypenameDecl())))
 ```
 
 **Expected:** 1 match — `type field;` at `trav_types.cpp:48:3`.
@@ -351,20 +351,20 @@ parenthesized declarator. Combine them to describe any declarator shape.
 Narrows a pointer-like *type node* by what it points at. Use it after `pointerType()`,
 `referenceType()` or `memberPointerType()`.
 
-```text
-clang-query> match varDecl(hasType(pointerType(pointee(isConstQualified(), isInteger()))))
+```clang-query
+match varDecl(hasType(pointerType(pointee(isConstQualified(), isInteger()))))
 ```
 
 **Expected:** 1 match — `int const *cip` at `trav_types.cpp:59`.
 
-```text
-clang-query> match varDecl(hasType(referenceType(pointee(isInteger()))), hasGlobalStorage())
+```clang-query
+match varDecl(hasType(referenceType(pointee(isInteger()))), hasGlobalStorage())
 ```
 
 **Expected:** 2 matches — `iref` at `trav_types.cpp:61` and `xx` at `trav_types.cpp:99` (`seedRef` is hidden behind its typedef).
 
-```text
-clang-query> match varDecl(hasType(memberPointerType(pointee(isInteger()))))
+```clang-query
+match varDecl(hasType(memberPointerType(pointee(isInteger()))))
 ```
 
 **Expected:** 1 match — `int Node::*fieldPtr` at `trav_types.cpp:62`.
@@ -375,20 +375,20 @@ The `QualType`-level cousin of `pointee`: "is a pointer, and the pointee matches
 The Decl overload matches the pointee's declaration; the QualType overload matches the
 pointee type itself.
 
-```text
-clang-query> match fieldDecl(hasType(pointsTo(recordDecl(hasName("Node")))))
+```clang-query
+match fieldDecl(hasType(pointsTo(recordDecl(hasName("Node")))))
 ```
 
 **Expected:** 1 match — `Node *next` at `trav_types.cpp:23:3`.
 
-```text
-clang-query> match functionDecl(returns(pointsTo(recordDecl(hasName("Node")))))
+```clang-query
+match functionDecl(returns(pointsTo(recordDecl(hasName("Node")))))
 ```
 
 **Expected:** 2 matches — `Node::self` at `trav_types.cpp:24:3` and `make` at `trav_types.cpp:28`.
 
-```text
-clang-query> match varDecl(hasType(pointsTo(asString("const float"))))
+```clang-query
+match varDecl(hasType(pointsTo(asString("const float"))))
 ```
 
 **Expected:** 1 match — `float const *cfp` at `trav_types.cpp:60`.
@@ -399,15 +399,15 @@ Same pair of overloads for reference types. Class `X` gets implicit copy/move
 constructors whose parameters are `const X &` / `X &&`; the source-only traversal mode
 hides them so only the parameter you wrote shows up.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match varDecl(hasType(references(cxxRecordDecl(hasName("X")))))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match varDecl(hasType(references(cxxRecordDecl(hasName("X")))))
 ```
 
 **Expected:** 1 match — parameter `x` of `useX` at `trav_types.cpp:13:11`.
 
-```text
-clang-query> match varDecl(hasType(references(isInteger())))
+```clang-query
+match varDecl(hasType(references(isInteger())))
 ```
 
 **Expected:** 3 matches — `seedRef` (line 16), `iref` (line 61) and `xx` (line 99). Unlike `referenceType()`, `references` looks through the `int_ref` typedef.
@@ -416,20 +416,20 @@ clang-query> match varDecl(hasType(references(isInteger())))
 
 Arrays and `_Complex` types both have an element type.
 
-```text
-clang-query> match varDecl(hasType(arrayType(hasElementType(builtinType()))))
+```clang-query
+match varDecl(hasType(arrayType(hasElementType(builtinType()))))
 ```
 
 **Expected:** 2 matches — `int arr[3]` at `trav_types.cpp:63` and the VLA `a` at `trav_types.cpp:68:19`.
 
-```text
-clang-query> match varDecl(hasType(arrayType(hasElementType(pointerType()))))
+```clang-query
+match varDecl(hasType(arrayType(hasElementType(pointerType()))))
 ```
 
 **Expected:** 1 match — `int *parr[3]` at `trav_types.cpp:64`.
 
-```text
-clang-query> match varDecl(hasType(complexType(hasElementType(builtinType()))))
+```clang-query
+match varDecl(hasType(complexType(hasElementType(builtinType()))))
 ```
 
 **Expected:** 1 match — `_Complex float cplx` at `trav_types.cpp:65`.
@@ -438,8 +438,8 @@ clang-query> match varDecl(hasType(complexType(hasElementType(builtinType()))))
 
 The type wrapped by `_Atomic(…)`.
 
-```text
-clang-query> match varDecl(hasType(atomicType(hasValueType(isInteger()))))
+```clang-query
+match varDecl(hasType(atomicType(hasValueType(isInteger()))))
 ```
 
 **Expected:** 1 match — `_Atomic(int) atomInt` at `trav_types.cpp:66` (not `atomFloat`).
@@ -448,9 +448,9 @@ clang-query> match varDecl(hasType(atomicType(hasValueType(isInteger()))))
 
 A variable-length array remembers the expression that sized it.
 
-```text
-clang-query> match varDecl(hasType(variableArrayType(hasSizeExpr(
-                 ignoringImpCasts(declRefExpr(to(varDecl(hasName("b")))))))))
+```clang-query
+match varDecl(hasType(variableArrayType(hasSizeExpr(
+    ignoringImpCasts(declRefExpr(to(varDecl(hasName("b")))))))))
 ```
 
 **Expected:** 1 match — `int a[b]` at `trav_types.cpp:68:19`.
@@ -460,8 +460,8 @@ clang-query> match varDecl(hasType(variableArrayType(hasSizeExpr(
 An array or function parameter *decays* to a pointer; the `DecayedType` keeps both
 the original and the decayed form. This matches the decayed one.
 
-```text
-clang-query> match parmVarDecl(hasType(decayedType(hasDecayedType(pointerType()))))
+```clang-query
+match parmVarDecl(hasType(decayedType(hasDecayedType(pointerType()))))
 ```
 
 **Expected:** 1 match — `int param[]` at `trav_types.cpp:69:13`.
@@ -471,8 +471,8 @@ clang-query> match parmVarDecl(hasType(decayedType(hasDecayedType(pointerType())
 What `auto` turned into. (There is no TypeLoc for the deduced type — nothing was
 written.)
 
-```text
-clang-query> match varDecl(hasType(autoType(hasDeducedType(isInteger()))))
+```clang-query
+match varDecl(hasType(autoType(hasDeducedType(isInteger()))))
 ```
 
 **Expected:** 2 matches — `deducedInt` at `trav_types.cpp:70` and `tmpInt` at `trav_types.cpp:90` (`deducedDouble` is excluded).
@@ -482,14 +482,14 @@ clang-query> match varDecl(hasType(autoType(hasDeducedType(isInteger()))))
 The parentheses in `int (*p)(int)` create a `ParenType`; `innerType` looks inside them.
 This is how you tell a pointer-to-function from a pointer-to-array.
 
-```text
-clang-query> match varDecl(hasType(pointsTo(parenType(innerType(functionType())))))
+```clang-query
+match varDecl(hasType(pointsTo(parenType(innerType(functionType())))))
 ```
 
 **Expected:** 1 match — `ptrToFunc` at `trav_types.cpp:73`.
 
-```text
-clang-query> match varDecl(hasType(pointsTo(parenType(innerType(arrayType())))))
+```clang-query
+match varDecl(hasType(pointsTo(parenType(innerType(arrayType())))))
 ```
 
 **Expected:** 1 match — `ptrToArray` at `trav_types.cpp:72`.
@@ -500,8 +500,8 @@ Inside an instantiation, a `T` that has been replaced keeps a `SubstTemplateType
 wrapper recording what replaced it. `F(seed)` instantiates `F<int>`, so `t` is an `int`
 wearing that wrapper.
 
-```text
-clang-query> match parmVarDecl(hasType(substTemplateTypeParmType(hasReplacementType(asString("int")))))
+```clang-query
+match parmVarDecl(hasType(substTemplateTypeParmType(hasReplacementType(asString("int")))))
 ```
 
 **Expected:** 1 match — parameter `t` of the `F<int>` instantiation at `trav_types.cpp:74:32`.
@@ -511,14 +511,14 @@ clang-query> match parmVarDecl(hasType(substTemplateTypeParmType(hasReplacementT
 A type written as `N::M::D` carries the qualifier `N::M::` as a `NestedNameSpecifier`
 (details in 10.5). `hasQualifier` hands that specifier to an inner matcher.
 
-```text
-clang-query> match varDecl(hasType(hasQualifier(hasPrefix(specifiesNamespace(hasName("N"))))))
+```clang-query
+match varDecl(hasType(hasQualifier(hasPrefix(specifiesNamespace(hasName("N"))))))
 ```
 
 **Expected:** 1 match — `N::M::D d` at `trav_types.cpp:77`.
 
-```text
-clang-query> match varDecl(hasType(type(hasQualifier(specifiesNamespace(hasName("M"))))))
+```clang-query
+match varDecl(hasType(type(hasQualifier(specifiesNamespace(hasName("M"))))))
 ```
 
 **Expected:** 1 match — the same `d` at `trav_types.cpp:77`; the innermost specifier is `M::`.
@@ -527,8 +527,8 @@ clang-query> match varDecl(hasType(type(hasQualifier(specifiesNamespace(hasName(
 
 For `decltype(expr)` (and similar wrappers) — the type that was computed.
 
-```text
-clang-query> match varDecl(hasType(decltypeType(hasUnderlyingType(isInteger()))))
+```clang-query
+match varDecl(hasType(decltypeType(hasUnderlyingType(isInteger()))))
 ```
 
 **Expected:** 1 match — `decltype(1) dl` at `trav_types.cpp:78`.
@@ -538,8 +538,8 @@ clang-query> match varDecl(hasType(decltypeType(hasUnderlyingType(isInteger())))
 Strips `ParenType` layers before matching — the QualType-level alternative to spelling
 out `parenType(innerType(…))`.
 
-```text
-clang-query> match varDecl(hasType(pointerType(pointee(ignoringParens(functionType())))))
+```clang-query
+match varDecl(hasType(pointerType(pointee(ignoringParens(functionType())))))
 ```
 
 **Expected:** 1 match — `ptrToFunc` at `trav_types.cpp:73`.
@@ -549,14 +549,14 @@ clang-query> match varDecl(hasType(pointerType(pointee(ignoringParens(functionTy
 Matches a name that was found *via* a `using` declaration; the inner matcher sees the
 `UsingShadowDecl`, whose `hasTargetDecl` (Part 8) is the real entity.
 
-```text
-clang-query> match declRefExpr(throughUsingDecl(hasTargetDecl(functionDecl(hasName("helper")))))
+```clang-query
+match declRefExpr(throughUsingDecl(hasTargetDecl(functionDecl(hasName("helper")))))
 ```
 
 **Expected:** 1 match — the `helper` in `helper()` at `trav_types.cpp:55:16`.
 
-```text
-clang-query> match varDecl(hasType(usingType(throughUsingDecl(hasTargetDecl(hasName("Widget"))))))
+```clang-query
+match varDecl(hasType(usingType(throughUsingDecl(hasTargetDecl(hasName("Widget"))))))
 ```
 
 **Expected:** 1 match — `Widget widget` at `trav_types.cpp:54`.
@@ -581,17 +581,17 @@ TypeLoc) out of the counts.
 
 **DeclaratorDecl** — fields, variables, parameters, functions:
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match fieldDecl(hasTypeLoc(loc(asString("int"))))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match fieldDecl(hasTypeLoc(loc(asString("int"))))
 ```
 
 **Expected:** 5 matches — `Node::value` (line 22), `Foo::m` (line 85), `Point::px` and `Point::py` (line 93), `Rec::next` (line 123).
 
 **TypedefNameDecl:**
 
-```text
-clang-query> match typedefNameDecl(hasTypeLoc(loc(asString("X"))))
+```clang-query
+match typedefNameDecl(hasTypeLoc(loc(asString("X"))))
 ```
 
 **Expected:** 1 match — `typedef X XAlias` at `trav_types.cpp:7`.
@@ -600,14 +600,14 @@ clang-query> match typedefNameDecl(hasTypeLoc(loc(asString("X"))))
 `hasAnyConstructorInitializer`, Part 8) — only *base* or delegating initializers
 carry a TypeLoc, member initializers do not:
 
-```text
-clang-query> match cxxRecordDecl(hasAnyBase(hasTypeLoc(loc(asString("Base")))))
+```clang-query
+match cxxRecordDecl(hasAnyBase(hasTypeLoc(loc(asString("Base")))))
 ```
 
 **Expected:** 2 matches — `Derived` (line 11) and `Sub` (line 89).
 
-```text
-clang-query> match cxxConstructorDecl(hasAnyConstructorInitializer(hasTypeLoc(loc(asString("Base")))))
+```clang-query
+match cxxConstructorDecl(hasAnyConstructorInitializer(hasTypeLoc(loc(asString("Base")))))
 ```
 
 **Expected:** 1 match — `Sub() : Base() {}` at `trav_types.cpp:89:21`.
@@ -616,48 +616,48 @@ clang-query> match cxxConstructorDecl(hasAnyConstructorInitializer(hasTypeLoc(lo
 three faces of `T(args)`: one argument is a functional cast, several arguments to a
 class is a temporary object, and a dependent `T` is unresolved:
 
-```text
-clang-query> match varDecl(hasName("tmpInt"), hasInitializer(cxxFunctionalCastExpr(hasTypeLoc(loc(asString("int"))))))
+```clang-query
+match varDecl(hasName("tmpInt"), hasInitializer(cxxFunctionalCastExpr(hasTypeLoc(loc(asString("int"))))))
 ```
 
 **Expected:** 1 match — `auto tmpInt = int(3)` at `trav_types.cpp:90`.
 
-```text
-clang-query> match cxxTemporaryObjectExpr(hasTypeLoc(loc(asString("Foo"))))
+```clang-query
+match cxxTemporaryObjectExpr(hasTypeLoc(loc(asString("Foo"))))
 ```
 
 **Expected:** 1 match — `Foo(1, 2)` at `trav_types.cpp:91:15`.
 
-```text
-clang-query> match cxxUnresolvedConstructExpr(hasTypeLoc(loc(asString("T"))))
+```clang-query
+match cxxUnresolvedConstructExpr(hasTypeLoc(loc(asString("T"))))
 ```
 
 **Expected:** 2 matches — `T(1)` in `build` at `trav_types.cpp:92:42` and `T(0)` in `zero` at `trav_types.cpp:130:42`.
 
 **CompoundLiteralExpr, CXXNewExpr, ExplicitCastExpr:**
 
-```text
-clang-query> match compoundLiteralExpr(hasTypeLoc(loc(asString("Point"))))
+```clang-query
+match compoundLiteralExpr(hasTypeLoc(loc(asString("Point"))))
 ```
 
 **Expected:** 1 match — `(Point){1, 2}` at `trav_types.cpp:94:12`.
 
-```text
-clang-query> match cxxNewExpr(hasTypeLoc(loc(asString("Node"))))
+```clang-query
+match cxxNewExpr(hasTypeLoc(loc(asString("Node"))))
 ```
 
 **Expected:** 1 match — `new Node{2, nullptr}` at `trav_types.cpp:28:28`.
 
-```text
-clang-query> match explicitCastExpr(hasTypeLoc(loc(asString("long"))))
+```clang-query
+match explicitCastExpr(hasTypeLoc(loc(asString("long"))))
 ```
 
 **Expected:** 1 match — `(long)seed` at `trav_types.cpp:95:16`.
 
 **TemplateArgumentLoc** — a written template argument that is a type:
 
-```text
-clang-query> match templateArgumentLoc(hasTypeLoc(loc(asString("double"))))
+```clang-query
+match templateArgumentLoc(hasTypeLoc(loc(asString("double"))))
 ```
 
 **Expected:** 5 matches — the `double` written in `Pair<double, int>` (line 109), `Pair<int, double>` (line 110), `Vec<double>` (line 112), `tf<double>` (line 115) and `zero<double>` (line 131).
@@ -666,8 +666,8 @@ clang-query> match templateArgumentLoc(hasTypeLoc(loc(asString("double"))))
 
 The TypeLoc of a function's return type.
 
-```text
-clang-query> match functionDecl(hasReturnTypeLoc(loc(asString("int"))))
+```clang-query
+match functionDecl(hasReturnTypeLoc(loc(asString("int"))))
 ```
 
 **Expected:** 5 matches — `readValue` (line 27), `callIt` (line 30), `jumpAround` (line 32), `lib::helper` (line 51) and `retInt` (line 82).
@@ -677,14 +677,14 @@ clang-query> match functionDecl(hasReturnTypeLoc(loc(asString("int"))))
 The same question at the `QualType` level — use this when you do not care how the
 return type was spelled.
 
-```text
-clang-query> match functionDecl(returns(asString("int")))
+```clang-query
+match functionDecl(returns(asString("int")))
 ```
 
 **Expected:** 5 matches — the same five functions as above.
 
-```text
-clang-query> match functionDecl(hasName("retVoid"), returns(voidType()))
+```clang-query
+match functionDecl(hasName("retVoid"), returns(voidType()))
 ```
 
 **Expected:** 1 match — `retVoid` at `trav_types.cpp:83`.
@@ -696,14 +696,14 @@ matches a `TypeLoc` whose type matches, and `loc(nnsMatcher)` matches a
 `NestedNameSpecifierLoc` whose specifier matches. You have been using the first form
 inside every `hasTypeLoc` above.
 
-```text
-clang-query> match typeLoc(loc(asString("Color")))
+```clang-query
+match typeLoc(loc(asString("Color")))
 ```
 
 **Expected:** 1 match — the `Color` written in `Color color = Green;` at `trav_types.cpp:20`.
 
-```text
-clang-query> match nestedNameSpecifierLoc(loc(specifiesNamespace(hasName("ns"))))
+```clang-query
+match nestedNameSpecifierLoc(loc(specifiesNamespace(hasName("ns"))))
 ```
 
 **Expected:** 1 match — the `ns::` in `ns::S nss;` at `trav_types.cpp:105`.
@@ -712,14 +712,14 @@ clang-query> match nestedNameSpecifierLoc(loc(specifiesNamespace(hasName("ns")))
 
 Descends from a `*` to the TypeLoc it applies to.
 
-```text
-clang-query> match varDecl(hasTypeLoc(pointerTypeLoc(hasPointeeLoc(loc(asString("int"))))))
+```clang-query
+match varDecl(hasTypeLoc(pointerTypeLoc(hasPointeeLoc(loc(asString("int"))))))
 ```
 
 **Expected:** 1 match — `int *ip` at `trav_types.cpp:58` (`cip`'s pointee is `const int`, and `parr`'s outer TypeLoc is an array).
 
-```text
-clang-query> match pointerTypeLoc(hasPointeeLoc(loc(asString("int"))))
+```clang-query
+match pointerTypeLoc(hasPointeeLoc(loc(asString("int"))))
 ```
 
 **Expected:** 2 matches — the `*` in `ip` (line 58) and the element `*` inside `int *parr[3]` (line 64).
@@ -728,8 +728,8 @@ clang-query> match pointerTypeLoc(hasPointeeLoc(loc(asString("int"))))
 
 The `&` counterpart of `hasPointeeLoc`.
 
-```text
-clang-query> match referenceTypeLoc(hasReferentLoc(loc(asString("int"))))
+```clang-query
+match referenceTypeLoc(hasReferentLoc(loc(asString("int"))))
 ```
 
 **Expected:** 3 matches — `typedef int &int_ref` (line 14), `iref` (line 61) and `xx` (line 99).
@@ -739,8 +739,8 @@ clang-query> match referenceTypeLoc(hasReferentLoc(loc(asString("int"))))
 A `const`/`volatile` written on a type produces a `QualifiedTypeLoc` wrapper; this steps
 inside it. `int *const pconst` qualifies a pointer, `const int cy` qualifies a builtin.
 
-```text
-clang-query> match qualifiedTypeLoc(hasUnqualifiedLoc(pointerTypeLoc()))
+```clang-query
+match qualifiedTypeLoc(hasUnqualifiedLoc(pointerTypeLoc()))
 ```
 
 **Expected:** 1 match — `int *const pconst` at `trav_types.cpp:97`.
@@ -752,27 +752,27 @@ The *written* n'th template argument. Because it needs something written, it mat
 **explicit** specializations (`Vec<double>`, `tf<double>`) — but not implicit
 instantiations, which wrote nothing.
 
-```text
-clang-query> match varDecl(hasTypeLoc(templateSpecializationTypeLoc(
-                 hasTemplateArgumentLoc(0, hasTypeLoc(loc(asString("double")))))))
+```clang-query
+match varDecl(hasTypeLoc(templateSpecializationTypeLoc(
+    hasTemplateArgumentLoc(0, hasTypeLoc(loc(asString("double")))))))
 ```
 
 **Expected:** 1 match — `Pair<double, int> pdi` at `trav_types.cpp:109` (not `pid`, whose `double` is argument 1).
 
-```text
-clang-query> match declRefExpr(hasTemplateArgumentLoc(0, hasTypeLoc(loc(asString("int")))))
+```clang-query
+match declRefExpr(hasTemplateArgumentLoc(0, hasTypeLoc(loc(asString("int")))))
 ```
 
 **Expected:** 2 matches — `tf<int>` at `trav_types.cpp:116:17` and `zero<int>` at `trav_types.cpp:132:10`.
 
-```text
-clang-query> match functionDecl(hasTemplateArgumentLoc(0, hasTypeLoc(loc(asString("double")))))
+```clang-query
+match functionDecl(hasTemplateArgumentLoc(0, hasTypeLoc(loc(asString("double")))))
 ```
 
 **Expected:** 1 match — the explicit specialization `tf<double>` at `trav_types.cpp:115`.
 
-```text
-clang-query> match classTemplateSpecializationDecl(hasTemplateArgumentLoc(0, hasTypeLoc(loc(asString("double")))))
+```clang-query
+match classTemplateSpecializationDecl(hasTemplateArgumentLoc(0, hasTypeLoc(loc(asString("double")))))
 ```
 
 **Expected:** 1 match — the explicit specialization `Vec<double>` at `trav_types.cpp:112`.
@@ -789,33 +789,33 @@ Like `hasTemplateArgumentLoc` without the index — any written argument may mat
 The same two overloads (`OverloadExpr`, `VarTemplateSpecializationDecl`) are
 unreachable from `clang-query` 22.
 
-```text
-clang-query> match varDecl(hasTypeLoc(templateSpecializationTypeLoc(
-                 hasAnyTemplateArgumentLoc(hasTypeLoc(loc(asString("double")))))))
+```clang-query
+match varDecl(hasTypeLoc(templateSpecializationTypeLoc(
+    hasAnyTemplateArgumentLoc(hasTypeLoc(loc(asString("double")))))))
 ```
 
 **Expected:** 2 matches — `pdi` (line 109) and `pid` (line 110).
 
-```text
-clang-query> match templateSpecializationTypeLoc(hasAnyTemplateArgumentLoc(hasTypeLoc(loc(asString("int")))))
+```clang-query
+match templateSpecializationTypeLoc(hasAnyTemplateArgumentLoc(hasTypeLoc(loc(asString("int")))))
 ```
 
 **Expected:** 5 matches — `Wrap<int>` (line 44), `Pair<double, int>` (line 109), `Pair<int, double>` (line 110), `Vec<int>` (line 113), `Matrix<int, …>` (line 119).
 
-```text
-clang-query> match declRefExpr(hasAnyTemplateArgumentLoc(hasTypeLoc(loc(asString("int")))))
+```clang-query
+match declRefExpr(hasAnyTemplateArgumentLoc(hasTypeLoc(loc(asString("int")))))
 ```
 
 **Expected:** 2 matches — `tf<int>` (line 116) and `zero<int>` (line 132).
 
-```text
-clang-query> match functionDecl(hasAnyTemplateArgumentLoc(hasTypeLoc(loc(asString("double")))))
+```clang-query
+match functionDecl(hasAnyTemplateArgumentLoc(hasTypeLoc(loc(asString("double")))))
 ```
 
 **Expected:** 1 match — `tf<double>` at `trav_types.cpp:115`.
 
-```text
-clang-query> match classTemplateSpecializationDecl(hasAnyTemplateArgumentLoc(hasTypeLoc(loc(asString("double")))))
+```clang-query
+match classTemplateSpecializationDecl(hasAnyTemplateArgumentLoc(hasTypeLoc(loc(asString("double")))))
 ```
 
 **Expected:** 1 match — `Vec<double>` at `trav_types.cpp:112`.
@@ -825,14 +825,14 @@ clang-query> match classTemplateSpecializationDecl(hasAnyTemplateArgumentLoc(has
 The type an explicit cast converts *to*. (Clang calls implicit conversions "casts" as
 well; this matcher is only for the ones you wrote.)
 
-```text
-clang-query> match explicitCastExpr(hasDestinationType(asString("long")))
+```clang-query
+match explicitCastExpr(hasDestinationType(asString("long")))
 ```
 
 **Expected:** 1 match — `(long)seed` at `trav_types.cpp:95:16`.
 
-```text
-clang-query> match cStyleCastExpr(hasDestinationType(voidType()))
+```clang-query
+match cStyleCastExpr(hasDestinationType(voidType()))
 ```
 
 **Expected:** 3 matches — the three `(void)…` silencing casts at lines 13, 29 and 68.
@@ -842,9 +842,9 @@ clang-query> match cStyleCastExpr(hasDestinationType(voidType()))
 The same for implicit conversions. `double implicitD = seed;` converts `int` to
 `double` without a single character of syntax.
 
-```text
-clang-query> match varDecl(hasName("implicitD"),
-                 hasInitializer(implicitCastExpr(hasImplicitDestinationType(asString("double")))))
+```clang-query
+match varDecl(hasName("implicitD"),
+    hasInitializer(implicitCastExpr(hasImplicitDestinationType(asString("double")))))
 ```
 
 **Expected:** 1 match — `implicitD` at `trav_types.cpp:96`.
@@ -864,14 +864,14 @@ converts between the two.
 
 Steps outward one level: from `A::B::` to `A::`.
 
-```text
-clang-query> match nestedNameSpecifier(hasPrefix(specifiesType(asString("A"))))
+```clang-query
+match nestedNameSpecifier(hasPrefix(specifiesType(asString("A"))))
 ```
 
 **Expected:** 1 match — the specifier `A::B::` (no location is printed for a bare `NestedNameSpecifier`).
 
-```text
-clang-query> match nestedNameSpecifierLoc(hasPrefix(loc(specifiesType(asString("A")))))
+```clang-query
+match nestedNameSpecifierLoc(hasPrefix(loc(specifiesType(asString("A")))))
 ```
 
 **Expected:** 1 match — `A::B::` in `A::B::C abc;` at `trav_types.cpp:103`.
@@ -880,14 +880,14 @@ clang-query> match nestedNameSpecifierLoc(hasPrefix(loc(specifiesType(asString("
 
 The type a specifier names, without qualifiers.
 
-```text
-clang-query> match nestedNameSpecifier(specifiesType(hasDeclaration(cxxRecordDecl(hasName("A")))))
+```clang-query
+match nestedNameSpecifier(specifiesType(hasDeclaration(cxxRecordDecl(hasName("A")))))
 ```
 
 **Expected:** 1 match — the specifier `A::`.
 
-```text
-clang-query> match nestedNameSpecifierLoc(loc(specifiesType(hasDeclaration(cxxRecordDecl(hasName("B"))))))
+```clang-query
+match nestedNameSpecifierLoc(loc(specifiesType(hasDeclaration(cxxRecordDecl(hasName("B"))))))
 ```
 
 **Expected:** 1 match — `A::B::` at `trav_types.cpp:103`.
@@ -897,9 +897,9 @@ clang-query> match nestedNameSpecifierLoc(loc(specifiesType(hasDeclaration(cxxRe
 The located version: the specifier's type as a `TypeLoc`. (`loc(type(…))` does not
 build in `clang-query`; wrap the inner matcher in `qualType(…)` as shown.)
 
-```text
-clang-query> match nestedNameSpecifierLoc(specifiesTypeLoc(
-                 loc(qualType(hasDeclaration(cxxRecordDecl(hasName("A")))))))
+```clang-query
+match nestedNameSpecifierLoc(specifiesTypeLoc(
+    loc(qualType(hasDeclaration(cxxRecordDecl(hasName("A")))))))
 ```
 
 **Expected:** 1 match — `A::` at `trav_types.cpp:103`.
@@ -908,14 +908,14 @@ clang-query> match nestedNameSpecifierLoc(specifiesTypeLoc(
 
 For qualifiers that name a namespace rather than a type.
 
-```text
-clang-query> match nestedNameSpecifier(specifiesNamespace(hasName("ns")))
+```clang-query
+match nestedNameSpecifier(specifiesNamespace(hasName("ns")))
 ```
 
 **Expected:** 1 match — the specifier `ns::`.
 
-```text
-clang-query> match nestedNameSpecifierLoc(loc(specifiesNamespace(hasName("M"))))
+```clang-query
+match nestedNameSpecifierLoc(loc(specifiesNamespace(hasName("M"))))
 ```
 
 **Expected:** 1 match — `N::M::` in `N::M::D d;` at `trav_types.cpp:77`.
@@ -941,20 +941,20 @@ use site.
 
 The n'th resolved argument.
 
-```text
-clang-query> match classTemplateSpecializationDecl(hasTemplateArgument(1, refersToType(asString("int"))))
+```clang-query
+match classTemplateSpecializationDecl(hasTemplateArgument(1, refersToType(asString("int"))))
 ```
 
 **Expected:** 1 match — the specialization `Pair<double, int>`, reported at `trav_types.cpp:108`.
 
-```text
-clang-query> match functionDecl(hasTemplateArgument(0, refersToType(asString("int"))))
+```clang-query
+match functionDecl(hasTemplateArgument(0, refersToType(asString("int"))))
 ```
 
 **Expected:** 2 matches — the instantiations `F<int>` (line 74) and `tf<int>` (line 114).
 
-```text
-clang-query> match varDecl(hasType(templateSpecializationType(hasTemplateArgument(0, refersToType(asString("double"))))))
+```clang-query
+match varDecl(hasType(templateSpecializationType(hasTemplateArgument(0, refersToType(asString("double"))))))
 ```
 
 **Expected:** 1 match — `pdi` at `trav_types.cpp:109`.
@@ -969,20 +969,20 @@ DSL refuses `varDecl(hasTemplateArgument(…))` because the argument is narrower
 Any resolved argument, at any position. Same four hosts; the variable-template one is
 unreachable for the same reason as above.
 
-```text
-clang-query> match classTemplateSpecializationDecl(hasAnyTemplateArgument(refersToType(asString("int"))))
+```clang-query
+match classTemplateSpecializationDecl(hasAnyTemplateArgument(refersToType(asString("int"))))
 ```
 
 **Expected:** 5 matches — `Wrap<int>` (line 40), both `Pair` instantiations (line 108, twice), `Vec<int>` (line 111) and `Matrix<int, 4, 8>` (line 117).
 
-```text
-clang-query> match functionDecl(hasAnyTemplateArgument(refersToType(asString("int"))))
+```clang-query
+match functionDecl(hasAnyTemplateArgument(refersToType(asString("int"))))
 ```
 
 **Expected:** 2 matches — `F<int>` (line 74) and `tf<int>` (line 114).
 
-```text
-clang-query> match varDecl(hasType(templateSpecializationType(hasAnyTemplateArgument(refersToType(asString("double"))))))
+```clang-query
+match varDecl(hasType(templateSpecializationType(hasAnyTemplateArgument(refersToType(asString("double"))))))
 ```
 
 **Expected:** 2 matches — `pdi` (line 109) and `pid` (line 110).
@@ -993,15 +993,15 @@ Produces one match *per argument* that satisfies the inner matcher. `clang-query
 collapses matches that bind exactly the same nodes, so bind something inside to see the
 multiplicity: `Matrix<int, R * 2, R * 4>` then counts twice.
 
-```text
-clang-query> match varDecl(hasType(templateSpecializationType(
-                 forEachTemplateArgument(isExpr(expr().bind("arg"))))))
+```clang-query
+match varDecl(hasType(templateSpecializationType(
+    forEachTemplateArgument(isExpr(expr().bind("arg"))))))
 ```
 
 **Expected:** 4 matches — `mat` (line 119) twice, for `R * 2` and `R * 4`; `chain` (line 125) for `&Rec::next`; `c42` (line 127) for `42`.
 
-```text
-clang-query> match functionDecl(hasName("fwd"), forEachTemplateArgument(refersToType(builtinType().bind("t"))))
+```clang-query
+match functionDecl(hasName("fwd"), forEachTemplateArgument(refersToType(builtinType().bind("t"))))
 ```
 
 **Expected:** 2 matches — the instantiation `fwd<unsigned, bool>` at `trav_types.cpp:120:35`, once for `unsigned` and once for `bool`.
@@ -1010,8 +1010,8 @@ clang-query> match functionDecl(hasName("fwd"), forEachTemplateArgument(refersTo
 
 From a specialization back to the primary template it specializes.
 
-```text
-clang-query> match classTemplateSpecializationDecl(hasSpecializedTemplate(classTemplateDecl(hasName("Vec"))))
+```clang-query
+match classTemplateSpecializationDecl(hasSpecializedTemplate(classTemplateDecl(hasName("Vec"))))
 ```
 
 **Expected:** 2 matches — the implicit `Vec<int>` (reported at line 111) and the explicit `Vec<double>` (line 112).
@@ -1020,8 +1020,8 @@ clang-query> match classTemplateSpecializationDecl(hasSpecializedTemplate(classT
 
 A type argument.
 
-```text
-clang-query> match classTemplateSpecializationDecl(hasAnyTemplateArgument(refersToType(asString("double"))))
+```clang-query
+match classTemplateSpecializationDecl(hasAnyTemplateArgument(refersToType(asString("double"))))
 ```
 
 **Expected:** 3 matches — the two `Pair` instantiations (line 108, twice) and `Vec<double>` (line 112).
@@ -1030,9 +1030,9 @@ clang-query> match classTemplateSpecializationDecl(hasAnyTemplateArgument(refers
 
 A declaration argument — here the pointer-to-member `&Rec::next`.
 
-```text
-clang-query> match classTemplateSpecializationDecl(hasAnyTemplateArgument(
-                 refersToDeclaration(fieldDecl(hasName("next")))))
+```clang-query
+match classTemplateSpecializationDecl(hasAnyTemplateArgument(
+    refersToDeclaration(fieldDecl(hasName("next")))))
 ```
 
 **Expected:** 1 match — the specialization `Chain<&Rec::next>`, reported at `trav_types.cpp:124`.
@@ -1041,8 +1041,8 @@ clang-query> match classTemplateSpecializationDecl(hasAnyTemplateArgument(
 
 An integral (non-type) argument whose *type* matches — `42` is an `int`.
 
-```text
-clang-query> match classTemplateSpecializationDecl(hasAnyTemplateArgument(refersToIntegralType(asString("int"))))
+```clang-query
+match classTemplateSpecializationDecl(hasAnyTemplateArgument(refersToIntegralType(asString("int"))))
 ```
 
 **Expected:** 1 match — the specialization `Const<42>`, reported at `trav_types.cpp:126`.
@@ -1051,8 +1051,8 @@ clang-query> match classTemplateSpecializationDecl(hasAnyTemplateArgument(refers
 
 A template template argument — `Vec` passed to `Holder`.
 
-```text
-clang-query> match classTemplateSpecializationDecl(hasAnyTemplateArgument(refersToTemplate(templateName())))
+```clang-query
+match classTemplateSpecializationDecl(hasAnyTemplateArgument(refersToTemplate(templateName())))
 ```
 
 **Expected:** 1 match — the specialization `Holder<Vec>`, reported at `trav_types.cpp:128`.
@@ -1063,9 +1063,9 @@ A *sugared* argument that is still an expression — available on the
 `templateSpecializationType` written at the use site, where `&Rec::next` has not yet
 been folded into a declaration.
 
-```text
-clang-query> match varDecl(hasType(templateSpecializationType(hasAnyTemplateArgument(
-                 isExpr(hasDescendant(declRefExpr(to(fieldDecl(hasName("next"))))))))))
+```clang-query
+match varDecl(hasType(templateSpecializationType(hasAnyTemplateArgument(
+    isExpr(hasDescendant(declRefExpr(to(fieldDecl(hasName("next"))))))))))
 ```
 
 **Expected:** 1 match — `Chain<&Rec::next> chain` at `trav_types.cpp:125`.

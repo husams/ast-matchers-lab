@@ -97,14 +97,14 @@ stops at the first child that does. With the reference's nested classes,
 `X` matches through its injected class name, `Y` and `Z::Y` match through
 their nested `X`, and `Z` does not (its `X` is two levels down).
 
-```text
-clang-query> match cxxRecordDecl(has(cxxRecordDecl(hasName("X"))))
+```clang-query
+match cxxRecordDecl(has(cxxRecordDecl(hasName("X"))))
 ```
 
 **Expected:** 5 matches — `X` at `trav_decls.cpp:5`, `Y` and `Y::X` at `:6`, `Z::Y` and `Z::Y::X` at `:7`.
 
-```text
-clang-query> match cxxRecordDecl(hasName("Z"), has(cxxRecordDecl(hasName("X"))))
+```clang-query
+match cxxRecordDecl(hasName("Z"), has(cxxRecordDecl(hasName("X"))))
 ```
 
 **Expected:** 0 matches — `Z`'s only `X` is a grandchild.
@@ -114,15 +114,15 @@ The initializer of `long widened = 7;` is an `ImplicitCastExpr` (int → long)
 whose child is the literal, so the literal is not a direct child of the
 variable.
 
-```text
-clang-query> match varDecl(hasName("widened"), has(integerLiteral()))
+```clang-query
+match varDecl(hasName("widened"), has(integerLiteral()))
 ```
 
 **Expected:** 0 matches — the direct child is the implicit cast, not the literal.
 
-```text
-clang-query> match varDecl(hasName("widened"),
-                           has(expr(ignoringParenImpCasts(integerLiteral()))))
+```clang-query
+match varDecl(hasName("widened"),
+              has(expr(ignoringParenImpCasts(integerLiteral()))))
 ```
 
 **Expected:** 1 match — `widened` at `trav_decls.cpp:13`.
@@ -133,8 +133,8 @@ Matches a node with **any descendant** (child, grandchild, …) matching the
 inner matcher. Like `has`, it stops at the first hit, so each outer node is
 reported once. The only new match compared with `has` is `Z`.
 
-```text
-clang-query> match cxxRecordDecl(hasDescendant(cxxRecordDecl(hasName("X"))))
+```clang-query
+match cxxRecordDecl(hasDescendant(cxxRecordDecl(hasName("X"))))
 ```
 
 **Expected:** 6 matches — the 5 from `has` plus `Z` at `trav_decls.cpp:7`.
@@ -142,9 +142,9 @@ clang-query> match cxxRecordDecl(hasDescendant(cxxRecordDecl(hasName("X"))))
 Even when you bind the descendant, `hasDescendant` binds only the *first*
 one found. `Deep` has four nested class definitions, but you get one line.
 
-```text
-clang-query> match cxxRecordDecl(hasName("Deep"),
-                                 hasDescendant(cxxRecordDecl(isDefinition()).bind("m")))
+```clang-query
+match cxxRecordDecl(hasName("Deep"),
+                    hasDescendant(cxxRecordDecl(isDefinition()).bind("m")))
 ```
 
 **Expected:** 1 match — `Deep` at `trav_decls.cpp:8`, with `m` bound to `Deep::B`.
@@ -156,9 +156,9 @@ matching descendant instead of stopping at the first. Compare directly with
 the block above — same outer node, same inner matcher, four lines instead of
 one, each with a different `m`.
 
-```text
-clang-query> match cxxRecordDecl(hasName("Deep"),
-                                 forEachDescendant(cxxRecordDecl(isDefinition()).bind("m")))
+```clang-query
+match cxxRecordDecl(hasName("Deep"),
+                    forEachDescendant(cxxRecordDecl(isDefinition()).bind("m")))
 ```
 
 **Expected:** 4 matches — `Deep` at `trav_decls.cpp:8` four times, `m` bound to `B`, `C`, `D`, `E` in turn.
@@ -168,9 +168,9 @@ only `root` = `Deep`), so clang-query prints one line. This is the single
 most common surprise with `forEach…`: *it multiplies matches only when the
 inner matcher binds something.*
 
-```text
-clang-query> match cxxRecordDecl(hasName("Deep"),
-                                 forEachDescendant(cxxRecordDecl(isDefinition())))
+```clang-query
+match cxxRecordDecl(hasName("Deep"),
+                    forEachDescendant(cxxRecordDecl(isDefinition())))
 ```
 
 **Expected:** 1 match — `Deep` at `trav_decls.cpp:8`; the four results collapsed into one.
@@ -178,10 +178,10 @@ clang-query> match cxxRecordDecl(hasName("Deep"),
 Nesting `forEachDescendant` inside `forEachDescendant` multiplies pairs.
 Restricted to spelled classes, `Deep` yields (B→C, B→D, B→E, C→D, C→E, D→E).
 
-```text
-clang-query> match cxxRecordDecl(hasName("Deep"),
-               forEachDescendant(cxxRecordDecl(unless(isImplicit()),
-                 forEachDescendant(cxxRecordDecl(unless(isImplicit())).bind("m")))))
+```clang-query
+match cxxRecordDecl(hasName("Deep"),
+  forEachDescendant(cxxRecordDecl(unless(isImplicit()),
+    forEachDescendant(cxxRecordDecl(unless(isImplicit())).bind("m")))))
 ```
 
 **Expected:** 6 matches — `Deep` at `trav_decls.cpp:8` six times, one per (outer, inner) pair.
@@ -201,14 +201,14 @@ The one-level version of `forEachDescendant`: every **direct child** that
 matches produces its own result. `Pair` has two fields; `has` reports the
 class once, `forEach` reports it once per field.
 
-```text
-clang-query> match cxxRecordDecl(hasName("Pair"), forEach(fieldDecl().bind("f")))
+```clang-query
+match cxxRecordDecl(hasName("Pair"), forEach(fieldDecl().bind("f")))
 ```
 
 **Expected:** 2 matches — `Pair` at `trav_decls.cpp:16` twice, `f` bound to `first` then `second`.
 
-```text
-clang-query> match cxxRecordDecl(hasName("Pair"), has(fieldDecl().bind("f")))
+```clang-query
+match cxxRecordDecl(hasName("Pair"), has(fieldDecl().bind("f")))
 ```
 
 **Expected:** 1 match — `Pair` at `trav_decls.cpp:16`, `f` bound to `first` only.
@@ -218,8 +218,8 @@ clang-query> match cxxRecordDecl(hasName("Pair"), has(fieldDecl().bind("f")))
 Matches a node whose **immediate parent** matches. The reference example:
 the compound statement whose parent is an `if`.
 
-```text
-clang-query> match compoundStmt(hasParent(ifStmt()))
+```clang-query
+match compoundStmt(hasParent(ifStmt()))
 ```
 
 **Expected:** 1 match — `{ int v = 42; }` at `trav_decls.cpp:11`.
@@ -229,14 +229,14 @@ directly under their `VarDecl`, but the `7` in `long widened = 7;` sits
 under an `ImplicitCastExpr`, so in the default `AsIs` traversal it has no
 `varDecl` parent.
 
-```text
-clang-query> match integerLiteral(hasParent(varDecl()))
+```clang-query
+match integerLiteral(hasParent(varDecl()))
 ```
 
 **Expected:** 2 matches — `42` at `trav_decls.cpp:11` and `43` at `:12`.
 
-```text
-clang-query> match integerLiteral(hasParent(implicitCastExpr()))
+```clang-query
+match integerLiteral(hasParent(implicitCastExpr()))
 ```
 
 **Expected:** 1 match — `7` at `trav_decls.cpp:13`.
@@ -244,9 +244,9 @@ clang-query> match integerLiteral(hasParent(implicitCastExpr()))
 Switch the traversal mode and the implicit cast disappears from the tree, so
 the literal's parent becomes the variable.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match integerLiteral(hasParent(varDecl()))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match integerLiteral(hasParent(varDecl()))
 ```
 
 **Expected:** 3 matches — `42` at `trav_decls.cpp:11`, `43` at `:12`, and now `7` at `:13`.
@@ -259,21 +259,21 @@ inside the `for` — and here a second, invisible literal shows up: the
 rewritten spaceship comparison `s1 < s2` on line 26 is really
 `(s1 <=> s2) < 0`, and that `0` has an `if` ancestor too.
 
-```text
-clang-query> match integerLiteral(hasAncestor(ifStmt()))
+```clang-query
+match integerLiteral(hasAncestor(ifStmt()))
 ```
 
 **Expected:** 2 matches — `42` at `trav_decls.cpp:11` and the synthesized `0` at `:26`.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match integerLiteral(hasAncestor(ifStmt()))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match integerLiteral(hasAncestor(ifStmt()))
 ```
 
 **Expected:** 1 match — only `42` at `trav_decls.cpp:11`; the rewritten operator's `0` is not spelled in source.
 
-```text
-clang-query> match integerLiteral(hasAncestor(forStmt()))
+```clang-query
+match integerLiteral(hasAncestor(forStmt()))
 ```
 
 **Expected:** 1 match — `43` at `trav_decls.cpp:12`.
@@ -284,18 +284,18 @@ Like `anyOf`, but instead of stopping at the first alternative that
 succeeds it generates **one result per matching alternative**, keeping each
 alternative's bindings. With `anyOf` the same query reports `Pair` once.
 
-```text
-clang-query> match cxxRecordDecl(hasName("Pair"),
-               eachOf(has(fieldDecl(hasName("first")).bind("v")),
-                      has(fieldDecl(hasName("second")).bind("v"))))
+```clang-query
+match cxxRecordDecl(hasName("Pair"),
+  eachOf(has(fieldDecl(hasName("first")).bind("v")),
+         has(fieldDecl(hasName("second")).bind("v"))))
 ```
 
 **Expected:** 2 matches — `Pair` at `trav_decls.cpp:16` twice, `v` bound to `first` then `second`.
 
-```text
-clang-query> match cxxRecordDecl(hasName("Pair"),
-               anyOf(has(fieldDecl(hasName("first")).bind("v")),
-                     has(fieldDecl(hasName("second")).bind("v"))))
+```clang-query
+match cxxRecordDecl(hasName("Pair"),
+  anyOf(has(fieldDecl(hasName("first")).bind("v")),
+        has(fieldDecl(hasName("second")).bind("v"))))
 ```
 
 **Expected:** 1 match — `Pair` at `trav_decls.cpp:16`, `v` bound to `first`.
@@ -307,9 +307,9 @@ match. Use it to collect "extra information if present" without filtering
 the outer node. Both `Pair` and `Lone` match; only `Lone` gets a `var`
 binding for its `other` field.
 
-```text
-clang-query> match cxxRecordDecl(anyOf(hasName("Pair"), hasName("Lone")), unless(isImplicit()),
-               optionally(has(fieldDecl(hasName("other")).bind("var")))).bind("record")
+```clang-query
+match cxxRecordDecl(anyOf(hasName("Pair"), hasName("Lone")), unless(isImplicit()),
+  optionally(has(fieldDecl(hasName("other")).bind("var")))).bind("record")
 ```
 
 **Expected:** 2 matches — `Pair` at `trav_decls.cpp:16` (only `record` bound) and `Lone` at `:17` (`record` and `var` bound).
@@ -323,30 +323,30 @@ template), `CXXOperatorCallExpr` (overloaded operator on a class type) and
 inner matchers (`hasOperatorName`, `hasLHS`, `hasRHS`, …) are applied to
 whichever node is present.
 
-```text
-clang-query> match binaryOperation(hasOperatorName("!="),
-                                   hasLHS(expr().bind("lhs")),
-                                   hasRHS(expr().bind("rhs")))
+```clang-query
+match binaryOperation(hasOperatorName("!="),
+                      hasLHS(expr().bind("lhs")),
+                      hasRHS(expr().bind("rhs")))
 ```
 
 **Expected:** 5 matches — `1 != 2` and `Tag() != Tag()` at `trav_decls.cpp:21`, both `!=` in the template at `:22`, and the rewritten `s1 != s2` at `:24`.
 
 Ask for the three shapes individually to see where each one came from:
 
-```text
-clang-query> match binaryOperator(hasOperatorName("!="))
+```clang-query
+match binaryOperator(hasOperatorName("!="))
 ```
 
 **Expected:** 3 matches — `1 != 2` at `trav_decls.cpp:21`, and both `!=` in the template at `:22` (dependent operands stay a plain `BinaryOperator`).
 
-```text
-clang-query> match cxxOperatorCallExpr(hasOperatorName("!="))
+```clang-query
+match cxxOperatorCallExpr(hasOperatorName("!="))
 ```
 
 **Expected:** 1 match — `Tag() != Tag()` at `trav_decls.cpp:21`.
 
-```text
-clang-query> match cxxRewrittenBinaryOperator()
+```clang-query
+match cxxRewrittenBinaryOperator()
 ```
 
 **Expected:** 2 matches — `s1 != s2` at `trav_decls.cpp:24` (from `operator==`) and `s1 < s2` at `:26` (from `operator<=>`).
@@ -357,14 +357,14 @@ clang-query> match cxxRewrittenBinaryOperator()
 arguments. `invocation` lets one matcher cover a call *and* a construction,
 so `hasArgument(0, …)` can be written once.
 
-```text
-clang-query> match invocation(hasArgument(0, integerLiteral(equals(42))))
+```clang-query
+match invocation(hasArgument(0, integerLiteral(equals(42))))
 ```
 
 **Expected:** 2 matches — `callTakesInt(42)` at `trav_decls.cpp:31` and `ConstructorTakesInt cti(42)` at `:32`.
 
-```text
-clang-query> match callExpr(hasArgument(0, integerLiteral(equals(42))))
+```clang-query
+match callExpr(hasArgument(0, integerLiteral(equals(42))))
 ```
 
 **Expected:** 1 match — only the call at `trav_decls.cpp:31`.
@@ -377,10 +377,10 @@ result per hit — it is defined in the C++ API as
 
 **Not in clang-query 22** — C++-API-only; write the expansion by hand. On `Deep` it reports the class itself plus its four nested classes:
 
-```text
-clang-query> match cxxRecordDecl(hasName("Deep"),
-               eachOf(cxxRecordDecl(unless(isImplicit())).bind("m"),
-                      forEachDescendant(cxxRecordDecl(unless(isImplicit())).bind("m"))))
+```clang-query
+match cxxRecordDecl(hasName("Deep"),
+  eachOf(cxxRecordDecl(unless(isImplicit())).bind("m"),
+         forEachDescendant(cxxRecordDecl(unless(isImplicit())).bind("m"))))
 ```
 
 **Expected:** 5 matches — `Deep` at `trav_decls.cpp:8` five times, `m` bound to `Deep`, `B`, `C`, `D`, `E`.
@@ -393,15 +393,15 @@ that subtree only.
 
 **Not in clang-query 22** — the C++ API's per-matcher switch; in clang-query the equivalent is the session-wide `set traversal …`. The `7` in `long widened = 7;` is hidden behind an implicit cast in `AsIs` mode:
 
-```text
-clang-query> match varDecl(hasInitializer(integerLiteral()))
+```clang-query
+match varDecl(hasInitializer(integerLiteral()))
 ```
 
 **Expected:** 2 matches — `v` at `trav_decls.cpp:11` and `v` at `:12`; `widened` is missed.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match varDecl(hasInitializer(integerLiteral()))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match varDecl(hasInitializer(integerLiteral()))
 ```
 
 **Expected:** 3 matches — the two `v` variables plus `widened` at `trav_decls.cpp:13`.
@@ -419,14 +419,14 @@ body or its `explicit` expression.
 Steps to the **N-th parameter** (zero-based) and applies the inner matcher.
 Functions with fewer than N+1 parameters never match.
 
-```text
-clang-query> match functionDecl(hasParameter(0, hasType(asString("int"))))
+```clang-query
+match functionDecl(hasParameter(0, hasType(asString("int"))))
 ```
 
 **Expected:** 4 matches — `ConstructorTakesInt(int)` at `trav_decls.cpp:29`, `callTakesInt` at `:30`, `Triple::f` at `:38`, and `Expl(int)` at `:40`.
 
-```text
-clang-query> match cxxMethodDecl(hasParameter(2, hasName("z")))
+```clang-query
+match cxxMethodDecl(hasParameter(2, hasName("z")))
 ```
 
 **Expected:** 1 match — `Triple::f(int x, int y, int z)` at `trav_decls.cpp:38`.
@@ -437,8 +437,8 @@ Matches when **any** parameter matches; the implicit `this` is not a
 parameter. Reference example: find the function that has a parameter named
 `y`.
 
-```text
-clang-query> match functionDecl(hasAnyParameter(hasName("y")))
+```clang-query
+match functionDecl(hasAnyParameter(hasName("y")))
 ```
 
 **Expected:** 1 match — `Triple::f` at `trav_decls.cpp:38`.
@@ -450,14 +450,14 @@ clang-query> match functionDecl(hasAnyParameter(hasName("y")))
 somewhere in the translation unit — so the prototype of `declaredTwice` on
 line 35 matches, because its definition on line 36 has a body.
 
-```text
-clang-query> match functionDecl(hasName("declaredTwice"), hasAnyBody(compoundStmt()))
+```clang-query
+match functionDecl(hasName("declaredTwice"), hasAnyBody(compoundStmt()))
 ```
 
 **Expected:** 2 matches — the prototype at `trav_decls.cpp:35` and the definition at `:36`.
 
-```text
-clang-query> match functionDecl(hasName("declaredOnce"), hasAnyBody(compoundStmt()))
+```clang-query
+match functionDecl(hasName("declaredOnce"), hasAnyBody(compoundStmt()))
 ```
 
 **Expected:** 0 matches — `declaredOnce` is never defined.
@@ -470,14 +470,14 @@ match. In the `Expl` template (lines 40–44), `explicit(false)` and
 `explicit(true)` carry a `ConstantExpr`; the dependent `explicit(b)` is still
 a bare `DeclRefExpr` because it cannot be evaluated until instantiation.
 
-```text
-clang-query> match cxxConstructorDecl(hasExplicitSpecifier(constantExpr()))
+```clang-query
+match cxxConstructorDecl(hasExplicitSpecifier(constantExpr()))
 ```
 
 **Expected:** 2 matches — `explicit(false) Expl(bool)` at `trav_decls.cpp:42` and `explicit(true) Expl(char)` at `:43`.
 
-```text
-clang-query> match cxxConstructorDecl(hasExplicitSpecifier(expr()))
+```clang-query
+match cxxConstructorDecl(hasExplicitSpecifier(expr()))
 ```
 
 **Expected:** 3 matches — lines `42`, `43` and the dependent `explicit(b) Expl(long)` at `trav_decls.cpp:44`.
@@ -497,14 +497,14 @@ Steps from a method to the **class that declares it**. Remember that a class
 owns implicit methods too (copy/move constructors, assignment), so filter
 with `unless(isImplicit())` when you want only what was written.
 
-```text
-clang-query> match cxxMethodDecl(ofClass(hasName("Dog")), unless(isImplicit()))
+```clang-query
+match cxxMethodDecl(ofClass(hasName("Dog")), unless(isImplicit()))
 ```
 
 **Expected:** 1 match — `Dog::speak` at `trav_decls.cpp:49`.
 
-```text
-clang-query> match cxxMethodDecl(ofClass(hasName("Dog")))
+```clang-query
+match cxxMethodDecl(ofClass(hasName("Dog")))
 ```
 
 **Expected:** 4 matches — `speak` plus three implicit special members, all reported at `trav_decls.cpp:49`.
@@ -512,8 +512,8 @@ clang-query> match cxxMethodDecl(ofClass(hasName("Dog")))
 The reference's use: find the construction expression whose constructor
 belongs to a given class.
 
-```text
-clang-query> match cxxConstructExpr(hasDeclaration(cxxMethodDecl(ofClass(hasName("Widget")))))
+```clang-query
+match cxxConstructExpr(hasDeclaration(cxxMethodDecl(ofClass(hasName("Widget")))))
 ```
 
 **Expected:** 1 match — `Widget()` at `trav_decls.cpp:55`.
@@ -524,18 +524,18 @@ Steps to each method that this method **directly overrides**, one result
 per overridden method. `Puppy::speak` overrides `Dog::speak`; it reaches
 `Animal::speak` only transitively, so it is not listed.
 
-```text
-clang-query> match cxxMethodDecl(ofClass(hasName("Puppy")),
-                                 forEachOverridden(cxxMethodDecl().bind("b"))).bind("d")
+```clang-query
+match cxxMethodDecl(ofClass(hasName("Puppy")),
+                    forEachOverridden(cxxMethodDecl().bind("b"))).bind("d")
 ```
 
 **Expected:** 1 match — `d` = `Puppy::speak` at `trav_decls.cpp:50`, `b` = `Dog::speak` at `:49`.
 
 Multiple inheritance produces multiple results:
 
-```text
-clang-query> match cxxMethodDecl(ofClass(hasName("Both")),
-                                 forEachOverridden(cxxMethodDecl().bind("b"))).bind("d")
+```clang-query
+match cxxMethodDecl(ofClass(hasName("Both")),
+                    forEachOverridden(cxxMethodDecl().bind("b"))).bind("d")
 ```
 
 **Expected:** 2 matches — `Both::act` at `trav_decls.cpp:53` twice, `b` bound to `Left::act` (`:51`) then `Right::act` (`:52`).
@@ -545,14 +545,14 @@ clang-query> match cxxMethodDecl(ofClass(hasName("Both")),
 Matches a class whose **first** method satisfying the inner matcher exists
 (one result per class, like `has`).
 
-```text
-clang-query> match cxxRecordDecl(hasMethod(hasName("render")))
+```clang-query
+match cxxRecordDecl(hasMethod(hasName("render")))
 ```
 
 **Expected:** 1 match — `Widget` at `trav_decls.cpp:54`.
 
-```text
-clang-query> match cxxRecordDecl(hasMethod(hasName("speak")))
+```clang-query
+match cxxRecordDecl(hasMethod(hasName("speak")))
 ```
 
 **Expected:** 3 matches — `Animal` at `trav_decls.cpp:48`, `Dog` at `:49`, `Puppy` at `:50`.
@@ -563,14 +563,14 @@ Matches a class with a **direct or indirect base specifier** matching. The
 inner matcher sees a `CXXBaseSpecifier`, so you use `hasType(...)`,
 `isPublic()`, `isVirtual()` and similar on it.
 
-```text
-clang-query> match cxxRecordDecl(hasAnyBase(hasType(cxxRecordDecl(hasName("SpecialBase")))))
+```clang-query
+match cxxRecordDecl(hasAnyBase(hasType(cxxRecordDecl(hasName("SpecialBase")))))
 ```
 
 **Expected:** 2 matches — `Proxy` at `trav_decls.cpp:57` and `IndirectlyDerived` at `:58`.
 
-```text
-clang-query> match cxxRecordDecl(hasAnyBase(isPrivate()))
+```clang-query
+match cxxRecordDecl(hasAnyBase(isPrivate()))
 ```
 
 **Expected:** 2 matches — `Proxy` at `trav_decls.cpp:57` and `IndirectlyDerived` at `:58` (a `class` base defaults to private).
@@ -579,14 +579,14 @@ clang-query> match cxxRecordDecl(hasAnyBase(isPrivate()))
 
 Same, but only **direct** bases count.
 
-```text
-clang-query> match cxxRecordDecl(hasDirectBase(hasType(cxxRecordDecl(hasName("SpecialBase")))))
+```clang-query
+match cxxRecordDecl(hasDirectBase(hasType(cxxRecordDecl(hasName("SpecialBase")))))
 ```
 
 **Expected:** 1 match — `Proxy` at `trav_decls.cpp:57`; `IndirectlyDerived` is excluded.
 
-```text
-clang-query> match cxxRecordDecl(hasDirectBase(isPublic()))
+```clang-query
+match cxxRecordDecl(hasDirectBase(isPublic()))
 ```
 
 **Expected:** 4 matches — `Dog` at `trav_decls.cpp:49`, `Puppy` at `:50`, `Both` at `:53`, `ViaTypedef` at `:61`.
@@ -598,14 +598,14 @@ The matcher-taking overload (the string form is in Part 5). Matches a class
 class is not derived from itself. Typedefs of the base are followed, which
 is why the inner matcher takes a `NamedDecl` rather than a `CXXRecordDecl`.
 
-```text
-clang-query> match cxxRecordDecl(isDerivedFrom(cxxRecordDecl(hasName("Animal"))))
+```clang-query
+match cxxRecordDecl(isDerivedFrom(cxxRecordDecl(hasName("Animal"))))
 ```
 
 **Expected:** 2 matches — `Dog` at `trav_decls.cpp:49` and `Puppy` at `:50`.
 
-```text
-clang-query> match cxxRecordDecl(isDerivedFrom(typedefDecl()))
+```clang-query
+match cxxRecordDecl(isDerivedFrom(typedefDecl()))
 ```
 
 **Expected:** 1 match — `ViaTypedef` at `trav_decls.cpp:61`, whose base `SB2` is a typedef of a typedef of `SpecialBase`.
@@ -615,14 +615,14 @@ clang-query> match cxxRecordDecl(isDerivedFrom(typedefDecl()))
 Only **direct** derivation counts. `ViaTypedef` still matches for
 `SpecialBase`, because the typedef chain resolves to that class.
 
-```text
-clang-query> match cxxRecordDecl(isDirectlyDerivedFrom(namedDecl(hasName("Animal"))))
+```clang-query
+match cxxRecordDecl(isDirectlyDerivedFrom(namedDecl(hasName("Animal"))))
 ```
 
 **Expected:** 1 match — `Dog` at `trav_decls.cpp:49`.
 
-```text
-clang-query> match cxxRecordDecl(isDirectlyDerivedFrom(hasName("SpecialBase")))
+```clang-query
+match cxxRecordDecl(isDirectlyDerivedFrom(hasName("SpecialBase")))
 ```
 
 **Expected:** 2 matches — `Proxy` at `trav_decls.cpp:57` and `ViaTypedef` at `:61`.
@@ -632,14 +632,14 @@ clang-query> match cxxRecordDecl(isDirectlyDerivedFrom(hasName("SpecialBase")))
 `isDerivedFrom` plus the base class itself. The base appears twice: once
 as the real declaration and once as its injected class name.
 
-```text
-clang-query> match cxxRecordDecl(isSameOrDerivedFrom(hasName("SpecialBase")))
+```clang-query
+match cxxRecordDecl(isSameOrDerivedFrom(hasName("SpecialBase")))
 ```
 
 **Expected:** 5 matches — `SpecialBase` at `trav_decls.cpp:56` (twice: the class and its injected class name), `Proxy` at `:57`, `IndirectlyDerived` at `:58`, `ViaTypedef` at `:61`.
 
-```text
-clang-query> match cxxRecordDecl(isSameOrDerivedFrom(hasName("SpecialBase")), unless(isImplicit()))
+```clang-query
+match cxxRecordDecl(isSameOrDerivedFrom(hasName("SpecialBase")), unless(isImplicit()))
 ```
 
 **Expected:** 4 matches — the same set without the injected class name.
@@ -658,14 +658,14 @@ expression. The sample's `Counter` is on line 64.
 Matches a constructor with **at least one** initializer satisfying the
 inner matcher (one result per constructor).
 
-```text
-clang-query> match cxxConstructorDecl(hasAnyConstructorInitializer(anything()))
+```clang-query
+match cxxConstructorDecl(hasAnyConstructorInitializer(anything()))
 ```
 
 **Expected:** 1 match — `Counter::Counter()` at `trav_decls.cpp:64`.
 
-```text
-clang-query> match cxxConstructorDecl(hasAnyConstructorInitializer(forField(hasName("misses"))))
+```clang-query
+match cxxConstructorDecl(hasAnyConstructorInitializer(forField(hasName("misses"))))
 ```
 
 **Expected:** 1 match — `Counter::Counter()` at `trav_decls.cpp:64`.
@@ -674,8 +674,8 @@ clang-query> match cxxConstructorDecl(hasAnyConstructorInitializer(forField(hasN
 
 One result **per initializer** that matches (bind inside to see them).
 
-```text
-clang-query> match cxxConstructorDecl(forEachConstructorInitializer(forField(decl().bind("x"))))
+```clang-query
+match cxxConstructorDecl(forEachConstructorInitializer(forField(decl().bind("x"))))
 ```
 
 **Expected:** 2 matches — `Counter::Counter()` at `trav_decls.cpp:64` twice, `x` bound to `hits` then `misses`.
@@ -685,8 +685,8 @@ clang-query> match cxxConstructorDecl(forEachConstructorInitializer(forField(dec
 Steps from an initializer to the **field it initializes**. Base-class and
 delegating initializers have no field and never match.
 
-```text
-clang-query> match cxxCtorInitializer(forField(hasName("hits")))
+```clang-query
+match cxxCtorInitializer(forField(hasName("hits")))
 ```
 
 **Expected:** 1 match — `hits(0)` at `trav_decls.cpp:64`.
@@ -695,8 +695,8 @@ clang-query> match cxxCtorInitializer(forField(hasName("hits")))
 
 Steps from an initializer to its **expression** (the `0` in `hits(0)`).
 
-```text
-clang-query> match cxxCtorInitializer(withInitializer(integerLiteral(equals(0))))
+```clang-query
+match cxxCtorInitializer(withInitializer(integerLiteral(equals(0))))
 ```
 
 **Expected:** 2 matches — `hits(0)` and `misses(0)` at `trav_decls.cpp:64`.
@@ -716,14 +716,14 @@ part of the expression in `AsIs` mode, which is why `widened` needs
 `ignoringImplicit` (or `set traversal IgnoreUnlessSpelledInSource`, see
 `traverse` above).
 
-```text
-clang-query> match varDecl(hasInitializer(callExpr()))
+```clang-query
+match varDecl(hasInitializer(callExpr()))
 ```
 
 **Expected:** 1 match — `bool flag = probe();` at `trav_decls.cpp:68`.
 
-```text
-clang-query> match varDecl(hasInitializer(ignoringImplicit(integerLiteral())))
+```clang-query
+match varDecl(hasInitializer(ignoringImplicit(integerLiteral())))
 ```
 
 **Expected:** 3 matches — `v` at `trav_decls.cpp:11`, `v` at `:12`, `widened` at `:13`.
@@ -733,14 +733,14 @@ clang-query> match varDecl(hasInitializer(ignoringImplicit(integerLiteral())))
 Steps from a non-static data member to its **default member initializer**
 (`int a = 2;`). Fields without one never match.
 
-```text
-clang-query> match fieldDecl(hasInClassInitializer(integerLiteral(equals(2))))
+```clang-query
+match fieldDecl(hasInClassInitializer(integerLiteral(equals(2))))
 ```
 
 **Expected:** 1 match — `Config::a` at `trav_decls.cpp:69`.
 
-```text
-clang-query> match fieldDecl(hasInClassInitializer(anything()))
+```clang-query
+match fieldDecl(hasInClassInitializer(anything()))
 ```
 
 **Expected:** 2 matches — `Config::a` and `Config::b` at `trav_decls.cpp:69`; `c` has no initializer.
@@ -749,14 +749,14 @@ clang-query> match fieldDecl(hasInClassInitializer(anything()))
 
 Steps to the **N-th binding** (zero-based) of a structured binding.
 
-```text
-clang-query> match decompositionDecl(hasBinding(0, bindingDecl(hasName("f")).bind("fBinding")))
+```clang-query
+match decompositionDecl(hasBinding(0, bindingDecl(hasName("f")).bind("fBinding")))
 ```
 
 **Expected:** 1 match — `auto &[f, s, t]` at `trav_decls.cpp:70`, `fBinding` = `f`.
 
-```text
-clang-query> match decompositionDecl(hasBinding(2, bindingDecl(hasName("f"))))
+```clang-query
+match decompositionDecl(hasBinding(2, bindingDecl(hasName("f"))))
 ```
 
 **Expected:** 0 matches — binding 2 is `t`, not `f`.
@@ -765,8 +765,8 @@ clang-query> match decompositionDecl(hasBinding(2, bindingDecl(hasName("f"))))
 
 Matches when **any** binding matches, regardless of position.
 
-```text
-clang-query> match decompositionDecl(hasAnyBinding(bindingDecl(hasName("f")).bind("fBinding")))
+```clang-query
+match decompositionDecl(hasAnyBinding(bindingDecl(hasName("f")).bind("fBinding")))
 ```
 
 **Expected:** 1 match — `auto &[f, s, t]` at `trav_decls.cpp:70`, `fBinding` = `f`.
@@ -776,15 +776,15 @@ clang-query> match decompositionDecl(hasAnyBinding(bindingDecl(hasName("f")).bin
 The reverse direction: from a **binding** up to the `DecompositionDecl` it
 belongs to.
 
-```text
-clang-query> match bindingDecl(hasName("f"), forDecomposition(decompositionDecl()))
+```clang-query
+match bindingDecl(hasName("f"), forDecomposition(decompositionDecl()))
 ```
 
 **Expected:** 1 match — `f` at `trav_decls.cpp:70`.
 
-```text
-clang-query> match bindingDecl(forDecomposition(
-               decompositionDecl(hasInitializer(declRefExpr(to(varDecl(hasName("arr"))))))))
+```clang-query
+match bindingDecl(forDecomposition(
+  decompositionDecl(hasInitializer(declRefExpr(to(varDecl(hasName("arr"))))))))
 ```
 
 **Expected:** 3 matches — `f`, `s`, `t` at `trav_decls.cpp:70`, all bound from `arr`.
@@ -802,20 +802,20 @@ Steps from a declaration to its **enclosing declaration context** viewed as
 a `Decl` — a namespace, a class, a function, or the translation unit. Only
 the immediate context is checked.
 
-```text
-clang-query> match cxxRecordDecl(hasDeclContext(namedDecl(hasName("M"))))
+```clang-query
+match cxxRecordDecl(hasDeclContext(namedDecl(hasName("M"))))
 ```
 
 **Expected:** 1 match — `N::M::D` at `trav_decls.cpp:73`.
 
-```text
-clang-query> match functionDecl(hasDeclContext(namespaceDecl(hasName("Lib"))))
+```clang-query
+match functionDecl(hasDeclContext(namespaceDecl(hasName("Lib"))))
 ```
 
 **Expected:** 1 match — `Lib::helper` at `trav_decls.cpp:74`.
 
-```text
-clang-query> match cxxMethodDecl(hasDeclContext(cxxRecordDecl(hasName("Triple"))))
+```clang-query
+match cxxMethodDecl(hasDeclContext(cxxRecordDecl(hasName("Triple"))))
 ```
 
 **Expected:** 1 match — `Triple::f` at `trav_decls.cpp:38`.
@@ -827,15 +827,15 @@ Steps from a named declaration to its **underlying declaration** — for a
 declaration it is the declaration itself. The reference example resolves a
 dependent call `fn(T())` through the `using NF::fn;` on line 78.
 
-```text
-clang-query> match unresolvedLookupExpr(hasAnyDeclaration(
-               namedDecl(hasUnderlyingDecl(hasName("::NF::fn")))))
+```clang-query
+match unresolvedLookupExpr(hasAnyDeclaration(
+  namedDecl(hasUnderlyingDecl(hasName("::NF::fn")))))
 ```
 
 **Expected:** 1 match — the `fn` in `fn(T())` at `trav_decls.cpp:78`.
 
-```text
-clang-query> match usingShadowDecl(hasUnderlyingDecl(hasName("helper")))
+```clang-query
+match usingShadowDecl(hasUnderlyingDecl(hasName("helper")))
 ```
 
 **Expected:** 1 match — the shadow introduced by `using Lib::helper;` at `trav_decls.cpp:76`.
@@ -846,8 +846,8 @@ A `using X::b;` declaration owns one `UsingShadowDecl` per entity it
 introduces (one per overload for functions). This matcher steps from the
 `using` declaration to **any** of its shadows.
 
-```text
-clang-query> match usingDecl(hasAnyUsingShadowDecl(hasName("helper")))
+```clang-query
+match usingDecl(hasAnyUsingShadowDecl(hasName("helper")))
 ```
 
 **Expected:** 1 match — `using Lib::helper;` at `trav_decls.cpp:76`.
@@ -858,14 +858,14 @@ Steps from a shadow declaration to the **declaration it targets**. Combined
 with `hasAnyUsingShadowDecl` this tells `using` of a function apart from
 `using` of a variable.
 
-```text
-clang-query> match usingDecl(hasAnyUsingShadowDecl(hasTargetDecl(functionDecl())))
+```clang-query
+match usingDecl(hasAnyUsingShadowDecl(hasTargetDecl(functionDecl())))
 ```
 
 **Expected:** 1 match — `using Lib::helper;` at `trav_decls.cpp:76`.
 
-```text
-clang-query> match usingDecl(hasAnyUsingShadowDecl(hasTargetDecl(varDecl())))
+```clang-query
+match usingDecl(hasAnyUsingShadowDecl(hasTargetDecl(varDecl())))
 ```
 
 **Expected:** 1 match — `using Lib::counter;` at `trav_decls.cpp:75`.
@@ -899,9 +899,9 @@ in each?
 > [!success]- Answer
 > `cxxRecordDecl(isDerivedFrom(hasName("Animal")), hasMethod(forEachOverridden(cxxMethodDecl().bind("over"))))` — 2 matches: `Dog` (`over` = `Animal::speak`, line 48) and `Puppy` (`over` = `Dog::speak`, line 49).
 
-```text
-clang-query> match cxxRecordDecl(isDerivedFrom(hasName("Animal")),
-                                 hasMethod(forEachOverridden(cxxMethodDecl().bind("over"))))
+```clang-query
+match cxxRecordDecl(isDerivedFrom(hasName("Animal")),
+                    hasMethod(forEachOverridden(cxxMethodDecl().bind("over"))))
 ```
 
 **Expected:** 2 matches — `Dog` at `trav_decls.cpp:49` and `Puppy` at `:50`.

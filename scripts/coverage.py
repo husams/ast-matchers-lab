@@ -11,7 +11,7 @@ An entry is a heading of the form
 
 Every row must appear, with its return type, in the doc of its assigned part
 (`docs/part_<N>_*.md`), and every entry heading must contain at least one
-example block (a fenced block with a `clang-query>` line) before the next
+example block (a fenced block opened with ```clang-query) before the next
 heading — or, for names not registered in clang-query 22, a line starting
 with `**Not in clang-query 22**`.
 """
@@ -48,7 +48,7 @@ def entries(path):
             cur = (m.group(1), rets)
             body_has_example = False
             continue
-        if cur and (ln.startswith("clang-query>") or ln.startswith("**Not in clang-query 22**")):
+        if cur and (ln.startswith("```clang-query") or ln.startswith("**Not in clang-query 22**")):
             body_has_example = True
     close()
     return result

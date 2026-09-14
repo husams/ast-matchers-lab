@@ -64,8 +64,8 @@ $LLVM/bin/clang-query manifests/<file> -- -std=c++23
 
 <1–3 sentences: what it matches, in plain English, with the sample in mind.>
 
-```text
-clang-query> match namedDecl(hasName("Circle"))
+```clang-query
+match namedDecl(hasName("Circle"))
 ```
 
 **Expected:** 1 match — `Circle` at `decls.cpp:12`.
@@ -109,10 +109,13 @@ clang-query> match namedDecl(hasName("Circle"))
 
 ### Example block — exact form
 
-* Fenced block (```` ```text ````), lines start with `clang-query> `.
+* Fenced block opened with ```` ```clang-query ```` — never ```` ```text ````,
+  which is for diagrams and output. No `clang-query> ` prompt: the block
+  must paste straight into the REPL.
 * One `match` per block. `set …` / `let …` lines may precede it in the same
   block (state does **not** carry across blocks in validation).
-* Multi-line matchers: continue on the next line without the prompt.
+* Every line at column 0 is one command. Multi-line matchers continue on
+  the next line **indented** (two or more spaces); `#` lines are comments.
 * Immediately after the block:
   `**Expected:** N match(es) — <what/where, e.g. names + line numbers>.`
   `check.py` compares N with clang-query's count. N is normally ≥ 1; a

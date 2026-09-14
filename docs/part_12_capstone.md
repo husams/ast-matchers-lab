@@ -61,8 +61,8 @@ expected. Clang records that conversion as an implicit cast of kind
 **Step 1 — every null-to-pointer conversion.** This also catches the two
 `nullptr` uses, which are fine.
 
-```text
-clang-query> match implicitCastExpr(hasCastKind("CK_NullToPointer"))
+```clang-query
+match implicitCastExpr(hasCastKind("CK_NullToPointer"))
 ```
 
 **Expected:** 9 matches — `capstone.cpp:24`, `:46`, `:50`, `:51`, `:52`, `:53`, `:54`, `:56` and `:193` (inside the `CHECK` macro).
@@ -70,9 +70,9 @@ clang-query> match implicitCastExpr(hasCastKind("CK_NullToPointer"))
 **Step 2 — drop the `nullptr` keyword.** The cast's source expression must not
 be a `cxxNullPtrLiteralExpr`. Lines 51 and 54 disappear.
 
-```text
-clang-query> match implicitCastExpr(hasCastKind("CK_NullToPointer"),
-                                    hasSourceExpression(unless(cxxNullPtrLiteralExpr())))
+```clang-query
+match implicitCastExpr(hasCastKind("CK_NullToPointer"),
+                       hasSourceExpression(unless(cxxNullPtrLiteralExpr())))
 ```
 
 **Expected:** 7 matches — `capstone.cpp:24`, `:46`, `:50`, `:52`, `:53`, `:56`, `:193`, exactly the seven `SMELL:nullptr` tags.
@@ -81,19 +81,19 @@ clang-query> match implicitCastExpr(hasCastKind("CK_NullToPointer"),
 literal expanded from the `NULL` macro separates the macro uses from plain
 `0`s. Useful when the fix-it would have to touch a macro definition instead.
 
-```text
-clang-query> match implicitCastExpr(hasCastKind("CK_NullToPointer"),
-                                    hasSourceExpression(integerLiteral(isExpandedFromMacro("NULL"))))
+```clang-query
+match implicitCastExpr(hasCastKind("CK_NullToPointer"),
+                       hasSourceExpression(integerLiteral(isExpandedFromMacro("NULL"))))
 ```
 
 **Expected:** 4 matches — `capstone.cpp:24`, `:50`, `:56`, `:193`.
 
 **Final script** — `manifests/queries/use-nullptr.query`:
 
-```text
-clang-query> let notNullptr hasSourceExpression(unless(cxxNullPtrLiteralExpr()))
-clang-query> let nullConst implicitCastExpr(hasCastKind("CK_NullToPointer"), notNullptr)
-clang-query> match nullConst.bind("null")
+```clang-query
+let notNullptr hasSourceExpression(unless(cxxNullPtrLiteralExpr()))
+let nullConst implicitCastExpr(hasCastKind("CK_NullToPointer"), notNullptr)
+match nullConst.bind("null")
 ```
 
 **Expected:** 7 matches — the same seven casts as Step 2.
@@ -112,8 +112,8 @@ and `attr::Final`.
 *implicit* destructor of `Label` overrides `~Button`, and `Polygon::area`
 at `:94` is included too.
 
-```text
-clang-query> match cxxMethodDecl(isOverride())
+```clang-query
+match cxxMethodDecl(isOverride())
 ```
 
 **Expected:** 9 matches — `capstone.cpp:72`, `:73`, `:74`, `:75`, `:76`, `:81`, `:82`, `:94` and the implicit `~Label` at `:79`.
@@ -121,8 +121,8 @@ clang-query> match cxxMethodDecl(isOverride())
 **Step 2 — drop those spelled `override`.** Five remain, but two of them are
 not smells: `id()` at `:75` says `final`, and `~Label` is compiler-generated.
 
-```text
-clang-query> match cxxMethodDecl(isOverride(), unless(hasAttr("attr::Override")))
+```clang-query
+match cxxMethodDecl(isOverride(), unless(hasAttr("attr::Override")))
 ```
 
 **Expected:** 5 matches — `capstone.cpp:72`, `:74`, `:75`, `:81` and the implicit `~Label` at `:79`.
@@ -130,20 +130,20 @@ clang-query> match cxxMethodDecl(isOverride(), unless(hasAttr("attr::Override"))
 **Step 3 — accept `final`, ignore implicit methods.** Exactly the three
 `SMELL:override` tags remain.
 
-```text
-clang-query> match cxxMethodDecl(isOverride(),
-                                 unless(anyOf(hasAttr("attr::Override"), hasAttr("attr::Final"))),
-                                 unless(isImplicit()))
+```clang-query
+match cxxMethodDecl(isOverride(),
+                    unless(anyOf(hasAttr("attr::Override"), hasAttr("attr::Final"))),
+                    unless(isImplicit()))
 ```
 
 **Expected:** 3 matches — `~Button` at `capstone.cpp:72`, `Button::resize` at `:74`, `Label::draw` at `:81`.
 
 **Final script** — `manifests/queries/use-override.query`:
 
-```text
-clang-query> let marked anyOf(hasAttr("attr::Override"), hasAttr("attr::Final"))
-clang-query> let handWritten unless(isImplicit())
-clang-query> match cxxMethodDecl(isOverride(), unless(marked), handWritten).bind("method")
+```clang-query
+let marked anyOf(hasAttr("attr::Override"), hasAttr("attr::Final"))
+let handWritten unless(isImplicit())
+match cxxMethodDecl(isOverride(), unless(marked), handWritten).bind("method")
 ```
 
 **Expected:** 3 matches — `capstone.cpp:72`, `:74`, `:81`.
@@ -160,8 +160,8 @@ that offers `empty()`. Composes `binaryOperator`, `hasAnyOperatorName`,
 **Step 1 — every `size()` call.** Ten, including the two on `Counter`, which
 has no `empty()`.
 
-```text
-clang-query> match cxxMemberCallExpr(callee(cxxMethodDecl(hasName("size"))))
+```clang-query
+match cxxMemberCallExpr(callee(cxxMethodDecl(hasName("size"))))
 ```
 
 **Expected:** 10 matches — `capstone.cpp:44`, `:104`–`:107`, `:109`, `:110`, `:139`, `:152`, `:192`.
@@ -169,9 +169,9 @@ clang-query> match cxxMemberCallExpr(callee(cxxMethodDecl(hasName("size"))))
 **Step 2 — only classes that also have `empty()`.** `ofClass` narrows on the
 method's class; the two `Counter` calls at `:109` and `:152` drop out.
 
-```text
-clang-query> match cxxMemberCallExpr(callee(cxxMethodDecl(hasName("size"),
-                                                          ofClass(hasMethod(hasName("empty"))))))
+```clang-query
+match cxxMemberCallExpr(callee(cxxMethodDecl(hasName("size"),
+                                             ofClass(hasMethod(hasName("empty"))))))
 ```
 
 **Expected:** 8 matches — `capstone.cpp:44`, `:104`–`:107`, `:110`, `:139`, `:192`.
@@ -181,24 +181,24 @@ operands are, in either order, that call and the literal `0`. The literal is
 promoted to `unsigned`, so `ignoringImpCasts` is needed on both sides.
 Line 110 (`== MAX_ITEMS`) is not a zero comparison and stays out.
 
-```text
-clang-query> match binaryOperator(hasAnyOperatorName("==", "!=", ">"),
-                                  hasEitherOperand(ignoringImpCasts(integerLiteral(equals(0)))),
-                                  hasEitherOperand(ignoringImpCasts(cxxMemberCallExpr(callee(cxxMethodDecl(
-                                      hasName("size"), ofClass(hasMethod(hasName("empty")))))))))
+```clang-query
+match binaryOperator(hasAnyOperatorName("==", "!=", ">"),
+                     hasEitherOperand(ignoringImpCasts(integerLiteral(equals(0)))),
+                     hasEitherOperand(ignoringImpCasts(cxxMemberCallExpr(callee(cxxMethodDecl(
+                         hasName("size"), ofClass(hasMethod(hasName("empty")))))))))
 ```
 
 **Expected:** 4 matches — `capstone.cpp:104`, `:105`, `:106`, `:107`.
 
 **Final script** — `manifests/queries/container-size-empty.query`:
 
-```text
-clang-query> let sizeOfContainer cxxMemberCallExpr(
-               callee(cxxMethodDecl(hasName("size"), ofClass(hasMethod(hasName("empty"))))))
-clang-query> let zero ignoringImpCasts(integerLiteral(equals(0)))
-clang-query> match binaryOperator(hasAnyOperatorName("==", "!=", ">"),
-                                  hasEitherOperand(zero),
-                                  hasEitherOperand(ignoringImpCasts(sizeOfContainer))).bind("cmp")
+```clang-query
+let sizeOfContainer cxxMemberCallExpr(
+  callee(cxxMethodDecl(hasName("size"), ofClass(hasMethod(hasName("empty"))))))
+let zero ignoringImpCasts(integerLiteral(equals(0)))
+match binaryOperator(hasAnyOperatorName("==", "!=", ">"),
+                     hasEitherOperand(zero),
+                     hasEitherOperand(ignoringImpCasts(sizeOfContainer))).bind("cmp")
 ```
 
 **Expected:** 4 matches — `capstone.cpp:104`, `:105`, `:106`, `:107`.
@@ -216,8 +216,8 @@ comparison. Composes `ifStmt`, `hasCondition`, `ignoringParenImpCasts`,
 **Step 1 — the naive query finds nothing**, because the assignment is never
 the direct condition.
 
-```text
-clang-query> match ifStmt(hasCondition(binaryOperator(isAssignmentOperator())))
+```clang-query
+match ifStmt(hasCondition(binaryOperator(isAssignmentOperator())))
 ```
 
 **Expected:** 0 matches — the condition node is an `ImplicitCastExpr`, not the operator.
@@ -225,17 +225,17 @@ clang-query> match ifStmt(hasCondition(binaryOperator(isAssignmentOperator())))
 **Step 2 — look through the cast.** Line 130 is not matched: after the parens
 the outermost operator is `!=`, and the `while` at `:131` is not an `if`.
 
-```text
-clang-query> match ifStmt(hasCondition(ignoringParenImpCasts(binaryOperator(isAssignmentOperator()))))
+```clang-query
+match ifStmt(hasCondition(ignoringParenImpCasts(binaryOperator(isAssignmentOperator()))))
 ```
 
 **Expected:** 1 match — `capstone.cpp:129`.
 
 **Final script** — `manifests/queries/assignment-in-if-condition.query`:
 
-```text
-clang-query> let assignment ignoringParenImpCasts(binaryOperator(isAssignmentOperator()))
-clang-query> match ifStmt(hasCondition(assignment)).bind("if")
+```clang-query
+let assignment ignoringParenImpCasts(binaryOperator(isAssignmentOperator()))
+match ifStmt(hasCondition(assignment)).bind("if")
 ```
 
 **Expected:** 1 match — `capstone.cpp:129`.
@@ -249,10 +249,10 @@ instead. Composes `hasLHS`, `hasRHS`, `declRefExpr`, `to`, `memberExpr`,
 
 **Step 1 — the wrong way (node identity).**
 
-```text
-clang-query> match binaryOperator(hasOperatorName("="),
-                                  hasLHS(expr().bind("lhs")),
-                                  hasRHS(ignoringImpCasts(expr(equalsBoundNode("lhs")))))
+```clang-query
+match binaryOperator(hasOperatorName("="),
+                     hasLHS(expr().bind("lhs")),
+                     hasRHS(ignoringImpCasts(expr(equalsBoundNode("lhs")))))
 ```
 
 **Expected:** 0 matches — the two operand nodes are never the same object.
@@ -261,10 +261,10 @@ clang-query> match binaryOperator(hasOperatorName("="),
 refers to, then require the right side to refer to that bound declaration.
 This is the `pos = pos` at `:120`, where the parameter shadows the field.
 
-```text
-clang-query> match binaryOperator(hasOperatorName("="),
-                                  hasLHS(declRefExpr(to(varDecl().bind("v")))),
-                                  hasRHS(ignoringImpCasts(declRefExpr(to(varDecl(equalsBoundNode("v")))))))
+```clang-query
+match binaryOperator(hasOperatorName("="),
+                     hasLHS(declRefExpr(to(varDecl().bind("v")))),
+                     hasRHS(ignoringImpCasts(declRefExpr(to(varDecl(equalsBoundNode("v")))))))
 ```
 
 **Expected:** 1 match — `capstone.cpp:120` (`pos = pos` in `Cursor::reset`).
@@ -274,27 +274,27 @@ clang-query> match binaryOperator(hasOperatorName("="),
 `a.x = b.x`. The final script therefore also pins the object: both sides use
 `this`, or both sides use the same bound variable.
 
-```text
-clang-query> match binaryOperator(hasOperatorName("="),
-                                  hasLHS(memberExpr(member(fieldDecl().bind("f")))),
-                                  hasRHS(ignoringImpCasts(memberExpr(member(fieldDecl(equalsBoundNode("f")))))))
+```clang-query
+match binaryOperator(hasOperatorName("="),
+                     hasLHS(memberExpr(member(fieldDecl().bind("f")))),
+                     hasRHS(ignoringImpCasts(memberExpr(member(fieldDecl(equalsBoundNode("f")))))))
 ```
 
 **Expected:** 2 matches — `capstone.cpp:123` and `:133`.
 
 **Final script** — `manifests/queries/self-assignment.query`:
 
-```text
-clang-query> let sameVar allOf(hasLHS(declRefExpr(to(varDecl().bind("v")))),
-                               hasRHS(ignoringImpCasts(declRefExpr(to(varDecl(equalsBoundNode("v")))))))
-clang-query> let sameThisField allOf(hasLHS(memberExpr(member(fieldDecl().bind("f")), hasObjectExpression(cxxThisExpr()))),
-                                     hasRHS(ignoringImpCasts(memberExpr(member(fieldDecl(equalsBoundNode("f"))),
-                                                                        hasObjectExpression(cxxThisExpr())))))
-clang-query> let sameObjField allOf(hasLHS(memberExpr(member(fieldDecl().bind("g")),
-                                                       hasObjectExpression(ignoringImpCasts(declRefExpr(to(varDecl().bind("o"))))))),
-                                    hasRHS(ignoringImpCasts(memberExpr(member(fieldDecl(equalsBoundNode("g"))),
-                                                                       hasObjectExpression(ignoringImpCasts(declRefExpr(to(varDecl(equalsBoundNode("o"))))))))))
-clang-query> match binaryOperator(hasOperatorName("="), anyOf(sameVar, sameThisField, sameObjField)).bind("self")
+```clang-query
+let sameVar allOf(hasLHS(declRefExpr(to(varDecl().bind("v")))),
+                  hasRHS(ignoringImpCasts(declRefExpr(to(varDecl(equalsBoundNode("v")))))))
+let sameThisField allOf(hasLHS(memberExpr(member(fieldDecl().bind("f")), hasObjectExpression(cxxThisExpr()))),
+                        hasRHS(ignoringImpCasts(memberExpr(member(fieldDecl(equalsBoundNode("f"))),
+                                                           hasObjectExpression(cxxThisExpr())))))
+let sameObjField allOf(hasLHS(memberExpr(member(fieldDecl().bind("g")),
+                                          hasObjectExpression(ignoringImpCasts(declRefExpr(to(varDecl().bind("o"))))))),
+                       hasRHS(ignoringImpCasts(memberExpr(member(fieldDecl(equalsBoundNode("g"))),
+                                                          hasObjectExpression(ignoringImpCasts(declRefExpr(to(varDecl(equalsBoundNode("o"))))))))))
+match binaryOperator(hasOperatorName("="), anyOf(sameVar, sameThisField, sameObjField)).bind("self")
 ```
 
 **Expected:** 3 matches — `capstone.cpp:120`, `:123`, `:133`, the three `SMELL:self-assign` tags.
@@ -317,8 +317,8 @@ is assigned to". Composes `parmVarDecl`, `hasType`, `cxxRecordDecl`,
 **Step 1 — every by-value class parameter.** Includes `Counter c` at `:151`,
 which is cheap.
 
-```text
-clang-query> match parmVarDecl(hasType(recordDecl()))
+```clang-query
+match parmVarDecl(hasType(recordDecl()))
 ```
 
 **Expected:** 4 matches — `capstone.cpp:137`, `:143`, `:147`, `:151`.
@@ -326,9 +326,9 @@ clang-query> match parmVarDecl(hasType(recordDecl()))
 **Step 2 — only "heavy" classes.** `Vec` declares its own copy constructor;
 `Counter` does not.
 
-```text
-clang-query> match parmVarDecl(hasType(cxxRecordDecl(hasMethod(
-                                 cxxConstructorDecl(isCopyConstructor(), unless(isImplicit()))))))
+```clang-query
+match parmVarDecl(hasType(cxxRecordDecl(hasMethod(
+                    cxxConstructorDecl(isCopyConstructor(), unless(isImplicit()))))))
 ```
 
 **Expected:** 3 matches — `v` in `total` (`capstone.cpp:137`), `grow` (`:143`) and `replace` (`:147`).
@@ -339,29 +339,29 @@ method *on* that parameter (`v.push(1)` at `:144`), and an `operator=` call
 whose first argument is that parameter (`v = src` at `:148`). Note that a
 class assignment is a `cxxOperatorCallExpr`, not a `binaryOperator`.
 
-```text
-clang-query> match functionDecl(hasAnyParameter(parmVarDecl(hasType(cxxRecordDecl(hasMethod(
-                                    cxxConstructorDecl(isCopyConstructor(), unless(isImplicit())))))).bind("p")),
-                                unless(hasDescendant(cxxMemberCallExpr(on(declRefExpr(to(equalsBoundNode("p")))),
-                                                                       callee(cxxMethodDecl(unless(isConst())))))),
-                                unless(hasDescendant(cxxOperatorCallExpr(isAssignmentOperator(),
-                                                                         hasArgument(0, declRefExpr(to(equalsBoundNode("p"))))))))
+```clang-query
+match functionDecl(hasAnyParameter(parmVarDecl(hasType(cxxRecordDecl(hasMethod(
+                       cxxConstructorDecl(isCopyConstructor(), unless(isImplicit())))))).bind("p")),
+                   unless(hasDescendant(cxxMemberCallExpr(on(declRefExpr(to(equalsBoundNode("p")))),
+                                                          callee(cxxMethodDecl(unless(isConst())))))),
+                   unless(hasDescendant(cxxOperatorCallExpr(isAssignmentOperator(),
+                                                            hasArgument(0, declRefExpr(to(equalsBoundNode("p"))))))))
 ```
 
 **Expected:** 1 match — `total` at `capstone.cpp:137`.
 
 **Final script** — `manifests/queries/unnecessary-value-param.query`:
 
-```text
-clang-query> let heavy cxxRecordDecl(hasMethod(cxxConstructorDecl(isCopyConstructor(), unless(isImplicit()))))
-clang-query> let heavyParam parmVarDecl(hasType(heavy)).bind("p")
-clang-query> let mutatingCall cxxMemberCallExpr(on(declRefExpr(to(equalsBoundNode("p")))),
-                                                callee(cxxMethodDecl(unless(isConst()))))
-clang-query> let assignedTo cxxOperatorCallExpr(isAssignmentOperator(),
-                                                hasArgument(0, declRefExpr(to(equalsBoundNode("p")))))
-clang-query> match functionDecl(hasAnyParameter(heavyParam),
-                                unless(hasDescendant(mutatingCall)),
-                                unless(hasDescendant(assignedTo))).bind("fn")
+```clang-query
+let heavy cxxRecordDecl(hasMethod(cxxConstructorDecl(isCopyConstructor(), unless(isImplicit()))))
+let heavyParam parmVarDecl(hasType(heavy)).bind("p")
+let mutatingCall cxxMemberCallExpr(on(declRefExpr(to(equalsBoundNode("p")))),
+                                   callee(cxxMethodDecl(unless(isConst()))))
+let assignedTo cxxOperatorCallExpr(isAssignmentOperator(),
+                                   hasArgument(0, declRefExpr(to(equalsBoundNode("p")))))
+match functionDecl(hasAnyParameter(heavyParam),
+                   unless(hasDescendant(mutatingCall)),
+                   unless(hasDescendant(assignedTo))).bind("fn")
 ```
 
 **Expected:** 1 match — `capstone.cpp:137`.
@@ -384,8 +384,8 @@ virtual — whether declared non-virtual (`Polygon`) or never declared at all
 **Step 1 — polymorphic classes.** Six, including `Shape::Inner`, whose only
 virtual member is its destructor.
 
-```text
-clang-query> match cxxRecordDecl(isDefinition(), has(cxxMethodDecl(isVirtual())))
+```clang-query
+match cxxRecordDecl(isDefinition(), has(cxxMethodDecl(isVirtual())))
 ```
 
 **Expected:** 6 matches — `Widget` (`capstone.cpp:61`), `Button` (`:70`), `Label` (`:79`), `Shape` (`:85`), `Shape::Inner` (`:87`), `Polygon` (`:92`).
@@ -394,10 +394,10 @@ clang-query> match cxxRecordDecl(isDefinition(), has(cxxMethodDecl(isVirtual()))
 `Label` are fine because their destructors inherit virtual-ness from
 `~Widget`.
 
-```text
-clang-query> match cxxRecordDecl(isDefinition(),
-                                 has(cxxMethodDecl(isVirtual())),
-                                 unless(has(cxxDestructorDecl(isVirtual()))))
+```clang-query
+match cxxRecordDecl(isDefinition(),
+                    has(cxxMethodDecl(isVirtual())),
+                    unless(has(cxxDestructorDecl(isVirtual()))))
 ```
 
 **Expected:** 2 matches — `Shape` at `capstone.cpp:85` and `Polygon` at `:92`.
@@ -408,20 +408,20 @@ it. `has` looks only at the class's own members; `hasDescendant` walks into
 nested classes, method bodies, everything. For "does this class declare X",
 `has` (or `hasMethod`) is the right tool.
 
-```text
-clang-query> match cxxRecordDecl(isDefinition(),
-                                 hasDescendant(cxxMethodDecl(isVirtual())),
-                                 unless(hasDescendant(cxxDestructorDecl(isVirtual()))))
+```clang-query
+match cxxRecordDecl(isDefinition(),
+                    hasDescendant(cxxMethodDecl(isVirtual())),
+                    unless(hasDescendant(cxxDestructorDecl(isVirtual()))))
 ```
 
 **Expected:** 1 match — only `Polygon` at `capstone.cpp:92`; `Shape` is wrongly excused by `~Inner`.
 
 **Final script** — `manifests/queries/non-virtual-destructor.query`:
 
-```text
-clang-query> let polymorphic has(cxxMethodDecl(isVirtual()))
-clang-query> let virtualDtor has(cxxDestructorDecl(isVirtual()))
-clang-query> match cxxRecordDecl(isDefinition(), polymorphic, unless(virtualDtor)).bind("class")
+```clang-query
+let polymorphic has(cxxMethodDecl(isVirtual()))
+let virtualDtor has(cxxDestructorDecl(isVirtual()))
+match cxxRecordDecl(isDefinition(), polymorphic, unless(virtualDtor)).bind("class")
 ```
 
 **Expected:** 2 matches — `capstone.cpp:85`, `:92`.
@@ -439,8 +439,8 @@ list has no `default:`. Composes `switchStmt`, `hasCondition`,
 switch at `:169` shows up: unscoped enums are promoted to `int` in the
 condition, so the condition node is an implicit cast whose type is `int`.
 
-```text
-clang-query> match switchStmt(hasCondition(hasType(enumType())))
+```clang-query
+match switchStmt(hasCondition(hasType(enumType())))
 ```
 
 **Expected:** 1 match — `capstone.cpp:169`.
@@ -448,8 +448,8 @@ clang-query> match switchStmt(hasCondition(hasType(enumType())))
 **Step 2 — look through the promotion.** Now all three enum switches appear;
 `switch (raw)` at `:176` is an `int` and stays out.
 
-```text
-clang-query> match switchStmt(hasCondition(ignoringImpCasts(hasType(enumDecl()))))
+```clang-query
+match switchStmt(hasCondition(ignoringImpCasts(hasType(enumDecl()))))
 ```
 
 **Expected:** 3 matches — `capstone.cpp:161`, `:169`, `:180`.
@@ -458,9 +458,9 @@ clang-query> match switchStmt(hasCondition(ignoringImpCasts(hasType(enumDecl()))
 obvious narrowing and it is wrong: the switch at `:180` contains a *nested*
 switch with a `default:` at `:182`, which excuses the outer one.
 
-```text
-clang-query> match switchStmt(hasCondition(ignoringImpCasts(hasType(enumDecl()))),
-                              unless(hasDescendant(defaultStmt())))
+```clang-query
+match switchStmt(hasCondition(ignoringImpCasts(hasType(enumDecl()))),
+                 unless(hasDescendant(defaultStmt())))
 ```
 
 **Expected:** 1 match — `capstone.cpp:161` only; `:180` is wrongly excused by the nested `default:`.
@@ -468,19 +468,19 @@ clang-query> match switchStmt(hasCondition(ignoringImpCasts(hasType(enumDecl()))
 `forEachSwitchCase` visits only the labels that belong to *this* switch, so
 it is the correct scope.
 
-```text
-clang-query> match switchStmt(hasCondition(ignoringImpCasts(hasType(enumDecl()))),
-                              unless(forEachSwitchCase(defaultStmt())))
+```clang-query
+match switchStmt(hasCondition(ignoringImpCasts(hasType(enumDecl()))),
+                 unless(forEachSwitchCase(defaultStmt())))
 ```
 
 **Expected:** 2 matches — `capstone.cpp:161` and `:180`, the two `SMELL:missing-default` tags.
 
 **Final script** — `manifests/queries/missing-default-in-switch.query`:
 
-```text
-clang-query> let overEnum hasCondition(ignoringImpCasts(hasType(enumDecl())))
-clang-query> let hasDefault forEachSwitchCase(defaultStmt())
-clang-query> match switchStmt(overEnum, unless(hasDefault)).bind("switch")
+```clang-query
+let overEnum hasCondition(ignoringImpCasts(hasType(enumDecl())))
+let hasDefault forEachSwitchCase(defaultStmt())
+match switchStmt(overEnum, unless(hasDefault)).bind("switch")
 ```
 
 **Expected:** 2 matches — `capstone.cpp:161`, `:180`.
@@ -499,33 +499,33 @@ is in the file you asked to analyse rather than a header. Composes those with
 **Step 1 — nodes born from `CHECK`.** The macro expands to an `if`, so both
 `CHECK(...)` lines produce an `ifStmt` whose spelling is at `:14`.
 
-```text
-clang-query> match ifStmt(isExpandedFromMacro("CHECK"))
+```clang-query
+match ifStmt(isExpandedFromMacro("CHECK"))
 ```
 
 **Expected:** 2 matches — the expansions at `capstone.cpp:192` and `:193`.
 
 Negate it to see only hand-written `if`s:
 
-```text
-clang-query> match ifStmt(unless(isExpandedFromMacro("CHECK")))
+```clang-query
+match ifStmt(unless(isExpandedFromMacro("CHECK")))
 ```
 
 **Expected:** 17 matches — every other `if` in the file, from `capstone.cpp:45` to `:194`.
 
 **Step 2 — where a literal comes from.** Object-like macros work the same way.
 
-```text
-clang-query> match integerLiteral(isExpandedFromMacro("MAX_ITEMS"))
+```clang-query
+match integerLiteral(isExpandedFromMacro("MAX_ITEMS"))
 ```
 
 **Expected:** 3 matches — `capstone.cpp:110`, `:192`, `:194`.
 
 Combining the two macros: the `CHECK` whose argument mentions `NULL`.
 
-```text
-clang-query> match ifStmt(isExpandedFromMacro("CHECK"),
-                          hasDescendant(integerLiteral(isExpandedFromMacro("NULL"))))
+```clang-query
+match ifStmt(isExpandedFromMacro("CHECK"),
+             hasDescendant(integerLiteral(isExpandedFromMacro("NULL"))))
 ```
 
 **Expected:** 1 match — `capstone.cpp:193`.
@@ -534,8 +534,8 @@ clang-query> match ifStmt(isExpandedFromMacro("CHECK"),
 nothing here; on a real translation unit it is what stops a check from
 reporting the same `<vector>` line ten thousand times.
 
-```text
-clang-query> match ifStmt(isExpansionInMainFile())
+```clang-query
+match ifStmt(isExpansionInMainFile())
 ```
 
 **Expected:** 19 matches — all 17 hand-written `if`s plus the 2 `CHECK` expansions.
@@ -544,11 +544,11 @@ clang-query> match ifStmt(isExpansionInMainFile())
 12.1 check made safe: skip hits produced by `CHECK` (the `NULL` at `:193`
 sits inside its argument) and anything outside the main file.
 
-```text
-clang-query> let nullConst implicitCastExpr(hasCastKind("CK_NullToPointer"),
-                                            hasSourceExpression(unless(cxxNullPtrLiteralExpr())))
-clang-query> let fixable allOf(unless(isExpandedFromMacro("CHECK")), isExpansionInMainFile())
-clang-query> match implicitCastExpr(nullConst, fixable).bind("null")
+```clang-query
+let nullConst implicitCastExpr(hasCastKind("CK_NullToPointer"),
+                               hasSourceExpression(unless(cxxNullPtrLiteralExpr())))
+let fixable allOf(unless(isExpandedFromMacro("CHECK")), isExpansionInMainFile())
+match implicitCastExpr(nullConst, fixable).bind("null")
 ```
 
 **Expected:** 6 matches — `capstone.cpp:24`, `:46`, `:50`, `:52`, `:53`, `:56`; the one at `:193` is dropped.
@@ -586,9 +586,9 @@ above.
   Best for scripts: it is what a clang-tidy diagnostic looks like, and it
   shows the macro-expansion chain (`expanded from macro 'NULL'`).
 
-```text
-clang-query> set output diag
-clang-query> match ifStmt(isExpandedFromMacro("CHECK"))
+```clang-query
+set output diag
+match ifStmt(isExpandedFromMacro("CHECK"))
 ```
 
 **Expected:** 2 matches — each reported at its use site (`capstone.cpp:192`, `:193`) *and* at the macro body (`:14`).
@@ -597,9 +597,9 @@ clang-query> match ifStmt(isExpandedFromMacro("CHECK"))
   see the *expression* rather than where it is; for the two `CHECK` hits it
   prints the expanded `if (!(…)) fail_fast()` text.
 
-```text
-clang-query> set output print
-clang-query> match ifStmt(isExpandedFromMacro("CHECK"))
+```clang-query
+set output print
+match ifStmt(isExpandedFromMacro("CHECK"))
 ```
 
 **Expected:** 2 matches — printed as the expanded `if` statements, no file locations.
@@ -609,9 +609,9 @@ clang-query> match ifStmt(isExpandedFromMacro("CHECK"))
   look through; it is how you would have found the `int → bool` cast in
   12.4 without guessing.
 
-```text
-clang-query> set output detailed-ast
-clang-query> match ifStmt(isExpandedFromMacro("CHECK"))
+```clang-query
+set output detailed-ast
+match ifStmt(isExpandedFromMacro("CHECK"))
 ```
 
 **Expected:** 2 matches — each followed by its `IfStmt` subtree, including the `ImplicitCastExpr <IntegralCast>` around `MAX_ITEMS`.
@@ -621,9 +621,9 @@ echoes the matcher above each result set (handy when a file has many
 `match` lines), and `set bind-root false` suppresses the automatic `root`
 binding so that only your own `.bind()` names are printed:
 
-```text
-clang-query> set bind-root false
-clang-query> match cxxRecordDecl(hasName("Shape"), forEachDescendant(cxxRecordDecl(isDefinition()).bind("m")))
+```clang-query
+set bind-root false
+match cxxRecordDecl(hasName("Shape"), forEachDescendant(cxxRecordDecl(isDefinition()).bind("m")))
 ```
 
 **Expected:** 1 match — only the `m` binding, `Shape::Inner` at `capstone.cpp:87`; no `root` line.
@@ -663,15 +663,15 @@ like `unsigned sum = 0;` is an `ImplicitCastExpr` around the literal, so the
 naive matcher finds nothing; in `IgnoreUnlessSpelledInSource` mode the cast is
 invisible and every `= 0` initializer matches.
 
-```text
-clang-query> match varDecl(hasInitializer(integerLiteral(equals(0))))
+```clang-query
+match varDecl(hasInitializer(integerLiteral(equals(0))))
 ```
 
 **Expected:** 0 matches — every `= 0` is wrapped in an implicit cast.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match varDecl(hasInitializer(integerLiteral(equals(0))))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match varDecl(hasInitializer(integerLiteral(equals(0))))
 ```
 
 **Expected:** 5 matches — `capstone.cpp:44`, `:50`, `:52`, `:138`, `:139`.
@@ -679,10 +679,10 @@ clang-query> match varDecl(hasInitializer(integerLiteral(equals(0))))
 **`findAll` → `eachOf(M, forEachDescendant(M))`.** One result for `Shape`
 itself and one for the nested `Inner`.
 
-```text
-clang-query> match cxxRecordDecl(hasName("Shape"),
-                                 eachOf(cxxRecordDecl(isDefinition()).bind("m"),
-                                        forEachDescendant(cxxRecordDecl(isDefinition()).bind("m"))))
+```clang-query
+match cxxRecordDecl(hasName("Shape"),
+                    eachOf(cxxRecordDecl(isDefinition()).bind("m"),
+                           forEachDescendant(cxxRecordDecl(isDefinition()).bind("m"))))
 ```
 
 **Expected:** 2 matches — both rooted at `Shape` (`capstone.cpp:85`), with `m` bound to `Shape` and then to `Shape::Inner`.
@@ -690,8 +690,8 @@ clang-query> match cxxRecordDecl(hasName("Shape"),
 **`functionTypeLoc` → `typeLoc(loc(functionType()))`.** Every written
 function type in the file: prototypes, method declarations, definitions.
 
-```text
-clang-query> match typeLoc(loc(functionType()))
+```clang-query
+match typeLoc(loc(functionType()))
 ```
 
 **Expected:** 46 matches — one per declared function or method signature, from `fail_fast` at `capstone.cpp:17` onwards.

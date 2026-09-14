@@ -97,8 +97,8 @@ These matchers sit at the top of the hierarchy. They are rarely the final answer
 
 The single root of the whole AST; every other declaration hangs below it. It has no source location, so the match prints no code. Its real use is as the *context* argument of other matchers: `hasDeclContext(translationUnitDecl())` means "declared at file scope".
 
-```text
-clang-query> match translationUnitDecl()
+```clang-query
+match translationUnitDecl()
 ```
 
 **Expected:** 1 match — the translation unit itself (no source line is shown; the root has no location).
@@ -107,8 +107,8 @@ clang-query> match translationUnitDecl()
 
 The widest net: any declaration at all, named or not — functions, classes, friends, `static_assert`, access specifiers, the lot. Bare `decl()` on this sample reports a few hundred matches (most of them implicit), so scope it. Here: everything declared directly inside `namespace geo`.
 
-```text
-clang-query> match decl(hasDeclContext(namespaceDecl(hasName("geo"))))
+```clang-query
+match decl(hasDeclContext(namespaceDecl(hasName("geo"))))
 ```
 
 **Expected:** 3 matches — `origin` (`decls.cpp:6`), `reset` (`decls.cpp:7`) and `struct Point` (`decls.cpp:8`).
@@ -117,8 +117,8 @@ clang-query> match decl(hasDeclContext(namespaceDecl(hasName("geo"))))
 
 Anything that *could* carry a name: types, functions, variables, namespaces, templates, enumerators — even an anonymous union (its name is just empty). Practically every `hasName(...)` query starts here when you do not care what kind of thing the name belongs to. Scoped to `namespace tags`, notice that a class template shows up **twice**: once as the `ClassTemplateDecl` and once as the `CXXRecordDecl` pattern it wraps.
 
-```text
-clang-query> match namedDecl(hasDeclContext(namespaceDecl(hasName("tags"))))
+```clang-query
+match namedDecl(hasDeclContext(namespaceDecl(hasName("tags"))))
 ```
 
 **Expected:** 7 matches — `X` (`decls.cpp:122`), the template `Z` and its templated class (both `decls.cpp:123`), `S` (`decls.cpp:124`), `U` (`decls.cpp:125`), `E` (`decls.cpp:126`) and `F` (`decls.cpp:127`).
@@ -127,8 +127,8 @@ clang-query> match namedDecl(hasDeclContext(namespaceDecl(hasName("tags"))))
 
 Declarations that denote a *value* with a type: variables, fields, functions, enumerators, structured bindings, indirect fields. It is the split point between "things that are types" and "things that have types". Inside `namespace tags` that is the three enumerators and the function `F` — the types `X`, `Z`, `S`, `U`, `E` are excluded. (`hasAncestor` is used because the enumerators' declaration context is the enum, not the namespace.)
 
-```text
-clang-query> match valueDecl(hasAncestor(namespaceDecl(hasName("tags"))))
+```clang-query
+match valueDecl(hasAncestor(namespaceDecl(hasName("tags"))))
 ```
 
 **Expected:** 4 matches — `A`, `B`, `C` (`decls.cpp:126`) and `F` (`decls.cpp:127`).
@@ -137,8 +137,8 @@ clang-query> match valueDecl(hasAncestor(namespaceDecl(hasName("tags"))))
 
 A `ValueDecl` that was introduced by a *declarator* — a field, a variable, a function or a non-type template parameter. Enumerators and bindings are values but not declarators. Compare with the `decl(...)` example above: same scope, but `struct Point` drops out because a class is not a declarator.
 
-```text
-clang-query> match declaratorDecl(hasDeclContext(namespaceDecl(hasName("geo"))))
+```clang-query
+match declaratorDecl(hasDeclContext(namespaceDecl(hasName("geo"))))
 ```
 
 **Expected:** 2 matches — `origin` (`decls.cpp:6`) and `reset` (`decls.cpp:7`).
@@ -147,8 +147,8 @@ clang-query> match declaratorDecl(hasDeclContext(namespaceDecl(hasName("geo"))))
 
 A `static_assert(...)` at namespace, class or block scope. It is a declaration with no name and no value — only `decl()` and this matcher can see it.
 
-```text
-clang-query> match staticAssertDecl()
+```clang-query
+match staticAssertDecl()
 ```
 
 **Expected:** 1 match — `static_assert(sizeof(int) == 4, ...)` at `decls.cpp:12`.
@@ -157,8 +157,8 @@ clang-query> match staticAssertDecl()
 
 A top-level `__asm("...")` declaration. An `asm` *statement* inside a function body is a different node (`asmStmt`, Part 3) and is not matched.
 
-```text
-clang-query> match fileScopeAsmDecl()
+```clang-query
+match fileScopeAsmDecl()
 ```
 
 **Expected:** 1 match — `__asm("nop")` at `decls.cpp:13`.
@@ -171,8 +171,8 @@ The `FunctionDecl` family. Remember that in Clang every constructor, destructor,
 
 Any function declaration or definition: free functions, methods, constructors, destructors, deduction guides, friend functions and the templated function inside a function template. Bare, it also returns every implicit special member Clang synthesised, so this example keeps only *definitions* whose declaration context is the file itself.
 
-```text
-clang-query> match functionDecl(isDefinition(), hasDeclContext(translationUnitDecl()))
+```clang-query
+match functionDecl(isDefinition(), hasDeclContext(translationUnitDecl()))
 ```
 
 **Expected:** 5 matches — `use_bindings` (`decls.cpp:49`), `twice` (`decls.cpp:64`), `alias_demo` (`decls.cpp:89`), `countdown` (`decls.cpp:104`) and `capture_demo` (`decls.cpp:114`).
@@ -181,8 +181,8 @@ clang-query> match functionDecl(isDefinition(), hasDeclContext(translationUnitDe
 
 A function parameter. Parameters are variables (`ParmVarDecl` derives from `VarDecl`), so they also answer to `varDecl()`; use this matcher when you mean *only* parameters. Scoped to one function with `hasAncestor`:
 
-```text
-clang-query> match parmVarDecl(hasAncestor(functionDecl(hasName("free_function"))))
+```clang-query
+match parmVarDecl(hasAncestor(functionDecl(hasName("free_function"))))
 ```
 
 **Expected:** 2 matches — `int count` and `double scale`, both on `decls.cpp:16`.
@@ -191,8 +191,8 @@ clang-query> match parmVarDecl(hasAncestor(functionDecl(hasName("free_function")
 
 Any member function of a class, including constructors, destructors and conversion functions (they all derive from `CXXMethodDecl`), and including out-of-line definitions. Bare, it also lists implicit copy/move members and the `operator()` of every lambda. Scoped to `Shape` and with implicit members dropped, you get the six members declared in the class plus the out-of-line definition of `area` — a redeclaration is its own node.
 
-```text
-clang-query> match cxxMethodDecl(ofClass(hasName("Shape")), unless(isImplicit()))
+```clang-query
+match cxxMethodDecl(ofClass(hasName("Shape")), unless(isImplicit()))
 ```
 
 **Expected:** 7 matches — `Shape()` (`decls.cpp:20`), `Shape(int)` (`decls.cpp:21`), `~Shape()` (`decls.cpp:22`), `area` (`decls.cpp:23`), `operator bool` (`decls.cpp:24`), `corners` (`decls.cpp:25`) and the definition `Shape::area` (`decls.cpp:31`).
@@ -201,8 +201,8 @@ clang-query> match cxxMethodDecl(ofClass(hasName("Shape")), unless(isImplicit())
 
 A constructor. The bare form on this sample reports 14: two written for `Shape`, one for `Box`, and eleven implicit default/copy/move constructors Clang declared for `Shape`, `Circle`, `Square`, `Pair` and the `Grid` specialisation. Dropping the implicit ones leaves what you typed.
 
-```text
-clang-query> match cxxConstructorDecl(unless(isImplicit()))
+```clang-query
+match cxxConstructorDecl(unless(isImplicit()))
 ```
 
 **Expected:** 3 matches — `Shape()` (`decls.cpp:20`), `Shape(int)` (`decls.cpp:21`) and `Box(T)` (`decls.cpp:66`).
@@ -211,8 +211,8 @@ clang-query> match cxxConstructorDecl(unless(isImplicit()))
 
 A destructor. Only `Shape` declares one explicitly; `Circle`, `Square` and both lambda closure types received implicit destructors, which the filter removes.
 
-```text
-clang-query> match cxxDestructorDecl(unless(isImplicit()))
+```clang-query
+match cxxDestructorDecl(unless(isImplicit()))
 ```
 
 **Expected:** 1 match — `virtual ~Shape()` at `decls.cpp:22`.
@@ -221,8 +221,8 @@ clang-query> match cxxDestructorDecl(unless(isImplicit()))
 
 A user-defined conversion function, `operator T()`. Conversion *constructors* (`Shape(int)`) are not conversion decls; they are constructors.
 
-```text
-clang-query> match cxxConversionDecl()
+```clang-query
+match cxxConversionDecl()
 ```
 
 **Expected:** 1 match — `operator bool() const` at `decls.cpp:24`.
@@ -231,16 +231,16 @@ clang-query> match cxxConversionDecl()
 
 A class template argument deduction (CTAD) guide, `Box(int) -> Box<int>`. Clang also generates one implicit guide per constructor plus a copy-deduction candidate, so `Box` alone yields three:
 
-```text
-clang-query> match cxxDeductionGuideDecl()
+```clang-query
+match cxxDeductionGuideDecl()
 ```
 
 **Expected:** 3 matches — the implicit guides from `Box(T)` and the copy candidate (both reported at `decls.cpp:66`) and the user-written guide at `decls.cpp:67`.
 
 Keep only the one you wrote:
 
-```text
-clang-query> match cxxDeductionGuideDecl(unless(isImplicit()))
+```clang-query
+match cxxDeductionGuideDecl(unless(isImplicit()))
 ```
 
 **Expected:** 1 match — `Box(int) -> Box<int>` at `decls.cpp:67`.
@@ -249,8 +249,8 @@ clang-query> match cxxDeductionGuideDecl(unless(isImplicit()))
 
 The declaration of a `goto` label (`again:`). A `LabelDecl` is never visited on its own by the matcher traversal — bare `labelDecl()` returns 0 on this file — but it is reachable from the `LabelStmt` that owns it via `hasDeclaration`.
 
-```text
-clang-query> match labelStmt(hasDeclaration(labelDecl()))
+```clang-query
+match labelStmt(hasDeclaration(labelDecl()))
 ```
 
 **Expected:** 1 match — the label `again:` at `decls.cpp:105`.
@@ -263,8 +263,8 @@ Classes, structs and unions are `RecordDecl`s; in C++ mode every one of them is 
 
 Anything introduced with a *tag* keyword: `class`, `struct`, `union` **and `enum`**. The bare form is inflated by injected-class-name records and template instantiations, so here it is scoped to `namespace tags`, which mirrors the reference example exactly.
 
-```text
-clang-query> match tagDecl(hasDeclContext(namespaceDecl(hasName("tags"))))
+```clang-query
+match tagDecl(hasDeclContext(namespaceDecl(hasName("tags"))))
 ```
 
 **Expected:** 5 matches — `X` (`decls.cpp:122`), `Z` (`decls.cpp:123`), `S` (`decls.cpp:124`), `U` (`decls.cpp:125`) and `E` (`decls.cpp:126`).
@@ -273,8 +273,8 @@ clang-query> match tagDecl(hasDeclContext(namespaceDecl(hasName("tags"))))
 
 Class, struct and union declarations — enums drop out compared with `tagDecl()`. Forward declarations (`class X;`) count, and the templated class inside a class template counts once.
 
-```text
-clang-query> match recordDecl(hasDeclContext(namespaceDecl(hasName("tags"))))
+```clang-query
+match recordDecl(hasDeclContext(namespaceDecl(hasName("tags"))))
 ```
 
 **Expected:** 4 matches — `X` (`decls.cpp:122`), `Z` (`decls.cpp:123`), `S` (`decls.cpp:124`) and `U` (`decls.cpp:125`).
@@ -283,8 +283,8 @@ clang-query> match recordDecl(hasDeclContext(namespaceDecl(hasName("tags"))))
 
 The C++ record node, which is what you get for every `class`/`struct`/`union` in a C++ file — so in practice `recordDecl()` and `cxxRecordDecl()` match the same nodes here. Prefer `cxxRecordDecl()` because only it accepts C++-specific narrowers such as `isDerivedFrom` or `hasMethod` (Part 5).
 
-```text
-clang-query> match cxxRecordDecl(hasDeclContext(namespaceDecl(hasName("tags"))))
+```clang-query
+match cxxRecordDecl(hasDeclContext(namespaceDecl(hasName("tags"))))
 ```
 
 **Expected:** 4 matches — `X` (`decls.cpp:122`), `Z` (`decls.cpp:123`), `S` (`decls.cpp:124`) and `U` (`decls.cpp:125`).
@@ -293,8 +293,8 @@ clang-query> match cxxRecordDecl(hasDeclContext(namespaceDecl(hasName("tags"))))
 
 A non-static data member. Note that member variables are *not* `VarDecl`s in Clang; `varDecl()` never sees them. The bare form on this sample also reports the unnamed anonymous-union member of `Packet` and the closure fields lambdas create for their captures, so scope it:
 
-```text
-clang-query> match fieldDecl(hasDeclContext(recordDecl(hasName("Shape"))))
+```clang-query
+match fieldDecl(hasDeclContext(recordDecl(hasName("Shape"))))
 ```
 
 **Expected:** 2 matches — `sides_` (`decls.cpp:27`) and `name_` (`decls.cpp:28`).
@@ -303,8 +303,8 @@ clang-query> match fieldDecl(hasDeclContext(recordDecl(hasName("Shape"))))
 
 The members of an anonymous union (or anonymous struct) as seen from the *enclosing* class. `Packet::code` is really `Packet::<anon>::code`; the indirect field is the alias that lets you write `pkt.code`.
 
-```text
-clang-query> match indirectFieldDecl()
+```clang-query
+match indirectFieldDecl()
 ```
 
 **Expected:** 2 matches — `code` and `ratio`, both on `decls.cpp:38`.
@@ -313,8 +313,8 @@ clang-query> match indirectFieldDecl()
 
 A `public:`, `protected:` or `private:` label inside a class body. It is a declaration in its own right, with a location, which is why tools can rewrite it.
 
-```text
-clang-query> match accessSpecDecl()
+```clang-query
+match accessSpecDecl()
 ```
 
 **Expected:** 2 matches — `public:` (`decls.cpp:19`) and `private:` (`decls.cpp:26`) in `Shape`.
@@ -323,8 +323,8 @@ clang-query> match accessSpecDecl()
 
 A `friend` declaration — of a function or of a class. The friend node *wraps* the function or type it befriends; the befriended function (`peek`) is a separate `FunctionDecl` whose semantic context is the enclosing namespace.
 
-```text
-clang-query> match friendDecl()
+```clang-query
+match friendDecl()
 ```
 
 **Expected:** 2 matches — `friend void peek(const Vault&)` (`decls.cpp:43`) and `friend class Auditor` (`decls.cpp:44`).
@@ -333,8 +333,8 @@ clang-query> match friendDecl()
 
 The *whole* structured binding `auto [first, second] = p;`. It is a `VarDecl` (the hidden variable that holds the copy of `p`) with the individual bindings as children.
 
-```text
-clang-query> match decompositionDecl()
+```clang-query
+match decompositionDecl()
 ```
 
 **Expected:** 1 match — `auto [first, second] = p` at `decls.cpp:51`.
@@ -343,8 +343,8 @@ clang-query> match decompositionDecl()
 
 One name introduced by a structured binding. Bindings are `ValueDecl`s but not variables: `varDecl()` does not see `first` or `second`.
 
-```text
-clang-query> match bindingDecl()
+```clang-query
+match bindingDecl()
 ```
 
 **Expected:** 2 matches — `first` and `second`, both on `decls.cpp:51`.
@@ -357,8 +357,8 @@ A template is *two* nodes: the `TemplateDecl` that owns the parameter list, and 
 
 The `template<...> class` node itself — not its specialisations or instantiations. Every class template in the sample is explicit, so the bare form is safe.
 
-```text
-clang-query> match classTemplateDecl()
+```clang-query
+match classTemplateDecl()
 ```
 
 **Expected:** 5 matches — `Grid` (`decls.cpp:56`), `Box` (`decls.cpp:66`), `Bag` (`decls.cpp:69`), `Derived` (`decls.cpp:75`) and `tags::Z` (`decls.cpp:123`).
@@ -367,8 +367,8 @@ clang-query> match classTemplateDecl()
 
 A specialisation of a class template: explicit (`template<> class Grid<int,int,1>`), partial, **or implicit** (`Grid<char,char,2> grid;` instantiates one, reported at the primary template's line). Bare, it would also list the `Box<int>` named by the deduction guide, so scope by name:
 
-```text
-clang-query> match classTemplateSpecializationDecl(hasName("Grid"))
+```clang-query
+match classTemplateSpecializationDecl(hasName("Grid"))
 ```
 
 **Expected:** 3 matches — the implicit instantiation `Grid<char, char, 2>` (reported at `decls.cpp:56`), the partial specialisation (`decls.cpp:58`) and the explicit specialisation (`decls.cpp:60`).
@@ -377,8 +377,8 @@ clang-query> match classTemplateSpecializationDecl(hasName("Grid"))
 
 Only *partial* specialisations — the ones that still have template parameters. The full specialisation `Grid<int, int, 1>` does not match.
 
-```text
-clang-query> match classTemplatePartialSpecializationDecl()
+```clang-query
+match classTemplatePartialSpecializationDecl()
 ```
 
 **Expected:** 1 match — `class Grid<T, T*, I>` at `decls.cpp:58`.
@@ -387,16 +387,16 @@ clang-query> match classTemplatePartialSpecializationDecl()
 
 The `template<...>` wrapper around a function. Implicit deduction guides for `Box` are wrapped in implicit function templates too, so the bare form reports three:
 
-```text
-clang-query> match functionTemplateDecl()
+```clang-query
+match functionTemplateDecl()
 ```
 
 **Expected:** 3 matches — `twice` (`decls.cpp:64`) and the two implicit deduction-guide templates for `Box` (`decls.cpp:66`).
 
 The user-written guide `Box(int) -> Box<int>` has no template parameters of its own, so it is a plain `CXXDeductionGuideDecl`, not a template. Drop the implicit wrappers:
 
-```text
-clang-query> match functionTemplateDecl(unless(isImplicit()))
+```clang-query
+match functionTemplateDecl(unless(isImplicit()))
 ```
 
 **Expected:** 1 match — `template <typename T> T twice(T v)` at `decls.cpp:64`.
@@ -405,8 +405,8 @@ clang-query> match functionTemplateDecl(unless(isImplicit()))
 
 A *type* template parameter (`typename T` / `class T`). Scoped to `Bag`, this finds `Elem` **and** the unnamed `typename` inside the template template parameter `Container` — but not the non-type parameter `Cap`.
 
-```text
-clang-query> match templateTypeParmDecl(hasAncestor(classTemplateDecl(hasName("Bag"))))
+```clang-query
+match templateTypeParmDecl(hasAncestor(classTemplateDecl(hasName("Bag"))))
 ```
 
 **Expected:** 2 matches — the anonymous parameter of `template <typename> class Container` and `Elem`, both on `decls.cpp:69`.
@@ -415,8 +415,8 @@ clang-query> match templateTypeParmDecl(hasAncestor(classTemplateDecl(hasName("B
 
 A *value* template parameter (`int N`). All three in the sample are explicit, so the bare form is exact.
 
-```text
-clang-query> match nonTypeTemplateParmDecl()
+```clang-query
+match nonTypeTemplateParmDecl()
 ```
 
 **Expected:** 3 matches — `I` of `Grid` (`decls.cpp:56`), `I` of the partial specialisation (`decls.cpp:58`) and `Cap` of `Bag` (`decls.cpp:69`).
@@ -425,8 +425,8 @@ clang-query> match nonTypeTemplateParmDecl()
 
 A template *template* parameter — a parameter that must itself be a template, such as `template <typename> class Container`.
 
-```text
-clang-query> match templateTemplateParmDecl()
+```clang-query
+match templateTemplateParmDecl()
 ```
 
 **Expected:** 1 match — `Container` at `decls.cpp:69`.
@@ -435,8 +435,8 @@ clang-query> match templateTemplateParmDecl()
 
 A C++20 `concept` definition. Both concepts in the sample are found; their constraint expressions are children (`requiresExpr` is a Part 3 node).
 
-```text
-clang-query> match conceptDecl()
+```clang-query
+match conceptDecl()
 ```
 
 **Expected:** 2 matches — `Small` (`decls.cpp:72`) and `Dereferenceable` (`decls.cpp:73`).
@@ -447,8 +447,8 @@ The braces of a requires-expression, `requires(T p) { *p; }` — the `{ *p; }` p
 
 **Not in clang-query 22** — the matcher exists in the reference but is not registered in this clang-query build (`Matcher not found: requiresExprBodyDecl`). The closest working query is the concept that owns the requires-expression:
 
-```text
-clang-query> match conceptDecl(hasName("Dereferenceable"))
+```clang-query
+match conceptDecl(hasName("Dereferenceable"))
 ```
 
 **Expected:** 1 match — `concept Dereferenceable = requires(T p) { *p; }` at `decls.cpp:73`.
@@ -457,8 +457,8 @@ clang-query> match conceptDecl(hasName("Dereferenceable"))
 
 A `using typename Base::value_type;` inside a template, where `Base` is a dependent type and so the name cannot be resolved until instantiation.
 
-```text
-clang-query> match unresolvedUsingTypenameDecl()
+```clang-query
+match unresolvedUsingTypenameDecl()
 ```
 
 **Expected:** 1 match — `using typename Base::value_type` at `decls.cpp:77`.
@@ -467,8 +467,8 @@ clang-query> match unresolvedUsingTypenameDecl()
 
 The value-flavoured twin: `using Base::size;` inside a template. Once `Base` is known it would become an ordinary `UsingDecl`; while dependent, it is this node.
 
-```text
-clang-query> match unresolvedUsingValueDecl()
+```clang-query
+match unresolvedUsingValueDecl()
 ```
 
 **Expected:** 1 match — `using Base::size` at `decls.cpp:78`.
@@ -481,8 +481,8 @@ Three ways to name a type (`typedef`, `using`, alias template), two kinds of enu
 
 An `enum` or `enum class` declaration. It is a `TagDecl` but *not* a `RecordDecl`.
 
-```text
-clang-query> match enumDecl()
+```clang-query
+match enumDecl()
 ```
 
 **Expected:** 3 matches — `Color` (`decls.cpp:82`), `Mode` (`decls.cpp:83`) and `tags::E` (`decls.cpp:126`).
@@ -491,8 +491,8 @@ clang-query> match enumDecl()
 
 One enumerator. Enumerators are `ValueDecl`s whose declaration context is the enum.
 
-```text
-clang-query> match enumConstantDecl()
+```clang-query
+match enumConstantDecl()
 ```
 
 **Expected:** 8 matches — `Red`, `Green`, `Blue` (`decls.cpp:82`), `Fast`, `Safe` (`decls.cpp:83`) and `A`, `B`, `C` (`decls.cpp:126`).
@@ -501,8 +501,8 @@ clang-query> match enumConstantDecl()
 
 The common parent of `typedef` and `using` aliases — use it when you do not care which spelling was used. Clang predeclares dozens of builtin typedefs with no source location (`__builtin_va_list`, the SVE vector types on Apple silicon, …), which is why this example keeps only nodes from our file.
 
-```text
-clang-query> match typedefNameDecl(isExpansionInMainFile())
+```clang-query
+match typedefNameDecl(isExpansionInMainFile())
 ```
 
 **Expected:** 3 matches — `typedef int Integer` (`decls.cpp:11`), `using Real = double` (`decls.cpp:85`) and the templated alias `Ptr` (`decls.cpp:86`).
@@ -511,8 +511,8 @@ clang-query> match typedefNameDecl(isExpansionInMainFile())
 
 Only the old-style `typedef`. Same builtin noise as above, same filter.
 
-```text
-clang-query> match typedefDecl(isExpansionInMainFile())
+```clang-query
+match typedefDecl(isExpansionInMainFile())
 ```
 
 **Expected:** 1 match — `typedef int Integer` at `decls.cpp:11`.
@@ -521,8 +521,8 @@ clang-query> match typedefDecl(isExpansionInMainFile())
 
 Only `using Name = Type;`. The alias inside an alias template is a `TypeAliasDecl` too, so `Ptr` contributes one.
 
-```text
-clang-query> match typeAliasDecl()
+```clang-query
+match typeAliasDecl()
 ```
 
 **Expected:** 2 matches — `using Real = double` (`decls.cpp:85`) and `using Ptr = T*` (`decls.cpp:86`).
@@ -531,8 +531,8 @@ clang-query> match typeAliasDecl()
 
 The `template<...>` wrapper around a `using` alias.
 
-```text
-clang-query> match typeAliasTemplateDecl()
+```clang-query
+match typeAliasTemplateDecl()
 ```
 
 **Expected:** 1 match — `template <typename T> using Ptr = T*` at `decls.cpp:86`.
@@ -541,8 +541,8 @@ clang-query> match typeAliasTemplateDecl()
 
 A using-*declaration*, `using geo::origin;` — brings one name into scope. (Not a using-directive, not an alias.)
 
-```text
-clang-query> match usingDecl()
+```clang-query
+match usingDecl()
 ```
 
 **Expected:** 1 match — `using geo::origin` at `decls.cpp:88`.
@@ -551,8 +551,8 @@ clang-query> match usingDecl()
 
 The hidden node a using-declaration creates *per name it introduces*: it "shadows" the target so lookups in the new scope find it. `using geo::origin` makes one; `using enum Mode` makes one per enumerator.
 
-```text
-clang-query> match usingShadowDecl()
+```clang-query
+match usingShadowDecl()
 ```
 
 **Expected:** 3 matches — the shadow of `origin` (`decls.cpp:88`) and the shadows of `Fast` and `Safe` created by `using enum Mode` (both reported at `decls.cpp:91`).
@@ -561,8 +561,8 @@ clang-query> match usingShadowDecl()
 
 A `using namespace X;` directive. Clang inserts an *implicit* using-directive for every unnamed namespace (that is how `namespace {}` members become visible), so the bare form reports two on this file; filter it.
 
-```text
-clang-query> match usingDirectiveDecl(unless(isImplicit()))
+```clang-query
+match usingDirectiveDecl(unless(isImplicit()))
 ```
 
 **Expected:** 1 match — `using namespace geo` at `decls.cpp:90`.
@@ -571,8 +571,8 @@ clang-query> match usingDirectiveDecl(unless(isImplicit()))
 
 A C++20 `using enum E;` declaration.
 
-```text
-clang-query> match usingEnumDecl()
+```clang-query
+match usingEnumDecl()
 ```
 
 **Expected:** 1 match — `using enum Mode` at `decls.cpp:91`.
@@ -585,8 +585,8 @@ The remaining named-scope nodes, plus `varDecl()`, which is the workhorse of mos
 
 A `namespace` (named or anonymous). Clang also predeclares an implicit `namespace std`, which the bare form would report as a fourth, location-less match.
 
-```text
-clang-query> match namespaceDecl(unless(isImplicit()))
+```clang-query
+match namespaceDecl(unless(isImplicit()))
 ```
 
 **Expected:** 3 matches — `geo` (`decls.cpp:5`), the anonymous namespace (`decls.cpp:97`) and `tags` (`decls.cpp:121`).
@@ -595,8 +595,8 @@ clang-query> match namespaceDecl(unless(isImplicit()))
 
 `namespace g = geo;` — an alias, not a namespace; `namespaceDecl()` does not match it.
 
-```text
-clang-query> match namespaceAliasDecl()
+```clang-query
+match namespaceAliasDecl()
 ```
 
 **Expected:** 1 match — `namespace g = geo` at `decls.cpp:98`.
@@ -605,8 +605,8 @@ clang-query> match namespaceAliasDecl()
 
 An `extern "C"` (or `extern "C++"`) specification, whether braced or applied to a single declaration.
 
-```text
-clang-query> match linkageSpecDecl()
+```clang-query
+match linkageSpecDecl()
 ```
 
 **Expected:** 2 matches — `extern "C" { ... }` (`decls.cpp:99`) and `extern "C" int c_var` (`decls.cpp:102`).
@@ -615,9 +615,9 @@ clang-query> match linkageSpecDecl()
 
 An `export` declaration in a C++20 module interface unit — a single exported declaration, a braced `export { ... }` block, or an exported namespace. `export` is only legal in a module unit, so this entry uses a second sample, `manifests/decls_module.cppm`; clang-query parses it with the same flags (the `.cppm` suffix tells Clang it is a module interface).
 
-```text
+```clang-query
 # sample: manifests/decls_module.cppm -std=c++23
-clang-query> match exportDecl()
+match exportDecl()
 ```
 
 **Expected:** 3 matches — `export void foo()` (`decls_module.cppm:5`), `export { int v; }` (`decls_module.cppm:6`) and `export namespace detail { ... }` (`decls_module.cppm:7`).
@@ -626,8 +626,8 @@ clang-query> match exportDecl()
 
 A variable: globals, locals, parameters, the hidden variable behind a structured binding, and the variable a lambda init-capture creates. It does **not** match class members (those are `fieldDecl()`). Bare, it reports every parameter of every implicit member too, so this example keeps globals only.
 
-```text
-clang-query> match varDecl(hasGlobalStorage())
+```clang-query
+match varDecl(hasGlobalStorage())
 ```
 
 **Expected:** 3 matches — `geo::origin` (`decls.cpp:6`), `grid` (`decls.cpp:62`) and `c_var` (`decls.cpp:102`).
@@ -640,8 +640,8 @@ Four node kinds are neither `Decl` nor `Stmt` but hang off declarations: an attr
 
 An attribute in any syntax: `[[nodiscard]]`, GNU `__attribute__((nonnull))`, MSVC `__declspec`, or a `#pragma`. Attributes can also be implicit (Clang attaches some to nodes it synthesises); the bare form reports 25 on this file, so filter:
 
-```text
-clang-query> match attr(unless(isImplicit()))
+```clang-query
+match attr(unless(isImplicit()))
 ```
 
 **Expected:** 3 matches — `[[nodiscard]]` on `corners` (`decls.cpp:25`), `[[nodiscard]]` on `Result` (`decls.cpp:111`) and `__attribute__((nonnull))` on `take`'s parameter (`decls.cpp:112`).
@@ -650,8 +650,8 @@ clang-query> match attr(unless(isImplicit()))
 
 One entry of a class's base list, such as `public virtual Shape`. It is not a top-level matcher; ask the class for its bases with `hasAnyBase` (or `hasDirectBase`, Part 6). The match reported is the *class*, once per class with at least one base.
 
-```text
-clang-query> match cxxRecordDecl(hasAnyBase(cxxBaseSpecifier()))
+```clang-query
+match cxxRecordDecl(hasAnyBase(cxxBaseSpecifier()))
 ```
 
 **Expected:** 3 matches — `Circle` (`decls.cpp:34`), `Square` (`decls.cpp:35`) and `Derived` (`decls.cpp:75`).
@@ -660,8 +660,8 @@ clang-query> match cxxRecordDecl(hasAnyBase(cxxBaseSpecifier()))
 
 One member (or base) initialiser in a constructor's `: a(1), b(2)` list. This one *is* a top-level matcher. Implicit copy/move constructors carry implicit initialisers, so `isWritten()` keeps the ones you typed.
 
-```text
-clang-query> match cxxCtorInitializer(isWritten())
+```clang-query
+match cxxCtorInitializer(isWritten())
 ```
 
 **Expected:** 3 matches — `sides_(0)` (`decls.cpp:20`), `sides_(sides)` and `name_("shape")` (both `decls.cpp:21`).
@@ -670,8 +670,8 @@ clang-query> match cxxCtorInitializer(isWritten())
 
 One capture in a lambda's `[...]` — by copy, by reference, `this`, or an init-capture like `y = x`. Not a top-level matcher; reach it through `lambdaExpr(hasAnyCapture(...))` (Part 6). One match per lambda that has any capture:
 
-```text
-clang-query> match lambdaExpr(hasAnyCapture(lambdaCapture()))
+```clang-query
+match lambdaExpr(hasAnyCapture(lambdaCapture()))
 ```
 
 **Expected:** 2 matches — `[x]` (`decls.cpp:116`) and `[y = x]` (`decls.cpp:117`).

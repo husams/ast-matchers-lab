@@ -24,7 +24,7 @@ parts at once (Parts 3, 9 and 10 have ~100 entries each).
 1. Check `docs/PROGRESS.md` to see where the user left off.
 2. Present ONE section at a time (a section is a group of related matcher
    entries, e.g. "9.3 — Control flow"). Within a section, walk the entries
-   in order: explain the matcher, show the `clang-query>` command, let the
+   in order: explain the matcher, show the clang-query command, let the
    user run it, then discuss the result. Never run the examples for the
    user unless asked — the learning is in typing the matcher and reading
    the output.

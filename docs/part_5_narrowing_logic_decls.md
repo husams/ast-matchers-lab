@@ -75,16 +75,16 @@ the argument list of any node matcher is already an implicit `allOf`. The
 explicit form is useful when a matcher takes exactly one argument (like
 `hasAnyConstructorInitializer`) and you need to combine several predicates.
 
-```text
-clang-query> match functionDecl(allOf(isDefinition(), parameterCountIs(3)))
+```clang-query
+match functionDecl(allOf(isDefinition(), parameterCountIs(3)))
 ```
 
 **Expected:** 1 match — `three` at `narrow_decls.cpp:78` (the only function with three parameters *and* a body).
 
 The same thing without the `allOf`:
 
-```text
-clang-query> match functionDecl(isDefinition(), parameterCountIs(3))
+```clang-query
+match functionDecl(isDefinition(), parameterCountIs(3))
 ```
 
 **Expected:** 1 match — the same `three` at `narrow_decls.cpp:78`.
@@ -94,9 +94,9 @@ clang-query> match functionDecl(isDefinition(), parameterCountIs(3))
 Matches when *at least one* inner matcher matches. It is the only way to
 say "or".
 
-```text
-clang-query> match cxxRecordDecl(anyOf(hasName("Dog"), hasName("Mammal")),
-                                 unless(isImplicit()))
+```clang-query
+match cxxRecordDecl(anyOf(hasName("Dog"), hasName("Mammal")),
+                    unless(isImplicit()))
 ```
 
 **Expected:** 2 matches — `Mammal` at `narrow_decls.cpp:134` and `Dog` at `narrow_decls.cpp:135`.
@@ -105,8 +105,8 @@ Drop the `unless(isImplicit())` and the count doubles: every class
 definition also contains an implicit *injected-class-name* (`Dog::Dog` the
 type, not a constructor), and it carries the same name.
 
-```text
-clang-query> match cxxRecordDecl(anyOf(hasName("Dog"), hasName("Mammal")))
+```clang-query
+match cxxRecordDecl(anyOf(hasName("Dog"), hasName("Mammal")))
 ```
 
 **Expected:** 4 matches — each of `narrow_decls.cpp:134` and `:135` twice (the definition and its injected-class-name).
@@ -117,8 +117,8 @@ Matches any node. It is a placeholder for a slot that *requires* a
 matcher when you have no further constraint — "does this parameter have
 an initializer at all?"
 
-```text
-clang-query> match parmVarDecl(hasInitializer(anything()))
+```clang-query
+match parmVarDecl(hasInitializer(anything()))
 ```
 
 **Expected:** 1 match — `mode` at `narrow_decls.cpp:168` (`int mode = 0`, the only parameter with a default argument).
@@ -131,9 +131,9 @@ the inner matchers; they are combined as-if with `allOf` inside each node
 matcher. `mapAnyOf(ifStmt, forStmt).with(X)` is exactly
 `anyOf(ifStmt(X), forStmt(X))`, but you type `X` once.
 
-```text
-clang-query> match mapAnyOf(ifStmt, forStmt).with(
-                 hasCondition(cxxBoolLiteral(equals(true))))
+```clang-query
+match mapAnyOf(ifStmt, forStmt).with(
+    hasCondition(cxxBoolLiteral(equals(true))))
 ```
 
 **Expected:** 2 matches — `if (true)` at `narrow_decls.cpp:173` and `for (; true;)` at `narrow_decls.cpp:174` (the `while (true)` on line 175 is not in the list).
@@ -143,8 +143,8 @@ clang-query> match mapAnyOf(ifStmt, forStmt).with(
 Negation: matches when the inner matcher does *not* match. Combined with
 `isImplicit()` it is the most typed matcher in this lab.
 
-```text
-clang-query> match enumDecl(unless(isScoped()))
+```clang-query
+match enumDecl(unless(isScoped()))
 ```
 
 **Expected:** 1 match — the unscoped `enum Color` at `narrow_decls.cpp:137` (`enum class Level` is excluded).
@@ -166,26 +166,26 @@ namespace. Typedef names of the underlying type do not count. The sample
 has three classes called `Circle`: `::Circle`, `geo::Circle` and
 `geo::shapes::Circle`.
 
-```text
-clang-query> match cxxRecordDecl(hasName("Circle"), unless(isImplicit()))
+```clang-query
+match cxxRecordDecl(hasName("Circle"), unless(isImplicit()))
 ```
 
 **Expected:** 3 matches — `narrow_decls.cpp:7`, `:10` and `:12`.
 
-```text
-clang-query> match cxxRecordDecl(hasName("shapes::Circle"), unless(isImplicit()))
+```clang-query
+match cxxRecordDecl(hasName("shapes::Circle"), unless(isImplicit()))
 ```
 
 **Expected:** 1 match — `geo::shapes::Circle` at `narrow_decls.cpp:7`.
 
-```text
-clang-query> match cxxRecordDecl(hasName("geo::Circle"), unless(isImplicit()))
+```clang-query
+match cxxRecordDecl(hasName("geo::Circle"), unless(isImplicit()))
 ```
 
 **Expected:** 1 match — `geo::Circle` at `narrow_decls.cpp:10` (the suffix `geo::Circle` does not match `geo::shapes::Circle`; qualifiers must line up).
 
-```text
-clang-query> match cxxRecordDecl(hasName("::Circle"), unless(isImplicit()))
+```clang-query
+match cxxRecordDecl(hasName("::Circle"), unless(isImplicit()))
 ```
 
 **Expected:** 1 match — the global `Circle` at `narrow_decls.cpp:12`.
@@ -196,9 +196,9 @@ Matches if the name is any of the given names. It is a faster spelling of
 `anyOf(hasName(a), hasName(b), …)`; every argument accepts the same
 qualified forms as `hasName`.
 
-```text
-clang-query> match cxxRecordDecl(hasAnyName("Dog", "Mammal", "Animal"),
-                                 unless(isImplicit()))
+```clang-query
+match cxxRecordDecl(hasAnyName("Dog", "Mammal", "Animal"),
+                    unless(isImplicit()))
 ```
 
 **Expected:** 3 matches — `Animal`, `Mammal`, `Dog` at `narrow_decls.cpp:133`–`135`.
@@ -211,14 +211,14 @@ Matches when the regular expression finds a match *anywhere* in the
 quoted string such as `"IgnoreCase"`; combine with `|`, e.g.
 `"IgnoreCase | BasicRegex"`.
 
-```text
-clang-query> match namedDecl(matchesName("^::geo::.*Circle$"), unless(isImplicit()))
+```clang-query
+match namedDecl(matchesName("^::geo::.*Circle$"), unless(isImplicit()))
 ```
 
 **Expected:** 2 matches — `geo::shapes::Circle` at `narrow_decls.cpp:7` and `geo::Circle` at `narrow_decls.cpp:10`.
 
-```text
-clang-query> match namedDecl(matchesName("circle$", "IgnoreCase"), unless(isImplicit()))
+```clang-query
+match namedDecl(matchesName("circle$", "IgnoreCase"), unless(isImplicit()))
 ```
 
 **Expected:** 3 matches — all three `Circle` classes (`narrow_decls.cpp:7`, `:10`, `:12`).
@@ -229,9 +229,9 @@ Matches a declaration with external *formal* linkage — the linkage the
 language assigns, before the compiler decides what it can hide. A plain
 namespace-scope `int` has it; a `static` one does not; locals never do.
 
-```text
-clang-query> match varDecl(hasExternalFormalLinkage(),
-                           hasAnyName("global_counter", "file_counter", "g_plain", "g_static"))
+```clang-query
+match varDecl(hasExternalFormalLinkage(),
+              hasAnyName("global_counter", "file_counter", "g_plain", "g_static"))
 ```
 
 **Expected:** 2 matches — `global_counter` at `narrow_decls.cpp:14` and `g_plain` at `narrow_decls.cpp:142` (the two `static` variables are internal).
@@ -239,9 +239,9 @@ clang-query> match varDecl(hasExternalFormalLinkage(),
 For functions, note that `helper` inside the anonymous namespace is
 treated as *internal* linkage by clang 22 and does not match:
 
-```text
-clang-query> match functionDecl(hasExternalFormalLinkage(),
-                                hasAnyName("helper", "file_local", "defined"))
+```clang-query
+match functionDecl(hasExternalFormalLinkage(),
+                   hasAnyName("helper", "file_local", "defined"))
 ```
 
 **Expected:** 1 match — `defined` at `narrow_decls.cpp:60`.
@@ -263,14 +263,14 @@ see its shared entry in 5.4.
 On a declaration: it is in a `public:` section (or in a `struct`, where
 that is the default). On a base specifier: the inheritance is public.
 
-```text
-clang-query> match fieldDecl(isPublic(), hasAnyName("id", "balance", "pin"))
+```clang-query
+match fieldDecl(isPublic(), hasAnyName("id", "balance", "pin"))
 ```
 
 **Expected:** 1 match — `Account::id` at `narrow_decls.cpp:24`.
 
-```text
-clang-query> match cxxRecordDecl(hasDirectBase(isPublic()))
+```clang-query
+match cxxRecordDecl(hasDirectBase(isPublic()))
 ```
 
 **Expected:** 7 matches — `PublicChild` (`:32`), `VirtualChild` (`:35`), `Rect` (`:93`), `Sealed` (`:97`), `Point3D` (`:123`), `Mammal` (`:134`), `Dog` (`:135`) — every `struct X : Base` is public by default.
@@ -279,14 +279,14 @@ clang-query> match cxxRecordDecl(hasDirectBase(isPublic()))
 
 Protected member, or protected inheritance.
 
-```text
-clang-query> match fieldDecl(isProtected())
+```clang-query
+match fieldDecl(isProtected())
 ```
 
 **Expected:** 1 match — `Account::balance` at `narrow_decls.cpp:26`.
 
-```text
-clang-query> match cxxRecordDecl(hasDirectBase(isProtected()))
+```clang-query
+match cxxRecordDecl(hasDirectBase(isProtected()))
 ```
 
 **Expected:** 1 match — `ProtectedChild` at `narrow_decls.cpp:33`.
@@ -296,8 +296,8 @@ clang-query> match cxxRecordDecl(hasDirectBase(isProtected()))
 Private member, or private inheritance — including the *default*
 inheritance of a `class`.
 
-```text
-clang-query> match fieldDecl(isPrivate(), hasAnyName("id", "balance", "pin"))
+```clang-query
+match fieldDecl(isPrivate(), hasAnyName("id", "balance", "pin"))
 ```
 
 **Expected:** 1 match — `Account::pin` at `narrow_decls.cpp:28`.
@@ -305,14 +305,14 @@ clang-query> match fieldDecl(isPrivate(), hasAnyName("id", "balance", "pin"))
 Without the name filter you get three more: a lambda's captures become
 *private fields* of its closure class.
 
-```text
-clang-query> match fieldDecl(isPrivate())
+```clang-query
+match fieldDecl(isPrivate())
 ```
 
 **Expected:** 4 matches — `pin` (`:28`), the init-capture field at `narrow_decls.cpp:158`, and the two capture fields of the lambda at `narrow_decls.cpp:186`.
 
-```text
-clang-query> match cxxRecordDecl(hasDirectBase(isPrivate()))
+```clang-query
+match cxxRecordDecl(hasDirectBase(isPrivate()))
 ```
 
 **Expected:** 1 match — `class PrivateChild : Base` at `narrow_decls.cpp:34`.
@@ -323,8 +323,8 @@ The declaration lives directly in namespace `std` — inline namespaces
 inside `std` (like libc++'s `__1`) count, but nested named namespaces
 such as `std::experimental` do not.
 
-```text
-clang-query> match cxxRecordDecl(hasName("vector"), isInStdNamespace(), unless(isImplicit()))
+```clang-query
+match cxxRecordDecl(hasName("vector"), isInStdNamespace(), unless(isImplicit()))
 ```
 
 **Expected:** 1 match — `std::__1::vector` at `narrow_decls.cpp:39` (`std::__1::experimental::vector` on line 41 is excluded).
@@ -333,8 +333,8 @@ clang-query> match cxxRecordDecl(hasName("vector"), isInStdNamespace(), unless(i
 
 The declaration is inside an anonymous namespace at any depth.
 
-```text
-clang-query> match namedDecl(isInAnonymousNamespace(), unless(isImplicit()))
+```clang-query
+match namedDecl(isInAnonymousNamespace(), unless(isImplicit()))
 ```
 
 **Expected:** 2 matches — `helper` at `narrow_decls.cpp:18` and the anonymous-namespace `Widget` at `narrow_decls.cpp:51`.
@@ -343,8 +343,8 @@ clang-query> match namedDecl(isInAnonymousNamespace(), unless(isImplicit()))
 
 The namespace declaration *itself* is `namespace { … }`.
 
-```text
-clang-query> match namespaceDecl(isAnonymous())
+```clang-query
+match namespaceDecl(isAnonymous())
 ```
 
 **Expected:** 2 matches — `narrow_decls.cpp:17` and `narrow_decls.cpp:50`.
@@ -357,20 +357,20 @@ attribute class name — `[[deprecated]]` is `attr::Deprecated`,
 `[[noreturn]]` is `attr::CXX11NoReturn`, `override`/`final` are
 `attr::Override`/`attr::Final`.
 
-```text
-clang-query> match decl(hasAttr("attr::Deprecated"))
+```clang-query
+match decl(hasAttr("attr::Deprecated"))
 ```
 
 **Expected:** 1 match — `old_api` at `narrow_decls.cpp:55`.
 
-```text
-clang-query> match decl(hasAttr("attr::Final"))
+```clang-query
+match decl(hasAttr("attr::Final"))
 ```
 
 **Expected:** 2 matches — `Rect::draw` at `narrow_decls.cpp:95` and `struct Sealed final` at `narrow_decls.cpp:97`.
 
-```text
-clang-query> match decl(hasAttr("attr::CXX11NoReturn"))
+```clang-query
+match decl(hasAttr("attr::CXX11NoReturn"))
 ```
 
 **Expected:** 1 match — `die` at `narrow_decls.cpp:67` (`"attr::NoReturn"` is the GNU `__attribute__((noreturn))` spelling and matches nothing here).
@@ -389,20 +389,20 @@ reached with `hasType(functionProtoType(...))`.
 The declaration is the one that *defines* the entity: a function with a
 body, a class with a body, a variable that is not `extern`.
 
-```text
-clang-query> match functionDecl(hasAnyName("declared_only", "defined"), isDefinition())
+```clang-query
+match functionDecl(hasAnyName("declared_only", "defined"), isDefinition())
 ```
 
 **Expected:** 1 match — `defined` at `narrow_decls.cpp:60`.
 
-```text
-clang-query> match tagDecl(hasAnyName("Defined", "Forward"), isDefinition())
+```clang-query
+match tagDecl(hasAnyName("Defined", "Forward"), isDefinition())
 ```
 
 **Expected:** 1 match — `class Defined {}` at `narrow_decls.cpp:131`.
 
-```text
-clang-query> match varDecl(hasAnyName("g_plain", "g_extern"), isDefinition())
+```clang-query
+match varDecl(hasAnyName("g_plain", "g_extern"), isDefinition())
 ```
 
 **Expected:** 1 match — `g_plain` at `narrow_decls.cpp:142`.
@@ -414,20 +414,20 @@ rule but not by keyword, so they do not match; lambda call operators and
 compiler-generated members are marked inline internally, which is why the
 example excludes methods.
 
-```text
-clang-query> match functionDecl(isInline(), unless(cxxMethodDecl()))
+```clang-query
+match functionDecl(isInline(), unless(cxxMethodDecl()))
 ```
 
 **Expected:** 1 match — `inlined` at `narrow_decls.cpp:61`.
 
-```text
-clang-query> match namespaceDecl(isInline())
+```clang-query
+match namespaceDecl(isInline())
 ```
 
 **Expected:** 2 matches — `std::__1` at `narrow_decls.cpp:38` and `outer::v2` at `narrow_decls.cpp:47`.
 
-```text
-clang-query> match varDecl(isInline())
+```clang-query
+match varDecl(isInline())
 ```
 
 **Expected:** 1 match — `g_inline` at `narrow_decls.cpp:148`.
@@ -437,20 +437,20 @@ clang-query> match varDecl(isInline())
 A `constexpr` function or variable, or an `if constexpr`. A `consteval`
 function counts as constexpr too.
 
-```text
-clang-query> match functionDecl(isConstexpr(), unless(cxxMethodDecl()))
+```clang-query
+match functionDecl(isConstexpr(), unless(cxxMethodDecl()))
 ```
 
 **Expected:** 2 matches — `square` at `narrow_decls.cpp:62` and `cube` at `narrow_decls.cpp:63`.
 
-```text
-clang-query> match varDecl(isConstexpr())
+```clang-query
+match varDecl(isConstexpr())
 ```
 
 **Expected:** 1 match — `g_constexpr` at `narrow_decls.cpp:147`.
 
-```text
-clang-query> match ifStmt(isConstexpr())
+```clang-query
+match ifStmt(isConstexpr())
 ```
 
 **Expected:** 1 match — `if constexpr (sizeof(int) == 4)` at `narrow_decls.cpp:176`.
@@ -459,14 +459,14 @@ clang-query> match ifStmt(isConstexpr())
 
 A `consteval` function, or an `if consteval` / `if ! consteval`.
 
-```text
-clang-query> match functionDecl(isConsteval())
+```clang-query
+match functionDecl(isConsteval())
 ```
 
 **Expected:** 1 match — `cube` at `narrow_decls.cpp:63`.
 
-```text
-clang-query> match ifStmt(isConsteval())
+```clang-query
+match ifStmt(isConsteval())
 ```
 
 **Expected:** 1 match — `if consteval {}` at `narrow_decls.cpp:177`.
@@ -476,14 +476,14 @@ clang-query> match ifStmt(isConsteval())
 The function is `= default`. Compiler-generated special members are
 "defaulted" too, so filter them out to see only what was written.
 
-```text
-clang-query> match functionDecl(isDefaulted(), unless(isImplicit()))
+```clang-query
+match functionDecl(isDefaulted(), unless(isImplicit()))
 ```
 
 **Expected:** 1 match — `virtual ~Shape() = default` at `narrow_decls.cpp:84`.
 
-```text
-clang-query> match functionDecl(isDefaulted())
+```clang-query
+match functionDecl(isDefaulted())
 ```
 
 **Expected:** 28 matches — the same `~Shape` plus 27 implicit constructors, destructors and assignment operators.
@@ -494,8 +494,8 @@ The function is `= delete`. Again the compiler deletes members on its own
 (e.g. the copy constructor of a class with a user-declared move
 assignment), so `unless(isImplicit())` matters.
 
-```text
-clang-query> match functionDecl(isDeleted(), unless(isImplicit()))
+```clang-query
+match functionDecl(isDeleted(), unless(isImplicit()))
 ```
 
 **Expected:** 1 match — `erased` at `narrow_decls.cpp:64`.
@@ -505,14 +505,14 @@ clang-query> match functionDecl(isDeleted(), unless(isImplicit()))
 Declared with C language linkage, either `extern "C" void f()` or inside
 an `extern "C" { … }` block.
 
-```text
-clang-query> match functionDecl(isExternC())
+```clang-query
+match functionDecl(isExternC())
 ```
 
 **Expected:** 2 matches — `c_entry` at `narrow_decls.cpp:65` and `c_other` at `narrow_decls.cpp:66`.
 
-```text
-clang-query> match varDecl(isExternC())
+```clang-query
+match varDecl(isExternC())
 ```
 
 **Expected:** 1 match — `g_cvar` at `narrow_decls.cpp:149`.
@@ -521,8 +521,8 @@ clang-query> match varDecl(isExternC())
 
 The program entry point.
 
-```text
-clang-query> match functionDecl(isMain())
+```clang-query
+match functionDecl(isMain())
 ```
 
 **Expected:** 1 match — `main` at `narrow_decls.cpp:80`.
@@ -532,8 +532,8 @@ clang-query> match functionDecl(isMain())
 The function has a noreturn attribute of any spelling (`[[noreturn]]`,
 `__attribute__((noreturn))`, `_Noreturn`).
 
-```text
-clang-query> match functionDecl(isNoReturn())
+```clang-query
+match functionDecl(isNoReturn())
 ```
 
 **Expected:** 1 match — `die` at `narrow_decls.cpp:67`.
@@ -545,17 +545,17 @@ The exception specification promises not to throw: `noexcept`,
 `noexcept(false)` do not match. Many implicit members are noexcept, hence
 the name filter.
 
-```text
-clang-query> match functionDecl(isNoThrow(),
-                 hasAnyName("may_throw", "no_throw", "no_throw_true", "old_style", "may_throw_false"))
+```clang-query
+match functionDecl(isNoThrow(),
+    hasAnyName("may_throw", "no_throw", "no_throw_true", "old_style", "may_throw_false"))
 ```
 
 **Expected:** 3 matches — `no_throw` (`:69`), `no_throw_true` (`:70`) and `old_style` (`:71`).
 
 The type overload, reached through the function's `FunctionProtoType`:
 
-```text
-clang-query> match functionDecl(hasName("no_throw"), hasType(functionProtoType(isNoThrow())))
+```clang-query
+match functionDecl(hasName("no_throw"), hasType(functionProtoType(isNoThrow())))
 ```
 
 **Expected:** 1 match — `no_throw` at `narrow_decls.cpp:69`.
@@ -566,14 +566,14 @@ A *dynamic* exception specification — the `throw(...)` family. Since
 C++17 only the empty `throw()` still parses (it means `noexcept`), and it
 is the only one in the sample.
 
-```text
-clang-query> match functionDecl(hasDynamicExceptionSpec())
+```clang-query
+match functionDecl(hasDynamicExceptionSpec())
 ```
 
 **Expected:** 1 match — `old_style() throw()` at `narrow_decls.cpp:71`.
 
-```text
-clang-query> match functionDecl(hasName("old_style"), hasType(functionProtoType(hasDynamicExceptionSpec())))
+```clang-query
+match functionDecl(hasName("old_style"), hasType(functionProtoType(hasDynamicExceptionSpec())))
 ```
 
 **Expected:** 1 match — the same `old_style` at `narrow_decls.cpp:71`.
@@ -584,14 +584,14 @@ The `static` keyword was written as a storage class — file-local
 functions, file-local globals, and static locals. (Not to be confused
 with static *members*.)
 
-```text
-clang-query> match functionDecl(isStaticStorageClass(), unless(isImplicit()))
+```clang-query
+match functionDecl(isStaticStorageClass(), unless(isImplicit()))
 ```
 
 **Expected:** 1 match — `file_local` at `narrow_decls.cpp:73`.
 
-```text
-clang-query> match varDecl(isStaticStorageClass())
+```clang-query
+match varDecl(isStaticStorageClass())
 ```
 
 **Expected:** 3 matches — `file_counter` (`:15`), `g_static` (`:143`) and `local_static` (`:153`).
@@ -601,8 +601,8 @@ clang-query> match varDecl(isStaticStorageClass())
 A C-style variadic function (`...`). Parameter packs are not variadic in
 this sense.
 
-```text
-clang-query> match functionDecl(isVariadic())
+```clang-query
+match functionDecl(isVariadic())
 ```
 
 **Expected:** 1 match — `printf_like` at `narrow_decls.cpp:74`.
@@ -611,8 +611,8 @@ clang-query> match functionDecl(isVariadic())
 
 The function is a weak symbol (`__attribute__((weak))` or `weakref`).
 
-```text
-clang-query> match functionDecl(isWeak())
+```clang-query
+match functionDecl(isWeak())
 ```
 
 **Expected:** 1 match — `weak_symbol` at `narrow_decls.cpp:75`.
@@ -622,14 +622,14 @@ clang-query> match functionDecl(isWeak())
 Exactly `N` parameters (the variadic `...` is not counted; a C++23
 explicit object parameter `this T self` *is*).
 
-```text
-clang-query> match functionDecl(parameterCountIs(2), hasAnyName("one", "two", "three"))
+```clang-query
+match functionDecl(parameterCountIs(2), hasAnyName("one", "two", "three"))
 ```
 
 **Expected:** 1 match — `two` at `narrow_decls.cpp:77`.
 
-```text
-clang-query> match functionDecl(hasName("three"), hasType(functionProtoType(parameterCountIs(3))))
+```clang-query
+match functionDecl(hasName("three"), hasType(functionProtoType(parameterCountIs(3))))
 ```
 
 **Expected:** 1 match — `three` at `narrow_decls.cpp:78`.
@@ -640,9 +640,9 @@ Declared with a trailing return type, `auto f() -> int`. Deduction guides
 and lambda call operators are built with trailing return types
 internally, so they are excluded here.
 
-```text
-clang-query> match functionDecl(hasTrailingReturn(), unless(cxxMethodDecl()),
-                                unless(cxxDeductionGuideDecl()))
+```clang-query
+match functionDecl(hasTrailingReturn(), unless(cxxMethodDecl()),
+                   unless(cxxDeductionGuideDecl()))
 ```
 
 **Expected:** 1 match — `trailing` at `narrow_decls.cpp:79`.
@@ -661,8 +661,8 @@ this section.
 A `const`-qualified member function. Lambda call operators are `const` by
 default, so the example restricts to one class.
 
-```text
-clang-query> match cxxMethodDecl(isConst(), ofClass(hasName("Shape")))
+```clang-query
+match cxxMethodDecl(isConst(), ofClass(hasName("Shape")))
 ```
 
 **Expected:** 2 matches — `Shape::area` at `narrow_decls.cpp:85` and `Shape::name` at `narrow_decls.cpp:87`.
@@ -673,14 +673,14 @@ On a method: it is virtual, whether the keyword was written or it
 inherited virtuality from an overridden method. On a base specifier:
 `virtual` inheritance.
 
-```text
-clang-query> match cxxMethodDecl(isVirtual(), unless(isImplicit()))
+```clang-query
+match cxxMethodDecl(isVirtual(), unless(isImplicit()))
 ```
 
 **Expected:** 5 matches — `~Shape` (`:84`), `Shape::area` (`:85`), `Shape::draw` (`:86`), `Rect::area` (`:94`), `Rect::draw` (`:95`).
 
-```text
-clang-query> match cxxRecordDecl(hasDirectBase(isVirtual()))
+```clang-query
+match cxxRecordDecl(hasDirectBase(isVirtual()))
 ```
 
 **Expected:** 1 match — `VirtualChild : virtual Base` at `narrow_decls.cpp:35`.
@@ -690,8 +690,8 @@ clang-query> match cxxRecordDecl(hasDirectBase(isVirtual()))
 The `virtual` keyword itself was written. `Rect::area` is virtual but was
 declared with `override` only, so it drops out.
 
-```text
-clang-query> match cxxMethodDecl(isVirtualAsWritten())
+```clang-query
+match cxxMethodDecl(isVirtualAsWritten())
 ```
 
 **Expected:** 3 matches — `~Shape`, `Shape::area`, `Shape::draw` at `narrow_decls.cpp:84`–`86`.
@@ -700,8 +700,8 @@ clang-query> match cxxMethodDecl(isVirtualAsWritten())
 
 A pure virtual method (`= 0`).
 
-```text
-clang-query> match cxxMethodDecl(isPure())
+```clang-query
+match cxxMethodDecl(isPure())
 ```
 
 **Expected:** 1 match — `Shape::area` at `narrow_decls.cpp:85`.
@@ -712,8 +712,8 @@ The method overrides a base-class method — regardless of whether the
 `override` keyword was used. Implicit destructors of derived classes
 override too, so they are excluded.
 
-```text
-clang-query> match cxxMethodDecl(isOverride(), unless(isImplicit()))
+```clang-query
+match cxxMethodDecl(isOverride(), unless(isImplicit()))
 ```
 
 **Expected:** 2 matches — `Rect::area` at `narrow_decls.cpp:94` and `Rect::draw` at `narrow_decls.cpp:95`.
@@ -722,14 +722,14 @@ clang-query> match cxxMethodDecl(isOverride(), unless(isImplicit()))
 
 The method or class is marked `final`.
 
-```text
-clang-query> match cxxMethodDecl(isFinal())
+```clang-query
+match cxxMethodDecl(isFinal())
 ```
 
 **Expected:** 1 match — `Rect::draw` at `narrow_decls.cpp:95`.
 
-```text
-clang-query> match cxxRecordDecl(isFinal())
+```clang-query
+match cxxRecordDecl(isFinal())
 ```
 
 **Expected:** 1 match — `struct Sealed final` at `narrow_decls.cpp:97`.
@@ -740,14 +740,14 @@ The method was written by the user *and* not defaulted or deleted on its
 first declaration. `~Shape() = default` is user-*declared* but not
 user-*provided*.
 
-```text
-clang-query> match cxxMethodDecl(isUserProvided(), ofClass(hasName("Shape")))
+```clang-query
+match cxxMethodDecl(isUserProvided(), ofClass(hasName("Shape")))
 ```
 
 **Expected:** 7 matches — every `Shape` member from `area` (`:85`) to `scale` (`:91`), but not `~Shape`.
 
-```text
-clang-query> match cxxMethodDecl(ofClass(hasName("Shape")), unless(isUserProvided()))
+```clang-query
+match cxxMethodDecl(ofClass(hasName("Shape")), unless(isUserProvided()))
 ```
 
 **Expected:** 2 matches — the defaulted `~Shape` at `narrow_decls.cpp:84` and one implicit member.
@@ -757,8 +757,8 @@ clang-query> match cxxMethodDecl(ofClass(hasName("Shape")), unless(isUserProvide
 An `operator=` taking `const T&` (or `T&`, `volatile` variants). Every
 class that needs one gets an implicit copy assignment, so filter.
 
-```text
-clang-query> match cxxMethodDecl(isCopyAssignmentOperator(), unless(isImplicit()))
+```clang-query
+match cxxMethodDecl(isCopyAssignmentOperator(), unless(isImplicit()))
 ```
 
 **Expected:** 1 match — `Shape::operator=(const Shape&)` at `narrow_decls.cpp:89`.
@@ -767,8 +767,8 @@ clang-query> match cxxMethodDecl(isCopyAssignmentOperator(), unless(isImplicit()
 
 An `operator=` taking `T&&`.
 
-```text
-clang-query> match cxxMethodDecl(isMoveAssignmentOperator(), unless(isImplicit()))
+```clang-query
+match cxxMethodDecl(isMoveAssignmentOperator(), unless(isImplicit()))
 ```
 
 **Expected:** 1 match — `Shape::operator=(Shape&&)` at `narrow_decls.cpp:90`.
@@ -778,8 +778,8 @@ clang-query> match cxxMethodDecl(isMoveAssignmentOperator(), unless(isImplicit()
 A C++23 "deducing this" member function — its first parameter is written
 `this T self`.
 
-```text
-clang-query> match cxxMethodDecl(isExplicitObjectMemberFunction())
+```clang-query
+match cxxMethodDecl(isExplicitObjectMemberFunction())
 ```
 
 **Expected:** 1 match — `Shape::scale(this Shape& self, int k)` at `narrow_decls.cpp:91`.
@@ -800,8 +800,8 @@ member-initializer list and are reached via
 A constructor callable with no arguments. Note that a redeclaration
 (the out-of-line definition `Point::Point()`) is a second match.
 
-```text
-clang-query> match cxxConstructorDecl(isDefaultConstructor())
+```clang-query
+match cxxConstructorDecl(isDefaultConstructor())
 ```
 
 **Expected:** 3 matches — `Point()` at `narrow_decls.cpp:102`, its definition at `narrow_decls.cpp:113`, and `Point3D()` at `narrow_decls.cpp:125`.
@@ -810,14 +810,14 @@ clang-query> match cxxConstructorDecl(isDefaultConstructor())
 
 A constructor taking `const T&` (or `T&`).
 
-```text
-clang-query> match cxxConstructorDecl(isCopyConstructor(), unless(isImplicit()))
+```clang-query
+match cxxConstructorDecl(isCopyConstructor(), unless(isImplicit()))
 ```
 
 **Expected:** 1 match — `Point(const Point&)` at `narrow_decls.cpp:103`.
 
-```text
-clang-query> match cxxConstructorDecl(isCopyConstructor())
+```clang-query
+match cxxConstructorDecl(isCopyConstructor())
 ```
 
 **Expected:** 5 matches — the same plus four implicit copy constructors (`Shape`, `Rect`, `Sealed`, `Point3D`).
@@ -826,8 +826,8 @@ clang-query> match cxxConstructorDecl(isCopyConstructor())
 
 A constructor taking `T&&`.
 
-```text
-clang-query> match cxxConstructorDecl(isMoveConstructor(), unless(isImplicit()))
+```clang-query
+match cxxConstructorDecl(isMoveConstructor(), unless(isImplicit()))
 ```
 
 **Expected:** 1 match — `Point(Point&&)` at `narrow_decls.cpp:104`.
@@ -837,8 +837,8 @@ clang-query> match cxxConstructorDecl(isMoveConstructor(), unless(isImplicit()))
 The constructor's initializer list calls another constructor of the same
 class (`: Point(...)`).
 
-```text
-clang-query> match cxxConstructorDecl(isDelegatingConstructor())
+```clang-query
+match cxxConstructorDecl(isDelegatingConstructor())
 ```
 
 **Expected:** 2 matches — `Point(double)` at `narrow_decls.cpp:107` and `Point::Point()` at `narrow_decls.cpp:113`.
@@ -849,20 +849,20 @@ The `explicit` specifier is present *and resolves to true*:
 `explicit(false)` does not match, `explicit(true)` does, and a dependent
 `explicit(b)` is not resolved.
 
-```text
-clang-query> match cxxConstructorDecl(isExplicit())
+```clang-query
+match cxxConstructorDecl(isExplicit())
 ```
 
 **Expected:** 2 matches — `explicit Point(int)` at `narrow_decls.cpp:105` and `explicit(true) Point(char)` at `narrow_decls.cpp:109`.
 
-```text
-clang-query> match cxxConversionDecl(isExplicit())
+```clang-query
+match cxxConversionDecl(isExplicit())
 ```
 
 **Expected:** 1 match — `explicit operator bool()` at `narrow_decls.cpp:111`.
 
-```text
-clang-query> match cxxDeductionGuideDecl(isExplicit())
+```clang-query
+match cxxDeductionGuideDecl(isExplicit())
 ```
 
 **Expected:** 1 match — `explicit Box(double) -> Box<double>` at `narrow_decls.cpp:121`.
@@ -876,8 +876,8 @@ dynamic registry does not register it (`Matcher not found`). The nearest
 working alternative is to find the `using` declaration whose shadow
 declarations target constructors:
 
-```text
-clang-query> match usingDecl(hasAnyUsingShadowDecl(hasTargetDecl(cxxConstructorDecl())))
+```clang-query
+match usingDecl(hasAnyUsingShadowDecl(hasTargetDecl(cxxConstructorDecl())))
 ```
 
 **Expected:** 1 match — `using Point::Point;` at `narrow_decls.cpp:127`.
@@ -887,8 +887,8 @@ clang-query> match usingDecl(hasAnyUsingShadowDecl(hasTargetDecl(cxxConstructorD
 The initializer initializes a base class. The compiler adds an implicit
 base initializer when none is written, so `Point3D(int)` matches as well.
 
-```text
-clang-query> match cxxConstructorDecl(hasAnyConstructorInitializer(isBaseInitializer()))
+```clang-query
+match cxxConstructorDecl(hasAnyConstructorInitializer(isBaseInitializer()))
 ```
 
 **Expected:** 2 matches — `Point3D()` at `narrow_decls.cpp:125` and `Point3D(int)` at `narrow_decls.cpp:126`.
@@ -897,9 +897,9 @@ clang-query> match cxxConstructorDecl(hasAnyConstructorInitializer(isBaseInitial
 
 The initializer initializes a non-static data member.
 
-```text
-clang-query> match cxxConstructorDecl(hasAnyConstructorInitializer(isMemberInitializer()),
-                                      unless(isImplicit()))
+```clang-query
+match cxxConstructorDecl(hasAnyConstructorInitializer(isMemberInitializer()),
+                         unless(isImplicit()))
 ```
 
 **Expected:** 3 matches — `Point(int, int)` (`:106`), `Point3D()` (`:125`), `Point3D(int)` (`:126`).
@@ -911,15 +911,15 @@ compiler. Combine it with `isBaseInitializer()` (inside an explicit
 `allOf`, since `hasAnyConstructorInitializer` takes one matcher) to keep
 only the base initializer someone typed.
 
-```text
-clang-query> match cxxConstructorDecl(hasAnyConstructorInitializer(
-                 allOf(isBaseInitializer(), isWritten())))
+```clang-query
+match cxxConstructorDecl(hasAnyConstructorInitializer(
+    allOf(isBaseInitializer(), isWritten())))
 ```
 
 **Expected:** 1 match — `Point3D() : Point(), z(0)` at `narrow_decls.cpp:125`.
 
-```text
-clang-query> match cxxConstructorDecl(hasAnyConstructorInitializer(isWritten()))
+```clang-query
+match cxxConstructorDecl(hasAnyConstructorInitializer(isWritten()))
 ```
 
 **Expected:** 5 matches — `narrow_decls.cpp:106`, `:107`, `:113`, `:125`, `:126` (delegating initializers count as written).
@@ -937,8 +937,8 @@ predicates add inheritance and lambda tests. The string overloads of the
 
 The class has a definition somewhere in the translation unit.
 
-```text
-clang-query> match cxxRecordDecl(hasAnyName("Defined", "Forward"), hasDefinition())
+```clang-query
+match cxxRecordDecl(hasAnyName("Defined", "Forward"), hasDefinition())
 ```
 
 **Expected:** 1 match — `class Defined {}` at `narrow_decls.cpp:131` (`class Forward;` has none).
@@ -948,8 +948,8 @@ clang-query> match cxxRecordDecl(hasAnyName("Defined", "Forward"), hasDefinition
 The class derives — directly or indirectly — from a class named
 `BaseName`.
 
-```text
-clang-query> match cxxRecordDecl(isDerivedFrom("Animal"), unless(isImplicit()))
+```clang-query
+match cxxRecordDecl(isDerivedFrom("Animal"), unless(isImplicit()))
 ```
 
 **Expected:** 2 matches — `Mammal` at `narrow_decls.cpp:134` and `Dog` at `narrow_decls.cpp:135`.
@@ -958,8 +958,8 @@ clang-query> match cxxRecordDecl(isDerivedFrom("Animal"), unless(isImplicit()))
 
 Only *direct* bases count.
 
-```text
-clang-query> match cxxRecordDecl(isDirectlyDerivedFrom("Animal"), unless(isImplicit()))
+```clang-query
+match cxxRecordDecl(isDirectlyDerivedFrom("Animal"), unless(isImplicit()))
 ```
 
 **Expected:** 1 match — `Mammal` at `narrow_decls.cpp:134`.
@@ -968,8 +968,8 @@ clang-query> match cxxRecordDecl(isDirectlyDerivedFrom("Animal"), unless(isImpli
 
 Like `isDerivedFrom` but the named class itself matches too.
 
-```text
-clang-query> match cxxRecordDecl(isSameOrDerivedFrom("Animal"), unless(isImplicit()))
+```clang-query
+match cxxRecordDecl(isSameOrDerivedFrom("Animal"), unless(isImplicit()))
 ```
 
 **Expected:** 3 matches — `Animal`, `Mammal`, `Dog` at `narrow_decls.cpp:133`–`135`.
@@ -979,8 +979,8 @@ clang-query> match cxxRecordDecl(isSameOrDerivedFrom("Animal"), unless(isImplici
 The implicit closure class generated for a lambda expression. Its location
 is the lambda's `[`.
 
-```text
-clang-query> match cxxRecordDecl(isLambda())
+```clang-query
+match cxxRecordDecl(isLambda())
 ```
 
 **Expected:** 3 matches — the closures at `narrow_decls.cpp:139`, `:158` and `:186`.
@@ -991,9 +991,9 @@ Spelled with the `class` keyword. The next four entries use the same five
 tags — `Defined`, `Animal`, `Number`, `Color`, `Level` — so you can see
 each keyword pick its own.
 
-```text
-clang-query> match tagDecl(isClass(), hasAnyName("Defined", "Animal", "Number", "Color", "Level"),
-                           unless(isImplicit()))
+```clang-query
+match tagDecl(isClass(), hasAnyName("Defined", "Animal", "Number", "Color", "Level"),
+              unless(isImplicit()))
 ```
 
 **Expected:** 1 match — `class Defined` at `narrow_decls.cpp:131`.
@@ -1002,9 +1002,9 @@ clang-query> match tagDecl(isClass(), hasAnyName("Defined", "Animal", "Number", 
 
 Spelled with `struct`.
 
-```text
-clang-query> match tagDecl(isStruct(), hasAnyName("Defined", "Animal", "Number", "Color", "Level"),
-                           unless(isImplicit()))
+```clang-query
+match tagDecl(isStruct(), hasAnyName("Defined", "Animal", "Number", "Color", "Level"),
+              unless(isImplicit()))
 ```
 
 **Expected:** 1 match — `struct Animal` at `narrow_decls.cpp:133`.
@@ -1013,9 +1013,9 @@ clang-query> match tagDecl(isStruct(), hasAnyName("Defined", "Animal", "Number",
 
 Spelled with `union`.
 
-```text
-clang-query> match tagDecl(isUnion(), hasAnyName("Defined", "Animal", "Number", "Color", "Level"),
-                           unless(isImplicit()))
+```clang-query
+match tagDecl(isUnion(), hasAnyName("Defined", "Animal", "Number", "Color", "Level"),
+              unless(isImplicit()))
 ```
 
 **Expected:** 1 match — `union Number` at `narrow_decls.cpp:136`.
@@ -1024,9 +1024,9 @@ clang-query> match tagDecl(isUnion(), hasAnyName("Defined", "Animal", "Number", 
 
 Spelled with `enum` — scoped or not.
 
-```text
-clang-query> match tagDecl(isEnum(), hasAnyName("Defined", "Animal", "Number", "Color", "Level"),
-                           unless(isImplicit()))
+```clang-query
+match tagDecl(isEnum(), hasAnyName("Defined", "Animal", "Number", "Color", "Level"),
+              unless(isImplicit()))
 ```
 
 **Expected:** 2 matches — `enum Color` at `narrow_decls.cpp:137` and `enum class Level` at `narrow_decls.cpp:138`.
@@ -1035,8 +1035,8 @@ clang-query> match tagDecl(isEnum(), hasAnyName("Defined", "Animal", "Number", "
 
 A C++11 scoped enumeration (`enum class` / `enum struct`).
 
-```text
-clang-query> match enumDecl(isScoped())
+```clang-query
+match enumDecl(isScoped())
 ```
 
 **Expected:** 1 match — `enum class Level` at `narrow_decls.cpp:138`.
@@ -1054,10 +1054,10 @@ catch parameter; lines 142–149 hold the globals.
 
 Lives on the stack: ordinary locals, parameters, and catch variables.
 
-```text
-clang-query> let storage hasAnyName("local", "caught", "local_static", "local_thread",
-                                    "g_plain", "g_static", "g_extern", "g_thread")
-clang-query> match varDecl(hasAutomaticStorageDuration(), storage)
+```clang-query
+let storage hasAnyName("local", "caught", "local_static", "local_thread",
+                       "g_plain", "g_static", "g_extern", "g_thread")
+match varDecl(hasAutomaticStorageDuration(), storage)
 ```
 
 **Expected:** 2 matches — `local` at `narrow_decls.cpp:152` and `caught` at `narrow_decls.cpp:156`.
@@ -1067,10 +1067,10 @@ clang-query> match varDecl(hasAutomaticStorageDuration(), storage)
 Function scope *and* non-static — for C++ this is the same set as
 automatic storage.
 
-```text
-clang-query> let storage hasAnyName("local", "caught", "local_static", "local_thread",
-                                    "g_plain", "g_static", "g_extern", "g_thread")
-clang-query> match varDecl(hasLocalStorage(), storage)
+```clang-query
+let storage hasAnyName("local", "caught", "local_static", "local_thread",
+                       "g_plain", "g_static", "g_extern", "g_thread")
+match varDecl(hasLocalStorage(), storage)
 ```
 
 **Expected:** 2 matches — `local` (`:152`) and `caught` (`:156`).
@@ -1080,10 +1080,10 @@ clang-query> match varDecl(hasLocalStorage(), storage)
 Everything that does *not* have local storage: namespace-scope variables,
 static locals, thread-locals.
 
-```text
-clang-query> let storage hasAnyName("local", "caught", "local_static", "local_thread",
-                                    "g_plain", "g_static", "g_extern", "g_thread")
-clang-query> match varDecl(hasGlobalStorage(), storage)
+```clang-query
+let storage hasAnyName("local", "caught", "local_static", "local_thread",
+                       "g_plain", "g_static", "g_extern", "g_thread")
+match varDecl(hasGlobalStorage(), storage)
 ```
 
 **Expected:** 6 matches — `g_plain`, `g_static`, `g_extern`, `g_thread` (`:142`–`145`), `local_static` (`:153`), `local_thread` (`:154`).
@@ -1093,10 +1093,10 @@ clang-query> match varDecl(hasGlobalStorage(), storage)
 Lives for the whole program: namespace-scope variables (including
 `static` and `extern` ones) and static locals — but not thread-locals.
 
-```text
-clang-query> let storage hasAnyName("local", "caught", "local_static", "local_thread",
-                                    "g_plain", "g_static", "g_extern", "g_thread")
-clang-query> match varDecl(hasStaticStorageDuration(), storage)
+```clang-query
+let storage hasAnyName("local", "caught", "local_static", "local_thread",
+                       "g_plain", "g_static", "g_extern", "g_thread")
+match varDecl(hasStaticStorageDuration(), storage)
 ```
 
 **Expected:** 4 matches — `g_plain` (`:142`), `g_static` (`:143`), `g_extern` (`:144`), `local_static` (`:153`).
@@ -1105,10 +1105,10 @@ clang-query> match varDecl(hasStaticStorageDuration(), storage)
 
 Declared `thread_local`, at any scope.
 
-```text
-clang-query> let storage hasAnyName("local", "caught", "local_static", "local_thread",
-                                    "g_plain", "g_static", "g_extern", "g_thread")
-clang-query> match varDecl(hasThreadStorageDuration(), storage)
+```clang-query
+let storage hasAnyName("local", "caught", "local_static", "local_thread",
+                       "g_plain", "g_static", "g_extern", "g_thread")
+match varDecl(hasThreadStorageDuration(), storage)
 ```
 
 **Expected:** 2 matches — `g_thread` at `narrow_decls.cpp:145` and `local_thread` at `narrow_decls.cpp:154`.
@@ -1118,8 +1118,8 @@ clang-query> match varDecl(hasThreadStorageDuration(), storage)
 A local variable with static storage — `static` *or* `thread_local`
 inside a function.
 
-```text
-clang-query> match varDecl(isStaticLocal())
+```clang-query
+match varDecl(isStaticLocal())
 ```
 
 **Expected:** 2 matches — `local_static` at `narrow_decls.cpp:153` and `local_thread` at `narrow_decls.cpp:154`.
@@ -1129,8 +1129,8 @@ clang-query> match varDecl(isStaticLocal())
 Declared with the C++20 `constinit` specifier (a `constexpr` variable does
 not count).
 
-```text
-clang-query> match varDecl(isConstinit())
+```clang-query
+match varDecl(isConstinit())
 ```
 
 **Expected:** 1 match — `g_constinit` at `narrow_decls.cpp:146`.
@@ -1139,8 +1139,8 @@ clang-query> match varDecl(isConstinit())
 
 The variable declared by a `catch (T x)` clause.
 
-```text
-clang-query> match varDecl(isExceptionVariable())
+```clang-query
+match varDecl(isExceptionVariable())
 ```
 
 **Expected:** 1 match — `caught` at `narrow_decls.cpp:156`.
@@ -1149,8 +1149,8 @@ clang-query> match varDecl(isExceptionVariable())
 
 The implicit variable behind a lambda init-capture `[x = expr]`.
 
-```text
-clang-query> match varDecl(isInitCapture())
+```clang-query
+match varDecl(isInitCapture())
 ```
 
 **Expected:** 1 match — `captured` at `narrow_decls.cpp:158`.
@@ -1159,8 +1159,8 @@ clang-query> match varDecl(isInitCapture())
 
 A non-static data member declared with a bit width.
 
-```text
-clang-query> match fieldDecl(isBitField())
+```clang-query
+match fieldDecl(isBitField())
 ```
 
 **Expected:** 3 matches — `Flags::a`, `b`, `c` at `narrow_decls.cpp:162`–`164`.
@@ -1169,8 +1169,8 @@ clang-query> match fieldDecl(isBitField())
 
 A bit-field of exactly `Width` bits.
 
-```text
-clang-query> match fieldDecl(hasBitWidth(2))
+```clang-query
+match fieldDecl(hasBitWidth(2))
 ```
 
 **Expected:** 2 matches — `a` at `narrow_decls.cpp:162` and `c` at `narrow_decls.cpp:164`.
@@ -1181,8 +1181,8 @@ The parameter has a default argument. The reference marks it deprecated in
 favour of `hasInitializer(...)`, which also lets you match the default's
 value (see `anything()` in 5.1).
 
-```text
-clang-query> match parmVarDecl(hasDefaultArgument())
+```clang-query
+match parmVarDecl(hasDefaultArgument())
 ```
 
 **Expected:** 1 match — `mode` at `narrow_decls.cpp:168`.
@@ -1194,14 +1194,14 @@ hits come from the implicit `operator new(size_t, std::align_val_t)`
 declarations clang adds for the polymorphic `Shape`; the ancestor test
 drops them.
 
-```text
-clang-query> match parmVarDecl(isAtPosition(2), unless(hasAncestor(decl(isImplicit()))))
+```clang-query
+match parmVarDecl(isAtPosition(2), unless(hasAncestor(decl(isImplicit()))))
 ```
 
 **Expected:** 2 matches — `c` of `three` at `narrow_decls.cpp:78` and `third` of `positional` at `narrow_decls.cpp:169`.
 
-```text
-clang-query> match parmVarDecl(isAtPosition(2))
+```clang-query
+match parmVarDecl(isAtPosition(2))
 ```
 
 **Expected:** 4 matches — the two above plus two parameters of implicit `operator new` declarations (no source location).
@@ -1219,8 +1219,8 @@ overloads share the name; the enclosing node matcher selects one.
 implicit `operator new`/`delete`. This sample has 31 implicit record
 declarations alone:
 
-```text
-clang-query> match cxxRecordDecl(isImplicit())
+```clang-query
+match cxxRecordDecl(isImplicit())
 ```
 
 **Expected:** 31 matches — one injected-class-name per class definition, plus the three lambda closure types.
@@ -1228,9 +1228,9 @@ clang-query> match cxxRecordDecl(isImplicit())
 An alternative to `unless(isImplicit())` is switching traversal mode,
 which hides implicit nodes globally:
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match cxxRecordDecl(hasName("Circle"))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match cxxRecordDecl(hasName("Circle"))
 ```
 
 **Expected:** 3 matches — `narrow_decls.cpp:7`, `:10`, `:12`; the injected-class-names are gone.
@@ -1240,14 +1240,14 @@ off the implicit `operator new` / `operator delete` declarations
 (`VisibilityAttr`, `ReturnsNonNullAttr`, `AllocSizeAttr`, …). The
 non-implicit ones are exactly the seven you can see in the source.
 
-```text
-clang-query> match attr(unless(isImplicit()))
+```clang-query
+match attr(unless(isImplicit()))
 ```
 
 **Expected:** 7 matches — `[[deprecated]]` (`:55`), `[[noreturn]]` (`:67`), `weak` (`:75`), `override` (`:94`), `final` (`:95`, `:97`), `constinit` (`:146`).
 
-```text
-clang-query> match attr(isImplicit())
+```clang-query
+match attr(isImplicit())
 ```
 
 **Expected:** 23 matches — all without a source location.
@@ -1255,14 +1255,14 @@ clang-query> match attr(isImplicit())
 **LambdaCapture.** In `[&, j]`, the capture of `i` is implicit (it came
 from the `&` default) while `j` is explicit.
 
-```text
-clang-query> match lambdaExpr(hasAnyCapture(lambdaCapture(isImplicit())))
+```clang-query
+match lambdaExpr(hasAnyCapture(lambdaCapture(isImplicit())))
 ```
 
 **Expected:** 1 match — the lambda at `narrow_decls.cpp:186`.
 
-```text
-clang-query> match lambdaExpr(hasAnyCapture(lambdaCapture(unless(isImplicit()))))
+```clang-query
+match lambdaExpr(hasAnyCapture(lambdaCapture(unless(isImplicit()))))
 ```
 
 **Expected:** 2 matches — `narrow_decls.cpp:158` (init-capture) and `narrow_decls.cpp:186` (the explicit `j`).
@@ -1273,8 +1273,8 @@ Actual = Matcher<Decl|Attr|LambdaCapture>" — the dynamic registry only
 knows the other three. The implicit inner list that `nested = {}` gets for
 its `Inner` member is still reachable structurally:
 
-```text
-clang-query> match varDecl(hasName("nested"), hasInitializer(initListExpr(has(initListExpr()))))
+```clang-query
+match varDecl(hasName("nested"), hasInitializer(initListExpr(has(initListExpr()))))
 ```
 
 **Expected:** 1 match — `nested` at `narrow_decls.cpp:182` (the outer `{}` contains a compiler-added `{}` for `inner`).

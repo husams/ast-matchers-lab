@@ -75,16 +75,16 @@ At the prompt, `help` prints the complete command list (it takes no argument —
 
 Your first match. `functionDecl` says "a function declaration", `hasName` narrows it to one name:
 
-```text
-clang-query> match functionDecl(hasName("add"))
+```clang-query
+match functionDecl(hasName("add"))
 ```
 
 **Expected:** 1 match — `add` at `intro.cpp:3`.
 
 `m` is a synonym for `match`:
 
-```text
-clang-query> m functionDecl(hasName("twice"))
+```clang-query
+m functionDecl(hasName("twice"))
 ```
 
 **Expected:** 1 match — `twice` at `intro.cpp:4`.
@@ -124,36 +124,36 @@ Three deliberately broken commands. Throughout this lab, a block inside a `[!war
 
 > [!warning]- Wrong spelling
 > ```text
-> clang-query> match FunctionDecl()
+> match FunctionDecl()
 > 1:1: Matcher not found: FunctionDecl
 > ```
 
 > [!warning]- Narrowing matcher outermost
 > ```text
-> clang-query> match hasName("add")
+> match hasName("add")
 > Not a valid top-level matcher.
 > ```
 
 > [!warning]- Type mismatch
 > ```text
-> clang-query> match functionDecl(hasOperatorName("+"))
+> match functionDecl(hasOperatorName("+"))
 > 1:1: Error building matcher functionDecl.
 > 1:14: Incorrect type for arg 1. (Expected = Matcher<FunctionDecl>) != (Actual = Matcher<BinaryOperator|CXXOperatorCallExpr|CXXRewrittenBinaryOperator|CXXFoldExpr|UnaryOperator>)
 > ```
 
 The fix for the last one is to put `hasOperatorName` inside a frame of the right kind. `binaryOperator()` yields `Matcher<BinaryOperator>`, which is in the accepted list:
 
-```text
-clang-query> match binaryOperator(hasOperatorName("+"))
+```clang-query
+match binaryOperator(hasOperatorName("+"))
 ```
 
 **Expected:** 4 matches — the `+` in `add` (`intro.cpp:3`), the two `+` in `total` (`intro.cpp:5`, one nested inside the other), and the `+` in `Point::sum` (`intro.cpp:10`).
 
 To ask the original question ("functions that contain a `+`") you *traverse* from the function frame to a `BinaryOperator` frame with `hasDescendant`, whose argument may be any matcher type:
 
-```text
-clang-query> match functionDecl(hasName("total"),
-               hasDescendant(binaryOperator(hasOperatorName("+"))))
+```clang-query
+match functionDecl(hasName("total"),
+  hasDescendant(binaryOperator(hasOperatorName("+"))))
 ```
 
 **Expected:** 1 match — `total` at `intro.cpp:5`.
@@ -167,17 +167,17 @@ By default clang-query prints, for every match, a diagnostic-style location for 
 - The outermost matcher is bound to the name **`root`** automatically. That is why the plain matches above print `"root" binds here`.
 - `.bind("name")` may be appended to *any node matcher* (never to a narrowing or traversal matcher) to record that node under a name as well.
 
-```text
-clang-query> match functionDecl(hasName("twice"), hasDescendant(callExpr().bind("call")))
+```clang-query
+match functionDecl(hasName("twice"), hasDescendant(callExpr().bind("call")))
 ```
 
 **Expected:** 1 match — `"call"` binds at `intro.cpp:4:27` (the `add(x, x)` call) and `"root"` binds at `intro.cpp:4:1` (the function).
 
 `set bind-root false` turns the implicit root binding off, so only your own `.bind` names are reported (with no bindings at all, a match prints `No bindings.`):
 
-```text
-clang-query> set bind-root false
-clang-query> match functionDecl(hasName("twice"), hasDescendant(callExpr().bind("call")))
+```clang-query
+set bind-root false
+match functionDecl(hasName("twice"), hasDescendant(callExpr().bind("call")))
 ```
 
 **Expected:** 1 match — only `"call"` at `intro.cpp:4:27` is printed.
@@ -191,34 +191,34 @@ clang-query> match functionDecl(hasName("twice"), hasDescendant(callExpr().bind(
 | `detailed-ast` | The AST subtree, exactly as `clang -Xclang -ast-dump` would show it |
 | `dump` | Alias of `detailed-ast` |
 
-```text
-clang-query> set output print
-clang-query> match functionDecl(hasName("add"))
+```clang-query
+set output print
+match functionDecl(hasName("add"))
 ```
 
 **Expected:** 1 match — printed as source: `int add(int a, int b) { return a + b; }`.
 
-```text
-clang-query> set output dump
-clang-query> match functionDecl(hasName("twice"))
+```clang-query
+set output dump
+match functionDecl(hasName("twice"))
 ```
 
 **Expected:** 1 match — an AST dump: `FunctionDecl … twice 'int (int)'` with a `ParmVarDecl`, a `CompoundStmt`, a `ReturnStmt`, a `CallExpr`, and the `ImplicitCastExpr` / `DeclRefExpr` nodes under it.
 
 That dump is the single most useful thing in this lab. When a matcher returns 0 matches and you do not know why, dump the node you *expected* to match and compare its real children with what your matcher assumed. Keep `diag` for locations and add `print` on top:
 
-```text
-clang-query> enable output print
-clang-query> match functionDecl(hasName("add"))
+```clang-query
+enable output print
+match functionDecl(hasName("add"))
 ```
 
 **Expected:** 1 match — both the `binds here` location and the pretty-printed source.
 
 `set print-matcher true` echoes the matcher above its results, which is handy in scripts:
 
-```text
-clang-query> set print-matcher true
-clang-query> match functionDecl(hasName("add"))
+```clang-query
+set print-matcher true
+match functionDecl(hasName("add"))
 ```
 
 **Expected:** 1 match — preceded by a `Matcher: functionDecl(hasName("add"))` banner.
@@ -227,17 +227,17 @@ clang-query> match functionDecl(hasName("add"))
 
 `let NAME MATCHER` gives a matcher expression a name for the rest of the session. The name may then be used anywhere a matcher is expected, including as the outermost matcher and with `.bind` appended:
 
-```text
-clang-query> let plusOp binaryOperator(hasOperatorName("+"))
-clang-query> let addsSomething functionDecl(hasDescendant(plusOp))
-clang-query> match addsSomething
+```clang-query
+let plusOp binaryOperator(hasOperatorName("+"))
+let addsSomething functionDecl(hasDescendant(plusOp))
+match addsSomething
 ```
 
 **Expected:** 3 matches — `add` (`intro.cpp:3`), `total` (`intro.cpp:5`) and `Point::sum` (`intro.cpp:10`).
 
-```text
-clang-query> let plusOp binaryOperator(hasOperatorName("+"))
-clang-query> match plusOp.bind("op")
+```clang-query
+let plusOp binaryOperator(hasOperatorName("+"))
+match plusOp.bind("op")
 ```
 
 **Expected:** 4 matches — the same four `+` operators as in section 1.3, each now also bound as `"op"`.
@@ -288,46 +288,49 @@ B func1() { return 42; }
 
 Look at what `return 42;` really is in AsIs mode:
 
-```text
-clang-query> set output dump
-clang-query> match returnStmt(hasDescendant(integerLiteral(equals(42))))
+```clang-query
+set output dump
+match returnStmt(hasDescendant(integerLiteral(equals(42))))
 ```
 
 **Expected:** 1 match — `ReturnStmt` → `ImplicitCastExpr <ConstructorConversion>` → `CXXConstructExpr 'void (int)'` → `IntegerLiteral 42`.
 
-So `hasReturnValue(integerLiteral())` cannot match: the return value is the cast, not the literal. The reference's AsIs matcher for this case peels the wrappers with `ignoringImplicit` and `ignoringElidableConstructorCall`:
+So `hasReturnValue(integerLiteral())` cannot match: the return value is the cast, not the literal. The reference's AsIs matcher for this case peels every wrapper the compiler can insert, then names the conversion constructor explicitly and looks at *its* argument:
 
-```text
-clang-query> match functionDecl(hasName("func1"),
-               hasDescendant(returnStmt(hasReturnValue(
-                 ignoringImplicit(ignoringElidableConstructorCall(
-                   ignoringImplicit(integerLiteral())))))))
+```clang-query
+match functionDecl(hasName("func1"),
+  hasDescendant(returnStmt(hasReturnValue(
+    ignoringImplicit(ignoringElidableConstructorCall(
+      ignoringImplicit(cxxConstructExpr(hasArgument(0,
+        ignoringImplicit(integerLiteral()))))))))))
 ```
 
-**Expected:** 0 matches — that matcher was written for the C++14 AST (an *elidable* copy-constructor call wrapping a temporary). Under `-std=c++23` guaranteed copy elision removes the elidable call; the remaining `CXXConstructExpr` is the real `B(int)` conversion, which is neither implicit nor elidable, so nothing skips it.
+**Expected:** 1 match — `func1` at `intro.cpp:18:1`.
 
-The AsIs matcher that fits the C++23 tree names that constructor call explicitly and looks at its argument:
+The reference labels this matcher "All dialects" because the number of wrappers changes with the language standard but the innermost node does not. Under `-std=c++14` the return value is `ExprWithCleanups` → *elidable* `CXXConstructExpr 'B(B&&)'` → `MaterializeTemporaryExpr` → `ImplicitCastExpr` → `CXXConstructExpr 'B(int)'` → `IntegerLiteral`: the first `ignoringImplicit` strips `ExprWithCleanups`, `ignoringElidableConstructorCall` strips the elidable move and its `MaterializeTemporaryExpr`, the second `ignoringImplicit` strips the cast. Under `-std=c++23` guaranteed copy elision removes the first three nodes, so the two outer wrappers are no-ops and the tree is the one you just dumped. Either way the matcher lands on the `B(int)` call — a real user-written conversion, neither implicit nor elidable, so no `ignoring*` wrapper skips it. The only route to the `42` is `hasArgument(0, …)`; drop that `cxxConstructExpr(hasArgument(0, …))` layer and write `ignoringImplicit(integerLiteral())` directly, and the matcher matches in **no** dialect.
 
-```text
-clang-query> match returnStmt(hasReturnValue(ignoringImplicit(
-               cxxConstructExpr(hasArgument(0, ignoringImplicit(integerLiteral()))))))
+Because the two outer wrappers only matter for pre-C++17 trees, on this lab's `-std=c++23` you can shorten it — at the cost of dialect-independence (under `-std=c++14` this version is 0 matches: `cxxConstructExpr` then matches the elidable move constructor, whose argument is the `B(int)` call, not the literal):
+
+```clang-query
+match returnStmt(hasReturnValue(ignoringImplicit(
+  cxxConstructExpr(hasArgument(0, ignoringImplicit(integerLiteral()))))))
 ```
 
 **Expected:** 1 match — the `return 42;` at `intro.cpp:18:13`.
 
 Both versions encode knowledge about implicit nodes that also changes between language standards. In `IgnoreUnlessSpelledInSource` mode the implicit cast and the conversion constructor vanish from the tree and the matcher is what you would have written first:
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match returnStmt(hasReturnValue(integerLiteral()))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match returnStmt(hasReturnValue(integerLiteral()))
 ```
 
 **Expected:** 1 match — `return 42;` at `intro.cpp:18:13`.
 
 The same short matcher in the default mode, for contrast:
 
-```text
-clang-query> match returnStmt(hasReturnValue(integerLiteral()))
+```clang-query
+match returnStmt(hasReturnValue(integerLiteral()))
 ```
 
 **Expected:** 0 matches — in AsIs mode the return value is the `ImplicitCastExpr`.
@@ -336,72 +339,72 @@ The reference lists three more situations where AsIs produces matches a refactor
 
 **Case 1 — compiler-generated copy constructors** (`intro.cpp:20-25`, `struct Foo {}` and `Foo g = f;`). A tool that rewrites copy constructors must not touch ones the compiler declared:
 
-```text
-clang-query> match cxxConstructorDecl(isCopyConstructor())
+```clang-query
+match cxxConstructorDecl(isCopyConstructor())
 ```
 
 **Expected:** 5 matches — none of them spelled in the source: the implicit copy constructors of `B` (`intro.cpp:15`), `Foo` (`intro.cpp:20`), `Cont` (`intro.cpp:27`), and of the two instantiations `TemplStruct<int>` and `TemplStruct<double>` (both reported at `intro.cpp:40`).
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match cxxConstructorDecl(isCopyConstructor())
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match cxxConstructorDecl(isCopyConstructor())
 ```
 
 **Expected:** 0 matches — the sample declares no copy constructor.
 
 **Case 2 — range-`for` calls `begin()` for you** (`intro.cpp:31-36`). A tool renaming `begin()` calls to `cbegin()` must not rewrite the hidden call generated by `for (auto i : c)`:
 
-```text
-clang-query> match callExpr(callee(functionDecl(hasName("begin"))))
+```clang-query
+match callExpr(callee(functionDecl(hasName("begin"))))
 ```
 
 **Expected:** 1 match — the implicit `begin()` call of the range-`for` at `intro.cpp:34`; nothing in the source spells `begin(`.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match callExpr(callee(functionDecl(hasName("begin"))))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match callExpr(callee(functionDecl(hasName("begin"))))
 ```
 
 **Expected:** 0 matches.
 
 **Case 3 — template instantiations** (`intro.cpp:39-49`). `TemplStruct` has one field `T m_t`; `instantiate()` creates `TemplStruct<int>` and `TemplStruct<double>`. A tool that renames every `int` field to `safe_int` would "find" `m_t` in the `int` instantiation and rewrite the template, breaking the `double` one:
 
-```text
-clang-query> match fieldDecl(hasName("m_t"))
+```clang-query
+match fieldDecl(hasName("m_t"))
 ```
 
 **Expected:** 3 matches — the template's field and one per instantiation, all reported at `intro.cpp:44`.
 
-```text
-clang-query> match fieldDecl(hasName("m_t"), hasType(asString("int")))
+```clang-query
+match fieldDecl(hasName("m_t"), hasType(asString("int")))
 ```
 
 **Expected:** 1 match — `m_t` inside `TemplStruct<int>`, reported at `intro.cpp:44` although no `int m_t` exists in the source.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match fieldDecl(hasName("m_t"))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match fieldDecl(hasName("m_t"))
 ```
 
 **Expected:** 1 match — only the template's own `T m_t` at `intro.cpp:44`.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match fieldDecl(hasName("m_t"), hasType(asString("int")))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match fieldDecl(hasName("m_t"), hasType(asString("int")))
 ```
 
 **Expected:** 0 matches — the only spelled field has type `T`.
 
 One more AsIs artefact worth knowing early, because it inflates counts in Part 2: every class contains an implicit *injected class name* declaration with the same name as the class.
 
-```text
-clang-query> match namedDecl(hasName("Point"))
+```clang-query
+match namedDecl(hasName("Point"))
 ```
 
 **Expected:** 2 matches — both reported at `intro.cpp:7`: the `struct Point` itself and its injected class name.
 
-```text
-clang-query> match cxxRecordDecl(hasName("Point"), unless(isImplicit()))
+```clang-query
+match cxxRecordDecl(hasName("Point"), unless(isImplicit()))
 ```
 
 **Expected:** 1 match — `Point` at `intro.cpp:7`. (`set traversal IgnoreUnlessSpelledInSource` gives the same count without the `unless`.)
@@ -412,58 +415,58 @@ clang-query> match cxxRecordDecl(hasName("Point"), unless(isImplicit()))
 
 Three traversal matchers look alike and behave differently. On `total` (`intro.cpp:5`, `return 1 + 2 + 3;`):
 
-```text
-clang-query> match functionDecl(hasName("total"), has(integerLiteral()))
+```clang-query
+match functionDecl(hasName("total"), has(integerLiteral()))
 ```
 
 **Expected:** 0 matches — `has` looks only at *direct children*, and the function's child is its `CompoundStmt`.
 
-```text
-clang-query> match functionDecl(hasName("total"), has(compoundStmt()))
+```clang-query
+match functionDecl(hasName("total"), has(compoundStmt()))
 ```
 
 **Expected:** 1 match — `total` at `intro.cpp:5`.
 
-```text
-clang-query> match functionDecl(hasName("total"), hasDescendant(integerLiteral()))
+```clang-query
+match functionDecl(hasName("total"), hasDescendant(integerLiteral()))
 ```
 
 **Expected:** 1 match — `hasDescendant` searches the whole subtree and succeeds on the *first* literal it finds.
 
-```text
-clang-query> match functionDecl(hasName("total"), forEachDescendant(integerLiteral()))
+```clang-query
+match functionDecl(hasName("total"), forEachDescendant(integerLiteral()))
 ```
 
 **Expected:** 1 match — surprising until you know the rule: clang-query counts **distinct sets of bound nodes**. `forEachDescendant` did fire three times, but each time the only bound node was `root` (= `total`), so the three results collapse into one.
 
-```text
-clang-query> match functionDecl(hasName("total"), forEachDescendant(integerLiteral().bind("lit")))
+```clang-query
+match functionDecl(hasName("total"), forEachDescendant(integerLiteral().bind("lit")))
 ```
 
 **Expected:** 3 matches — one per literal (`intro.cpp:5:22`, `5:26`, `5:30`), because `"lit"` now differs between results. Remember this: **bind what you iterate**.
 
 Four logical matchers combine anything of any type; they appear in nearly every real query and get their full entries in Part 10:
 
-```text
-clang-query> match functionDecl(anyOf(hasName("add"), hasName("twice")))
+```clang-query
+match functionDecl(anyOf(hasName("add"), hasName("twice")))
 ```
 
 **Expected:** 2 matches — `add` (`intro.cpp:3`) and `twice` (`intro.cpp:4`).
 
-```text
-clang-query> match functionDecl(allOf(hasName("add"), parameterCountIs(2)))
+```clang-query
+match functionDecl(allOf(hasName("add"), parameterCountIs(2)))
 ```
 
 **Expected:** 1 match — `add`. Listing several arguments in a node matcher is an implicit `allOf`, so `functionDecl(hasName("add"), parameterCountIs(2))` is the same query.
 
-```text
-clang-query> match functionDecl(hasName("add"), unless(parameterCountIs(3)))
+```clang-query
+match functionDecl(hasName("add"), unless(parameterCountIs(3)))
 ```
 
 **Expected:** 1 match — `unless` negates its argument.
 
-```text
-clang-query> match functionDecl(hasName("add"), hasParameter(0, anything()))
+```clang-query
+match functionDecl(hasName("add"), hasParameter(0, anything()))
 ```
 
 **Expected:** 1 match — `anything()` matches every node; use it when a traversal matcher demands an argument but you do not care what it finds ("has a first parameter").
@@ -488,7 +491,7 @@ Parts 2–11 mirror this exactly. Each reference row becomes one entry whose hea
 >
 > <one to three sentences: what it matches, in plain English>
 >
-> clang-query> match namedDecl(hasName("Circle"))
+> match namedDecl(hasName("Circle"))
 >
 > **Expected:** 1 match — `Circle` at `decls.cpp:12`.
 > ```
@@ -515,8 +518,8 @@ The heading gives you the return type (where it plugs in) and the parameters (ho
 
 > [!success]- Answer
 > ```text
-> clang-query> set traversal IgnoreUnlessSpelledInSource
-> clang-query> match functionDecl(hasDescendant(callExpr(callee(functionDecl(hasName("add"))))))
+> set traversal IgnoreUnlessSpelledInSource
+> match functionDecl(hasDescendant(callExpr(callee(functionDecl(hasName("add"))))))
 > ```
 > 1 match — `twice` at `intro.cpp:4`. The same query in `AsIs` mode also gives 1, because a plain call has no implicit nodes to hide.
 

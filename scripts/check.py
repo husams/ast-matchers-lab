@@ -7,11 +7,11 @@ Conventions the docs follow (see AUTHORING.md):
       **Sample:** `manifests/decls.cpp` · flags: `-std=c++23`
   It may be re-declared later in the same doc; each declaration applies to the
   blocks that follow it.
-* An example is a fenced code block whose lines start with `clang-query> `.
-  Lines after a `clang-query> ` line that do not start with `clang-query>`
-  are continuation lines of that command (multi-line matchers).
-  A first line `# sample: <path> [flags…]` inside the block overrides the
-  sample for that block only.
+* An example is a fenced block opened with ```clang-query. Every line that
+  starts at column 0 is one command; a line that starts with whitespace
+  continues the previous command (multi-line matchers). `#` lines are
+  comments. A first line `# sample: <path> [flags…]` overrides the sample
+  for that block only.
 * The first non-blank line after the block must be
       **Expected:** N match(es) …
   when the block contains a `match` (or `m`) command. The number is compared
@@ -33,8 +33,7 @@ CLANG_QUERY = os.path.join(LLVM, "bin", "clang-query")
 
 SAMPLE_RE = re.compile(r"^\*\*Sample:\*\*\s*`([^`]+)`(?:.*?flags:\s*`([^`]*)`)?")
 EXPECT_RE = re.compile(r"^\*\*Expected:\*\*\s*(\d+)\s+match")
-FENCE_RE = re.compile(r"^```")
-CMD_RE = re.compile(r"^clang-query>\s?(.*)$")
+FENCE_RE = re.compile(r"^```(\S*)")
 COUNT_RE = re.compile(r"^(\d+) match(?:es)?\.$", re.M)
 
 
@@ -49,7 +48,8 @@ def parse_doc(path):
             sample, flags = m.group(1), m.group(2) or ""
             i += 1
             continue
-        if FENCE_RE.match(lines[i]):
+        fm = FENCE_RE.match(lines[i])
+        if fm:
             start = i
             i += 1
             block = []
@@ -57,6 +57,8 @@ def parse_doc(path):
                 block.append(lines[i])
                 i += 1
             i += 1  # closing fence
+            if fm.group(1) != "clang-query":
+                continue
             cmds, ovr_sample, ovr_flags = [], None, None
             for ln in block:
                 if not cmds and ln.startswith("# sample:"):
@@ -64,11 +66,13 @@ def parse_doc(path):
                     ovr_sample = parts[0]
                     ovr_flags = parts[1] if len(parts) > 1 else ""
                     continue
-                cm = CMD_RE.match(ln)
-                if cm:
-                    cmds.append(cm.group(1))
-                elif cmds and ln.strip() and not ln.startswith("#"):
-                    cmds[-1] += "\n" + ln
+                if not ln.strip() or ln.startswith("#"):
+                    continue
+                if ln[0].isspace():
+                    if cmds:
+                        cmds[-1] += "\n" + ln
+                else:
+                    cmds.append(ln)
             if not cmds:
                 continue
             has_match = any(re.match(r"^(match|m)\b", c) for c in cmds)

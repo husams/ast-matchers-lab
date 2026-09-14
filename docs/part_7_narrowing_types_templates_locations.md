@@ -106,8 +106,8 @@ exactly. That means sugar matters: a typedef prints as the typedef name, and
 in C++ a class pointer prints as `Y *`, not `class Y *`. Use it when you know
 the exact spelling; use the structural predicates when you do not.
 
-```text
-clang-query> match cxxMemberCallExpr(on(hasType(asString("Y *"))))
+```clang-query
+match cxxMemberCallExpr(on(hasType(asString("Y *"))))
 ```
 
 **Expected:** 1 match — the call `y->x()` at `narrow_types.cpp:28`.
@@ -116,8 +116,8 @@ The typedef `const_int` keeps its name when printed, so `asString("const int")`
 does *not* find `ci`; it finds the two parameters spelled `int const` and
 `const int` instead (lines 12–13):
 
-```text
-clang-query> match varDecl(hasType(asString("const_int")))
+```clang-query
+match varDecl(hasType(asString("const_int")))
 ```
 
 **Expected:** 1 match — `ci` at `narrow_types.cpp:18`.
@@ -127,9 +127,9 @@ clang-query> match varDecl(hasType(asString("const_int")))
 Matches any integer type: `int`, `unsigned long`, and also `bool`, `char`
 and `wchar_t`, which are integer types in C++. Floating-point types are not.
 
-```text
-clang-query> match functionDecl(matchesName("takes_"),
-                                hasAnyParameter(hasType(isInteger())))
+```clang-query
+match functionDecl(matchesName("takes_"),
+                   hasAnyParameter(hasType(isInteger())))
 ```
 
 **Expected:** 4 matches — `takes_int` (line 5), `takes_ulong` (6), `takes_char` (8), `takes_wchar` (9); `takes_double` is left out.
@@ -137,8 +137,8 @@ clang-query> match functionDecl(matchesName("takes_"),
 Through `returns(...)` the same predicate proves that `bool` counts as an
 integer:
 
-```text
-clang-query> match functionDecl(returns(isInteger()))
+```clang-query
+match functionDecl(returns(isInteger()))
 ```
 
 **Expected:** 2 matches — `flag` (`bool`, line 32) and `pick` (`int`, line 60).
@@ -148,9 +148,9 @@ clang-query> match functionDecl(returns(isInteger()))
 Matches signed integer types. On this target `char` and `wchar_t` are
 signed, so they match as well; `unsigned long` does not.
 
-```text
-clang-query> match functionDecl(matchesName("takes_"),
-                                hasAnyParameter(hasType(isSignedInteger())))
+```clang-query
+match functionDecl(matchesName("takes_"),
+                   hasAnyParameter(hasType(isSignedInteger())))
 ```
 
 **Expected:** 3 matches — `takes_int` (line 5), `takes_char` (8), `takes_wchar` (9).
@@ -159,8 +159,8 @@ clang-query> match functionDecl(matchesName("takes_"),
 
 Matches unsigned integer types only.
 
-```text
-clang-query> match functionDecl(hasAnyParameter(hasType(isUnsignedInteger())))
+```clang-query
+match functionDecl(hasAnyParameter(hasType(isUnsignedInteger())))
 ```
 
 **Expected:** 1 match — `takes_ulong(unsigned long)` at `narrow_types.cpp:6`.
@@ -170,8 +170,8 @@ clang-query> match functionDecl(hasAnyParameter(hasType(isUnsignedInteger())))
 Matches every character type — `char`, `signed char`, `unsigned char`,
 `wchar_t`, `char8_t`, `char16_t`, `char32_t` — and nothing else.
 
-```text
-clang-query> match functionDecl(hasAnyParameter(hasType(isAnyCharacter())))
+```clang-query
+match functionDecl(hasAnyParameter(hasType(isAnyCharacter())))
 ```
 
 **Expected:** 2 matches — `takes_char` (line 8) and `takes_wchar` (line 9).
@@ -182,8 +182,8 @@ Matches any pointer type, including Objective-C object pointers. Qualifiers
 on the pointer or on the pointee do not matter. `hasGlobalStorage()` keeps
 the local `y` in `z()` and the parameter of `ptr_to_const` out of the count.
 
-```text
-clang-query> match varDecl(hasType(isAnyPointer()), hasGlobalStorage())
+```clang-query
+match varDecl(hasType(isAnyPointer()), hasGlobalStorage())
 ```
 
 **Expected:** 7 matches — `jp` (line 19), `kp` (20), `vp` (22), `ip` (24), `s` (42), `ws` (43), `w` (44).
@@ -194,8 +194,8 @@ Matches types with a *top-level* `const`. `int const` and `const int` are
 the same thing and both match; `const int *` is a non-const pointer to
 const, so it does not.
 
-```text
-clang-query> match functionDecl(hasAnyParameter(hasType(isConstQualified())))
+```clang-query
+match functionDecl(hasAnyParameter(hasType(isConstQualified())))
 ```
 
 **Expected:** 2 matches — `const_param(int const)` (line 12) and `const_param2(const int)` (line 13); `ptr_to_const` is not matched.
@@ -203,8 +203,8 @@ clang-query> match functionDecl(hasAnyParameter(hasType(isConstQualified())))
 A `const` hidden inside a typedef still counts as top-level here (compare
 `hasLocalQualifiers()` below):
 
-```text
-clang-query> match varDecl(hasType(isConstQualified()), hasGlobalStorage())
+```clang-query
+match varDecl(hasType(isConstQualified()), hasGlobalStorage())
 ```
 
 **Expected:** 2 matches — `ci` (typedef `const_int`, line 18) and `jp` (`int *const`, line 19).
@@ -214,8 +214,8 @@ clang-query> match varDecl(hasType(isConstQualified()), hasGlobalStorage())
 The `volatile` twin of `isConstQualified()`: top-level `volatile` only.
 `volatile int *` is a plain pointer and is not matched.
 
-```text
-clang-query> match varDecl(hasType(isVolatileQualified()))
+```clang-query
+match varDecl(hasType(isVolatileQualified()))
 ```
 
 **Expected:** 2 matches — `kp` (`int *volatile`, line 20) and `vol` (`volatile int`, line 21).
@@ -226,8 +226,8 @@ Matches when the qualifiers are written *on this type*, not inherited from a
 typedef. `ci` is `const` through `const_int`, so `isConstQualified()` sees it
 but `hasLocalQualifiers()` does not.
 
-```text
-clang-query> match varDecl(hasType(hasLocalQualifiers()), hasGlobalStorage())
+```clang-query
+match varDecl(hasType(hasLocalQualifiers()), hasGlobalStorage())
 ```
 
 **Expected:** 3 matches — `jp` (line 19), `kp` (20), `vol` (21); `ci` (line 18) is excluded.
@@ -236,8 +236,8 @@ clang-query> match varDecl(hasType(hasLocalQualifiers()), hasGlobalStorage())
 
 Matches the type `bool`. Being a `Matcher<Type>`, it ignores qualifiers.
 
-```text
-clang-query> match functionDecl(returns(booleanType()))
+```clang-query
+match functionDecl(returns(booleanType()))
 ```
 
 **Expected:** 1 match — `bool flag()` at `narrow_types.cpp:32`.
@@ -248,9 +248,9 @@ Matches the type `void`. Most functions return `void`, so on its own this is
 a very wide net; the extra terms drop the `takes_*` row (they have
 parameters) and the implicit constructors of `Y`.
 
-```text
-clang-query> match functionDecl(returns(voidType()), parameterCountIs(0),
-                                unless(isImplicit()))
+```clang-query
+match functionDecl(returns(voidType()), parameterCountIs(0),
+                   unless(isImplicit()))
 ```
 
 **Expected:** 6 matches — `Y::x` declaration (line 27), `z` (28), `Y::x` definition (29), `nothing` (33), `assign_self` (52), `use_locals` (54).
@@ -259,8 +259,8 @@ clang-query> match functionDecl(returns(voidType()), parameterCountIs(0),
 
 Matches `float`, `double` and `long double`.
 
-```text
-clang-query> match functionDecl(returns(realFloatingPointType()))
+```clang-query
+match functionDecl(returns(realFloatingPointType()))
 ```
 
 **Expected:** 3 matches — `ratio` (line 34), `avg` (35), `precise` (36).
@@ -279,8 +279,8 @@ For arrays the bound is evaluated first, so `int b[2 * 21]` has size 42 just
 like `int a[42]`. Types have no source location, so wrap the type matcher in
 `varDecl(hasType(...))` to get lines back.
 
-```text
-clang-query> match varDecl(hasType(constantArrayType(hasSize(42))))
+```clang-query
+match varDecl(hasType(constantArrayType(hasSize(42))))
 ```
 
 **Expected:** 2 matches — `a` (line 39) and `b` (line 40); `c[41]` and `d[43]` do not match.
@@ -288,8 +288,8 @@ clang-query> match varDecl(hasType(constantArrayType(hasSize(42))))
 For string literals the size is the number of characters, so `"abcd"` and
 `L"abcd"` both have size 4 and `"a"` has size 1:
 
-```text
-clang-query> match stringLiteral(hasSize(4))
+```clang-query
+match stringLiteral(hasSize(4))
 ```
 
 **Expected:** 2 matches — `"abcd"` (line 42) and `L"abcd"` (line 43).
@@ -326,20 +326,20 @@ Matches the *instantiations* a template produced — implicit ones like
 the pattern nor an explicit specialization. clang-query reports each
 instantiation at the pattern's line, because that is where its source is.
 
-```text
-clang-query> match cxxRecordDecl(hasName("X"), isTemplateInstantiation())
+```clang-query
+match cxxRecordDecl(hasName("X"), isTemplateInstantiation())
 ```
 
 **Expected:** 1 match — `X<A>`, reported at the pattern on `narrow_templates.cpp:7`; `X<int>` is a specialization and is skipped.
 
-```text
-clang-query> match functionDecl(isTemplateInstantiation())
+```clang-query
+match functionDecl(isTemplateInstantiation())
 ```
 
 **Expected:** 2 matches — `generic<unsigned>` and `generic<double>`, both reported at line 14.
 
-```text
-clang-query> match varDecl(isTemplateInstantiation())
+```clang-query
+match varDecl(isTemplateInstantiation())
 ```
 
 **Expected:** 2 matches — both are the single node `zero<int>` (line 19), which clang-query visits twice: once under the variable template and once as a top-level declaration. `set output dump` shows the same address for both.
@@ -348,20 +348,20 @@ clang-query> match varDecl(isTemplateInstantiation())
 
 The complement: `template <> …` declarations the programmer wrote by hand.
 
-```text
-clang-query> match cxxRecordDecl(isExplicitTemplateSpecialization())
+```clang-query
+match cxxRecordDecl(isExplicitTemplateSpecialization())
 ```
 
 **Expected:** 1 match — `template <> class X<int>` at `narrow_templates.cpp:10`.
 
-```text
-clang-query> match functionDecl(isExplicitTemplateSpecialization())
+```clang-query
+match functionDecl(isExplicitTemplateSpecialization())
 ```
 
 **Expected:** 1 match — `template <> void generic(int n)` at `narrow_templates.cpp:15`.
 
-```text
-clang-query> match varDecl(isExplicitTemplateSpecialization())
+```clang-query
+match varDecl(isExplicitTemplateSpecialization())
 ```
 
 **Expected:** 1 match — `template <> char zero<char>` at `narrow_templates.cpp:20`.
@@ -373,8 +373,8 @@ wider than `isTemplateInstantiation()`: the implicit constructors that
 `X<A>` and `Count<42>` receive are instantiated too (without
 `unless(isImplicit())` the count is 8).
 
-```text
-clang-query> match functionDecl(isInstantiated(), unless(isImplicit()))
+```clang-query
+match functionDecl(isInstantiated(), unless(isImplicit()))
 ```
 
 **Expected:** 2 matches — `generic<unsigned>` and `generic<double>` at line 14.
@@ -385,8 +385,8 @@ The statement-side twin: matches statements whose enclosing declaration is
 an instantiation. The dependent `T i = t;` only exists once per
 instantiation, so it is matched twice.
 
-```text
-clang-query> match declStmt(isInTemplateInstantiation())
+```clang-query
+match declStmt(isInTemplateInstantiation())
 ```
 
 **Expected:** 2 matches — `T i = t;` in `generic<unsigned>` and in `generic<double>`, both at line 14.
@@ -395,9 +395,9 @@ The non-dependent `m += 1;` is *not* excluded by `unless(...)`: clang treats
 it as belonging to the instantiations as well as the pattern, exactly as the
 reference warns.
 
-```text
-clang-query> match binaryOperator(hasOperatorName("+="),
-                                  unless(isInTemplateInstantiation()))
+```clang-query
+match binaryOperator(hasOperatorName("+="),
+                     unless(isInTemplateInstantiation()))
 ```
 
 **Expected:** 0 matches — every copy of `m += 1;` counts as inside an instantiation.
@@ -408,8 +408,8 @@ Inside a template that has not been instantiated, an expression whose type
 depends on a template parameter is *type-dependent*: `x + y` in `add`
 (because `x` is a `T`) and `T() + T()`; `y` on its own is a plain `int`.
 
-```text
-clang-query> match binaryOperator(isTypeDependent())
+```clang-query
+match binaryOperator(isTypeDependent())
 ```
 
 **Expected:** 2 matches — `x + y` (line 25) and `T() + T()` (line 26).
@@ -421,8 +421,8 @@ parameter. Every type-dependent expression is also value-dependent, so the
 `unless` isolates the interesting case: the reference to the non-type
 parameter `Size`, whose type is known (`int`) but whose value is not.
 
-```text
-clang-query> match declRefExpr(isValueDependent(), unless(isTypeDependent()))
+```clang-query
+match declRefExpr(isValueDependent(), unless(isTypeDependent()))
 ```
 
 **Expected:** 1 match — `Size` in `return Size;` at `narrow_templates.cpp:28`.
@@ -430,8 +430,8 @@ clang-query> match declRefExpr(isValueDependent(), unless(isTypeDependent()))
 The inner `sizeof(T() + T())` is value-dependent too: its type is `size_t`,
 but its value depends on `T`.
 
-```text
-clang-query> match unaryExprOrTypeTraitExpr(isValueDependent())
+```clang-query
+match unaryExprOrTypeTraitExpr(isValueDependent())
 ```
 
 **Expected:** 1 match — the inner `sizeof(T() + T())` at line 26.
@@ -443,9 +443,9 @@ parameter even though both its type and its value are already known. The
 outer `sizeof(sizeof(…))` is the textbook case — the size of a `size_t` does
 not depend on `T`, but `T` appears inside.
 
-```text
-clang-query> match unaryExprOrTypeTraitExpr(isInstantiationDependent(),
-                                            unless(isValueDependent()))
+```clang-query
+match unaryExprOrTypeTraitExpr(isInstantiationDependent(),
+                               unless(isValueDependent()))
 ```
 
 **Expected:** 1 match — the outer `sizeof(sizeof(T() + T()))` at `narrow_templates.cpp:26`.
@@ -456,8 +456,8 @@ When a name is looked up through a template parameter (`T::v`,
 `typename T::type`) clang cannot resolve it yet and records only the name.
 `hasDependentName` matches on that recorded name.
 
-```text
-clang-query> match dependentScopeDeclRefExpr(hasDependentName("v"))
+```clang-query
+match dependentScopeDeclRefExpr(hasDependentName("v"))
 ```
 
 **Expected:** 1 match — `T::v` in `Derived::f` at `narrow_templates.cpp:30`.
@@ -465,8 +465,8 @@ clang-query> match dependentScopeDeclRefExpr(hasDependentName("v"))
 Types have no location, so the `DependentNameType` overload is best reached
 from the typedef that uses it:
 
-```text
-clang-query> match typedefDecl(hasType(dependentNameType(hasDependentName("type"))))
+```clang-query
+match typedefDecl(hasType(dependentNameType(hasDependentName("type"))))
 ```
 
 **Expected:** 1 match — `typedef typename T::type dependent_name` at `narrow_templates.cpp:31`.
@@ -476,14 +476,14 @@ clang-query> match typedefDecl(hasType(dependentNameType(hasDependentName("type"
 Matches a specialization (or a written template type) with exactly `N`
 template arguments. Every specialization counts, implicit or explicit.
 
-```text
-clang-query> match classTemplateSpecializationDecl(templateArgumentCountIs(1))
+```clang-query
+match classTemplateSpecializationDecl(templateArgumentCountIs(1))
 ```
 
 **Expected:** 3 matches — `X<A>` (reported at line 7), `X<int>` (line 10), `Count<42>` (reported at line 34).
 
-```text
-clang-query> match functionDecl(templateArgumentCountIs(1))
+```clang-query
+match functionDecl(templateArgumentCountIs(1))
 ```
 
 **Expected:** 3 matches — `generic<unsigned>` and `generic<double>` (line 14) and the explicit `generic<int>` (line 15).
@@ -491,8 +491,8 @@ clang-query> match functionDecl(templateArgumentCountIs(1))
 The `TemplateSpecializationType` overload looks at the type *as written* in
 a declaration:
 
-```text
-clang-query> match varDecl(hasType(templateSpecializationType(templateArgumentCountIs(1))))
+```clang-query
+match varDecl(hasType(templateSpecializationType(templateArgumentCountIs(1))))
 ```
 
 **Expected:** 3 matches — `xa` (line 9), `xi` (line 11), `c42` (line 35).
@@ -510,8 +510,8 @@ the resolved ones, so `A<int> a` has one even when defaults fill in more.
 
 **Not in clang-query 22** — trunk-only; the matcher is newer than this build. The nearest working alternative counts the resolved arguments through the type instead:
 
-```text
-clang-query> match varDecl(hasType(templateSpecializationType(templateArgumentCountIs(1))))
+```clang-query
+match varDecl(hasType(templateSpecializationType(templateArgumentCountIs(1))))
 ```
 
 **Expected:** 3 matches — `xa` (line 9), `xi` (line 11), `c42` (line 35).
@@ -522,9 +522,9 @@ Matches an integral template argument with exactly this value. The value is
 passed as a string because template arguments are arbitrary-precision; use
 the canonical base-10 spelling.
 
-```text
-clang-query> match classTemplateSpecializationDecl(
-               hasAnyTemplateArgument(equalsIntegralValue("42")))
+```clang-query
+match classTemplateSpecializationDecl(
+  hasAnyTemplateArgument(equalsIntegralValue("42")))
 ```
 
 **Expected:** 1 match — `Count<42>`, reported at the pattern on `narrow_templates.cpp:34`.
@@ -534,8 +534,8 @@ clang-query> match classTemplateSpecializationDecl(
 Matches any template argument that is an integral value (as opposed to a
 type, a template, or a pack). `X<A>` has a type argument and is skipped.
 
-```text
-clang-query> match classTemplateSpecializationDecl(hasAnyTemplateArgument(isIntegral()))
+```clang-query
+match classTemplateSpecializationDecl(hasAnyTemplateArgument(isIntegral()))
 ```
 
 **Expected:** 1 match — `Count<42>`, reported at line 34.
@@ -576,8 +576,8 @@ Matches nodes whose expansion location is in the main file — the file you
 passed on the command line — and nothing from any header. `class Local`
 has an implicit injected-class-name inside it, hence `unless(isImplicit())`.
 
-```text
-clang-query> match cxxRecordDecl(isExpansionInMainFile(), unless(isImplicit()))
+```clang-query
+match cxxRecordDecl(isExpansionInMainFile(), unless(isImplicit()))
 ```
 
 **Expected:** 1 match — `Local` at `narrow_locs.cpp:10`; `SysBuffer` and `Helper` live in headers.
@@ -586,14 +586,14 @@ The variable `hits` was produced by `DECLARE_COUNTER(hits)`; its expansion
 location is line 11 of the main file, so it is matched (the other hit is the
 parameter `n` of `twice`):
 
-```text
-clang-query> match varDecl(isExpansionInMainFile())
+```clang-query
+match varDecl(isExpansionInMainFile())
 ```
 
 **Expected:** 2 matches — `hits` (line 11, from the macro) and the parameter `n` (line 13).
 
-```text
-clang-query> match returnStmt(isExpansionInMainFile())
+```clang-query
+match returnStmt(isExpansionInMainFile())
 ```
 
 **Expected:** 1 match — `return SQUARE(n);` at `narrow_locs.cpp:13`; the returns in the headers are out.
@@ -604,14 +604,14 @@ Matches nodes that come from a system header — anything found through
 `-isystem`, the compiler's builtin include directories, or a
 `#pragma clang system_header`. `sys.h` qualifies; `helpers.h` does not.
 
-```text
-clang-query> match functionDecl(isExpansionInSystemHeader())
+```clang-query
+match functionDecl(isExpansionInSystemHeader())
 ```
 
 **Expected:** 2 matches — `log_line` (`sys.h:4`) and `sys_clamp` (`sys.h:5`).
 
-```text
-clang-query> match returnStmt(isExpansionInSystemHeader())
+```clang-query
+match returnStmt(isExpansionInSystemHeader())
 ```
 
 **Expected:** 1 match — the `return` inside `sys_clamp` at `sys.h:5`.
@@ -619,8 +619,8 @@ clang-query> match returnStmt(isExpansionInSystemHeader())
 The `TypeLoc` overload works the same way; `loc(asString(...))` picks one
 written type so the count stays readable:
 
-```text
-clang-query> match typeLoc(loc(asString("const char *")), isExpansionInSystemHeader())
+```clang-query
+match typeLoc(loc(asString("const char *")), isExpansionInSystemHeader())
 ```
 
 **Expected:** 1 match — the `const char *` of `log_line`'s parameter at `sys.h:4`.
@@ -628,8 +628,8 @@ clang-query> match typeLoc(loc(asString("const char *")), isExpansionInSystemHea
 In practice you will use it negated far more often than positively — this
 is the everyday "ignore the standard library" filter:
 
-```text
-clang-query> match cxxRecordDecl(unless(isImplicit()), unless(isExpansionInSystemHeader()))
+```clang-query
+match cxxRecordDecl(unless(isImplicit()), unless(isExpansionInSystemHeader()))
 ```
 
 **Expected:** 2 matches — `Helper` (`helpers.h:3`) and `Local` (`narrow_locs.cpp:10`); `SysBuffer` is filtered out.
@@ -641,8 +641,8 @@ Matches nodes whose expansion file name contains a match for the regex
 second argument is the flags string — `"IgnoreCase"`, `"BasicRegex"`, or
 both joined with `|`.
 
-```text
-clang-query> match varDecl(isExpansionInFileMatching("helpers"))
+```clang-query
+match varDecl(isExpansionInFileMatching("helpers"))
 ```
 
 **Expected:** 2 matches — `helper_count` (`helpers.h:4`) and the parameter `n` of `helper_twice` (`helpers.h:5`).
@@ -650,14 +650,14 @@ clang-query> match varDecl(isExpansionInFileMatching("helpers"))
 Without `"IgnoreCase"` the upper-case pattern matches nothing; with it, both
 functions in the header are found:
 
-```text
-clang-query> match functionDecl(isExpansionInFileMatching("HELPERS", "IgnoreCase"))
+```clang-query
+match functionDecl(isExpansionInFileMatching("HELPERS", "IgnoreCase"))
 ```
 
 **Expected:** 2 matches — `Helper::assist` (`helpers.h:3`) and `helper_twice` (`helpers.h:5`).
 
-```text
-clang-query> match returnStmt(isExpansionInFileMatching("helpers.h"))
+```clang-query
+match returnStmt(isExpansionInFileMatching("helpers.h"))
 ```
 
 **Expected:** 1 match — `return n * 2;` in `helper_twice` at `helpers.h:5`.
@@ -669,28 +669,28 @@ macro (directly or through another macro). If only *part* of the node came
 from the macro — `SQUARE(hits) + 1`, where the `+ 1` is ordinary source —
 it does not match.
 
-```text
-clang-query> match varDecl(isExpandedFromMacro("DECLARE_COUNTER"))
+```clang-query
+match varDecl(isExpandedFromMacro("DECLARE_COUNTER"))
 ```
 
 **Expected:** 1 match — `hits`, expanded from `DECLARE_COUNTER(hits)` at `narrow_locs.cpp:11`.
 
-```text
-clang-query> match binaryOperator(isExpandedFromMacro("SQUARE"))
+```clang-query
+match binaryOperator(isExpandedFromMacro("SQUARE"))
 ```
 
 **Expected:** 2 matches — the `(n) * (n)` inside `twice` (line 13) and `(hits) * (hits)` inside `run` (line 17).
 
 The `+` on line 17 wraps a macro expansion but is not itself from the macro:
 
-```text
-clang-query> match binaryOperator(hasOperatorName("+"), isExpandedFromMacro("SQUARE"))
+```clang-query
+match binaryOperator(hasOperatorName("+"), isExpandedFromMacro("SQUARE"))
 ```
 
 **Expected:** 0 matches — `SQUARE(hits) + 1` is only partly macro-generated.
 
-```text
-clang-query> match callExpr(isExpandedFromMacro("LOG"))
+```clang-query
+match callExpr(isExpandedFromMacro("LOG"))
 ```
 
 **Expected:** 1 match — the `log_line("start")` call produced by `LOG("start")` at `narrow_locs.cpp:16`.
@@ -698,8 +698,8 @@ clang-query> match callExpr(isExpandedFromMacro("LOG"))
 The `TypeLoc` overload finds the written `int` of `hits`, which also came
 out of the macro:
 
-```text
-clang-query> match typeLoc(isExpandedFromMacro("DECLARE_COUNTER"))
+```clang-query
+match typeLoc(isExpandedFromMacro("DECLARE_COUNTER"))
 ```
 
 **Expected:** 1 match — the `int` type of `hits` at `narrow_locs.cpp:11`.
@@ -742,10 +742,10 @@ The `Decl` overload gives the classic self-assignment finder: two different
 `AsIs` traversal the right-hand side sits under an implicit lvalue-to-rvalue
 cast, hence `ignoringImpCasts`.
 
-```text
-clang-query> match binaryOperator(hasOperatorName("="),
-               hasLHS(declRefExpr(to(varDecl().bind("v")))),
-               hasRHS(ignoringImpCasts(declRefExpr(to(varDecl(equalsBoundNode("v")))))))
+```clang-query
+match binaryOperator(hasOperatorName("="),
+  hasLHS(declRefExpr(to(varDecl().bind("v")))),
+  hasRHS(ignoringImpCasts(declRefExpr(to(varDecl(equalsBoundNode("v")))))))
 ```
 
 **Expected:** 1 match — `self = self` at `narrow_types.cpp:52`; `m = self` on the same line and `m = v` in `use_locals` fail the equality.
@@ -755,10 +755,10 @@ first `forEachDescendant` tries every local variable in turn, the second
 keeps only references to that particular variable, and the match is reported
 once per (variable, use) pair:
 
-```text
-clang-query> match compoundStmt(
-               forEachDescendant(varDecl().bind("d")),
-               forEachDescendant(declRefExpr(to(decl(equalsBoundNode("d"))))))
+```clang-query
+match compoundStmt(
+  forEachDescendant(varDecl().bind("d")),
+  forEachDescendant(declRefExpr(to(decl(equalsBoundNode("d"))))))
 ```
 
 **Expected:** 4 matches — the body of `z` twice (`obj` used in `&obj`, `y` used in `y->x()`, line 28) and the body of `use_locals` twice (`u` on line 56, `v` on line 57).
@@ -768,11 +768,11 @@ first field's type and demanding that a different field has the very same
 `QualType` finds `Pair` (two `int`s) but not `Qual` (`int` vs `const int`)
 or `Mixed` (`int` vs `double`):
 
-```text
-clang-query> match cxxRecordDecl(
-               has(fieldDecl(hasType(qualType().bind("q"))).bind("f1")),
-               has(fieldDecl(unless(equalsBoundNode("f1")),
-                             hasType(qualType(equalsBoundNode("q"))))))
+```clang-query
+match cxxRecordDecl(
+  has(fieldDecl(hasType(qualType().bind("q"))).bind("f1")),
+  has(fieldDecl(unless(equalsBoundNode("f1")),
+                hasType(qualType(equalsBoundNode("q"))))))
 ```
 
 **Expected:** 1 match — `Pair` at `narrow_types.cpp:47`.
@@ -780,11 +780,11 @@ clang-query> match cxxRecordDecl(
 The `Type` overload drops the qualifiers, so `int` and `const int` now
 compare equal and `Qual` joins the result:
 
-```text
-clang-query> match cxxRecordDecl(
-               has(fieldDecl(hasType(type().bind("t"))).bind("f1")),
-               has(fieldDecl(unless(equalsBoundNode("f1")),
-                             hasType(type(equalsBoundNode("t"))))))
+```clang-query
+match cxxRecordDecl(
+  has(fieldDecl(hasType(type().bind("t"))).bind("f1")),
+  has(fieldDecl(unless(equalsBoundNode("f1")),
+                hasType(type(equalsBoundNode("t"))))))
 ```
 
 **Expected:** 2 matches — `Pair` (line 47) and `Qual` (line 49); `Mixed` (line 48) still differs.
@@ -793,9 +793,9 @@ The `Stmt` overload is pure node identity, useful for proving that two
 traversal paths reached the same node. `hasReturnValue` and `has` both lead
 to the conditional expression in `pick`:
 
-```text
-clang-query> match returnStmt(hasReturnValue(expr().bind("r")),
-                              has(expr(equalsBoundNode("r"))))
+```clang-query
+match returnStmt(hasReturnValue(expr().bind("r")),
+                 has(expr(equalsBoundNode("r"))))
 ```
 
 **Expected:** 1 match — the `return lhs == rhs ? lhs : rhs;` at `narrow_types.cpp:60`.
@@ -804,10 +804,10 @@ Identity is not spelling: the two operands of `lhs == rhs` are different
 nodes, so comparing them as statements never succeeds — you have to go
 through `to(...)` and compare declarations, as in the first example.
 
-```text
-clang-query> match binaryOperator(hasOperatorName("=="),
-                                  hasLHS(expr().bind("l")),
-                                  hasRHS(expr(equalsBoundNode("l"))))
+```clang-query
+match binaryOperator(hasOperatorName("=="),
+                     hasLHS(expr().bind("l")),
+                     hasRHS(expr(equalsBoundNode("l"))))
 ```
 
 **Expected:** 0 matches — distinct `DeclRefExpr` nodes are never equal as statements.
@@ -821,11 +821,11 @@ and `void Y::x() {}` outside it. Both `forEachDescendant`s hang off the
 translation unit so that the prototype is bound before the definition is
 tested.
 
-```text
-clang-query> match translationUnitDecl(
-               forEachDescendant(functionDecl(unless(isDefinition())).bind("proto")),
-               forEachDescendant(functionDecl(isDefinition(),
-                                              declaresSameEntityAsBoundNode("proto"))))
+```clang-query
+match translationUnitDecl(
+  forEachDescendant(functionDecl(unless(isDefinition())).bind("proto")),
+  forEachDescendant(functionDecl(isDefinition(),
+                                 declaresSameEntityAsBoundNode("proto"))))
 ```
 
 **Expected:** 1 match — the pair `Y::x` declared at `narrow_types.cpp:27` and defined at line 29; the other prototypes (`takes_*`, `flag`, …) have no definition.
@@ -837,9 +837,9 @@ Matches when the node is pointer-identical to a node you already hold — a
 
 **Not in clang-query 22** — C++-API-only: its argument is a raw AST pointer, which the DSL has no way to spell. The equivalent from the DSL is to bind the node first and use `equalsBoundNode`:
 
-```text
-clang-query> match returnStmt(hasReturnValue(expr().bind("r")),
-                              has(expr(equalsBoundNode("r"))))
+```clang-query
+match returnStmt(hasReturnValue(expr().bind("r")),
+                 has(expr(equalsBoundNode("r"))))
 ```
 
 **Expected:** 1 match — the return statement of `pick` at `narrow_types.cpp:60`.

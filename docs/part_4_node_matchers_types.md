@@ -60,16 +60,16 @@ These three accept any node of their kind. Alone they are only useful for counti
 
 Matches any `Type` node. Standalone it visits every written type in the file, including the nested pieces (`int` inside `int *`, `A` inside `int A::*`). Nested under `varDecl(hasType(...))` it gives you the declared type of a variable as a bindable node.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match type()
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match type()
 ```
 
 **Expected:** 134 matches — every type spelled in `types.cpp`, one match per spelling, no locations printed.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match varDecl(hasName("p"), hasType(type().bind("t")))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match varDecl(hasName("p"), hasType(type().bind("t")))
 ```
 
 **Expected:** 1 match — `int *p` at `types.cpp:9`. Only `root` gets a caret; the `t` binding is a `Type` and prints no location.
@@ -78,16 +78,16 @@ clang-query> match varDecl(hasName("p"), hasType(type().bind("t")))
 
 Matches a `QualType`: a `Type` plus its `const`/`volatile` bits. Qualifier narrowing matchers (`isConstQualified()`, `isVolatileQualified()`, Part 7) only work here, never on `type()`. Keep it nested: at the top level it meets null types and crashes (see the Big Picture).
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match varDecl(hasType(qualType(isConstQualified())))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match varDecl(hasType(qualType(isConstQualified())))
 ```
 
 **Expected:** 1 match — `const int ci = 0` at `types.cpp:93`.
 
-```text
-clang-query> set output dump
-clang-query> match varDecl(hasName("ti"), hasType(qualType().bind("q")))
+```clang-query
+set output dump
+match varDecl(hasName("ti"), hasType(qualType().bind("q")))
 ```
 
 **Expected:** 1 match — `Int ti = 5` at `types.cpp:43`; the dump of `q` shows `TypedefType 'Int' sugar` over `BuiltinType 'int'`.
@@ -96,16 +96,16 @@ clang-query> match varDecl(hasName("ti"), hasType(qualType().bind("q")))
 
 Matches any `TypeLoc`: a written type with a source range. This is the node kind that prints with a caret. `hasTypeLoc(...)` (on `varDecl`, `fieldDecl`, `functionDecl`, ...) is the usual way in; `loc(qualType(...))` (Part 8) converts a type matcher into a TypeLoc matcher.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match typeLoc()
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match typeLoc()
 ```
 
 **Expected:** 122 matches — every written type, each with its own `types.cpp:LINE:COL` location.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match varDecl(hasName("p"), hasTypeLoc(typeLoc().bind("tl")))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match varDecl(hasName("p"), hasTypeLoc(typeLoc().bind("tl")))
 ```
 
 **Expected:** 1 match — `int *p` at `types.cpp:9`; the `tl` binding gets its own caret under `int   *`, stopping before the name.
@@ -120,16 +120,16 @@ The scalar layer: `int`/`float`/`bool`/`void` are `BuiltinType`s; `T *`, `T &`, 
 
 Matches the fundamental types (`int`, `float`, `bool`, `char`, `void`, ...). Note that `void` in `void ()` counts too. In `AsIs` mode this also reports the target's builtin typedef table (~150 matches on Apple Silicon), which is why the example switches traversal first.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match builtinType()
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match builtinType()
 ```
 
 **Expected:** 43 matches — every `int`, `float`, `bool`, `char` and `void` spelled in the file (including return types and parameter types).
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match varDecl(hasType(builtinType()))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match varDecl(hasType(builtinType()))
 ```
 
 **Expected:** 7 matches — `i`, `f`, `b` (lines 6–8), the two unnamed `int` parameters of `fp` (line 30) and `h` (line 32), `k` (line 76) and `ci` (line 93). `Int ti` and `auto n` do **not** match: their sugared types are `TypedefType` and `AutoType`.
@@ -138,16 +138,16 @@ clang-query> match varDecl(hasType(builtinType()))
 
 Matches `T *` for any `T` (but not Objective-C object pointers or member pointers). `pointee(...)` (Part 8) descends into `T`.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match pointerType()
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match pointerType()
 ```
 
 **Expected:** 6 matches — `int *` (`p`, line 9), `int (*)(int)` (`fp`, line 30), `int (*)[4]` (line 47), `int *` inside `int *[4]` (line 48), and the two function-pointer typedefs `X`/`Y` (lines 50–51).
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match varDecl(hasType(pointerType(pointee(builtinType()))))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match varDecl(hasType(pointerType(pointee(builtinType()))))
 ```
 
 **Expected:** 1 match — `int *p = &i` at `types.cpp:9`.
@@ -156,16 +156,16 @@ clang-query> match varDecl(hasType(pointerType(pointee(builtinType()))))
 
 Matches `T &`. Standalone it sees the *written* `int &` and `auto &`; nested under `varDecl(hasType(...))` it sees the *deduced* types, so `auto &&fr = rr` (collapsed to `int &`) appears too.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match lValueReferenceType()
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match lValueReferenceType()
 ```
 
 **Expected:** 2 matches — `int &` (line 10) and `auto &` (line 12).
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match varDecl(hasType(lValueReferenceType()))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match varDecl(hasType(lValueReferenceType()))
 ```
 
 **Expected:** 3 matches — `lr` (line 10), `ar` (line 12) and `fr` (line 13, `auto &&` collapsed to `int &`).
@@ -174,16 +174,16 @@ clang-query> match varDecl(hasType(lValueReferenceType()))
 
 Matches `T &&`. Written form: three `&&` in the file. Deduced form: only `rr` and `xr`, because `fr` collapsed to an lvalue reference.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match rValueReferenceType()
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match rValueReferenceType()
 ```
 
 **Expected:** 3 matches — `int &&` (line 11), `auto &&` (lines 13 and 14).
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match varDecl(hasType(rValueReferenceType()))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match varDecl(hasType(rValueReferenceType()))
 ```
 
 **Expected:** 2 matches — `rr` (line 11) and `xr` (line 14).
@@ -192,9 +192,9 @@ clang-query> match varDecl(hasType(rValueReferenceType()))
 
 Matches both reference kinds at once.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match referenceType()
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match referenceType()
 ```
 
 **Expected:** 5 matches — the five `&`/`&&` declarators on lines 10–14.
@@ -203,9 +203,9 @@ clang-query> match referenceType()
 
 Matches pointers to members, `T C::*`, whether the member is data or a function.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match memberPointerType()
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match memberPointerType()
 ```
 
 **Expected:** 2 matches — `int A::*` (line 18) and `void (A::*)()` (line 19).
@@ -220,16 +220,16 @@ C++ has four array flavours and Clang gives each its own `Type` subclass. `array
 
 Matches every kind of array: constant-size, incomplete, variable-length and dependent-sized.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match arrayType()
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match arrayType()
 ```
 
 **Expected:** 8 matches — `int[2]` (line 22), `int[]` (lines 23 and 24), `int[ia[0]]` (line 25), `int[4]` (line 47), `int *[4]` (line 48), `T[Size]` (line 64) and `int[3]` (the explicitly instantiated `data` member, line 69).
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match varDecl(hasType(arrayType()))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match varDecl(hasType(arrayType()))
 ```
 
 **Expected:** 4 matches — `ca`, `ia`, `va` and `array_of_ptrs`. `param` is missing: its type is a `DecayedType`, and `ptr_to_array` is a pointer.
@@ -238,16 +238,16 @@ clang-query> match varDecl(hasType(arrayType()))
 
 Matches arrays whose size is an integer constant expression. `int ia[] = {2, 3}` *becomes* a `ConstantArrayType` (`int[2]`) once the initializer fixes the size, so it matches through `hasType` but not as a written `int[]`.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match constantArrayType()
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match constantArrayType()
 ```
 
 **Expected:** 4 matches — `int[2]` (line 22), `int[4]` (line 47), `int *[4]` (line 48), `int[3]` (line 69).
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match varDecl(hasType(constantArrayType(hasSize(4))))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match varDecl(hasType(constantArrayType(hasSize(4))))
 ```
 
 **Expected:** 1 match — `int *array_of_ptrs[4]` at `types.cpp:48`.
@@ -256,23 +256,23 @@ clang-query> match varDecl(hasType(constantArrayType(hasSize(4))))
 
 Matches `T[]` with no size. Only the *written* forms match: as a declared type, `ia` is completed by its initializer and `param` decays to `int *`, so `varDecl(hasType(incompleteArrayType()))` finds nothing. Go through the TypeLoc instead.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match incompleteArrayType()
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match incompleteArrayType()
 ```
 
 **Expected:** 2 matches — `int[]` written for `ia` (line 23) and for `param` (line 24).
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match declaratorDecl(hasTypeLoc(loc(incompleteArrayType())))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match declaratorDecl(hasTypeLoc(loc(incompleteArrayType())))
 ```
 
 **Expected:** 2 matches — `int ia[] = {2, 3}` (line 23) and `int param[]` (line 24).
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match varDecl(hasType(incompleteArrayType()))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match varDecl(hasType(incompleteArrayType()))
 ```
 
 **Expected:** 0 matches — the declared types are `int[2]` and `int *`; the incomplete array only exists in the spelling.
@@ -281,9 +281,9 @@ clang-query> match varDecl(hasType(incompleteArrayType()))
 
 Matches C99-style VLAs, `int va[n]` where `n` is not a constant expression. The sample silences Clang's C++ extension warning with a pragma so the parse stays clean.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match variableArrayType()
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match variableArrayType()
 ```
 
 **Expected:** 1 match — `int[ia[0]]` (`va`, line 25).
@@ -292,9 +292,9 @@ clang-query> match variableArrayType()
 
 Matches arrays inside templates whose size depends on a template parameter (`T data[Size]`). After instantiation the same member becomes a `ConstantArrayType`.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match fieldDecl(hasType(dependentSizedArrayType()))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match fieldDecl(hasType(dependentSizedArrayType()))
 ```
 
 **Expected:** 1 match — `T data[Size]` at `types.cpp:64`.
@@ -303,9 +303,9 @@ clang-query> match fieldDecl(hasType(dependentSizedArrayType()))
 
 Matches Clang's `__attribute__((ext_vector_type(N)))` vector type when the element type or `N` is dependent. In `Box<T, Size>` the `vec` typedef has both dependent.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match dependentSizedExtVectorType()
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match dependentSizedExtVectorType()
 ```
 
 **Expected:** 1 match — `T __attribute__((ext_vector_type(Size)))` (line 65).
@@ -314,23 +314,23 @@ clang-query> match dependentSizedExtVectorType()
 
 Matches the adjusted type Clang gives an array (or function) parameter: `int param[]` is really `int *`, and `DecayedType` records both the original and the decayed type (`hasDecayedType(...)`, Part 8). A `DecayedType` is never *written*, so it is never visited standalone; you reach it through `hasType`, on the parameter or on any expression that names it.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match parmVarDecl(hasType(decayedType(hasDecayedType(pointerType()))))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match parmVarDecl(hasType(decayedType(hasDecayedType(pointerType()))))
 ```
 
 **Expected:** 1 match — `int param[]` at `types.cpp:24`.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match expr(hasType(decayedType(hasDecayedType(pointerType()))))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match expr(hasType(decayedType(hasDecayedType(pointerType()))))
 ```
 
 **Expected:** 1 match — the `param` reference in `param[1] = 0` at `types.cpp:26`.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match decayedType()
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match decayedType()
 ```
 
 **Expected:** 0 matches — nothing spells a decayed type, so the traversal never visits one.
@@ -345,16 +345,16 @@ A function declaration, a function pointer and a function typedef all carry a `F
 
 Matches any function type, `R (Params)`. Note that a function *pointer* variable's own type is a `PointerType`; the function type is its pointee, usually behind a `ParenType`.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match functionType()
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match functionType()
 ```
 
 **Expected:** 16 matches — every function declaration's type (`method`, `arrays`, `g`, `h`, `take`, `takeSpec`, `F`, `callF`, `Ctad(T)`, `Q::f` twice, `call`) plus the function types inside `fp`, `mfp`, `X` and `Y`.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match varDecl(hasType(pointsTo(ignoringParens(functionType()))))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match varDecl(hasType(pointsTo(ignoringParens(functionType()))))
 ```
 
 **Expected:** 1 match — `int (*fp)(int)` at `types.cpp:30`. Without `ignoringParens` the pointee is the `ParenType` and nothing matches.
@@ -363,16 +363,16 @@ clang-query> match varDecl(hasType(pointsTo(ignoringParens(functionType()))))
 
 Matches function types that carry a parameter list — in C++ that is all of them. Narrowers such as `parameterCountIs(N)` (Part 6) live on this node.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match functionProtoType()
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match functionProtoType()
 ```
 
 **Expected:** 16 matches — the same set as `functionType()`; C++ has no non-prototype functions.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match functionDecl(hasType(functionProtoType(parameterCountIs(1))))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match functionDecl(hasType(functionProtoType(parameterCountIs(1))))
 ```
 
 **Expected:** 6 matches — `arrays`, `h`, `take`, `takeSpec`, `F` and the constructor `Ctad(T)`.
@@ -387,16 +387,16 @@ A *tag* is anything introduced with `struct`, `class`, `union` or `enum`. `tagTy
 
 Matches the type of a `struct`/`class`/`union`. Standalone it also counts the `A` inside `int A::*` and the `Q` inside `Q::f`; `T ut` does **not** appear, because its sugared type is a `UsingType`.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match recordType()
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match recordType()
 ```
 
 **Expected:** 9 matches — `A` ×4 (lines 18–19), `S` and `C` (line 39), `Q` ×2 (lines 89–90) and `nn::Q` (line 92).
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match varDecl(hasType(recordType()))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match varDecl(hasType(recordType()))
 ```
 
 **Expected:** 3 matches — `S s`, `C c` (line 39) and `nn::Q q` (line 92).
@@ -405,16 +405,16 @@ clang-query> match varDecl(hasType(recordType()))
 
 Matches the type of an `enum` or `enum class`. Combine with `hasDeclaration(enumDecl(isScoped()))` to tell them apart.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match enumType()
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match enumType()
 ```
 
 **Expected:** 3 matches — `E` and `SC` (line 39) and the `E` inside `__underlying_type(E)` (line 56).
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match varDecl(hasType(enumType(hasDeclaration(enumDecl(isScoped())))))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match varDecl(hasType(enumType(hasDeclaration(enumDecl(isScoped())))))
 ```
 
 **Expected:** 1 match — `SC sc` at `types.cpp:39`.
@@ -423,16 +423,16 @@ clang-query> match varDecl(hasType(enumType(hasDeclaration(enumDecl(isScoped()))
 
 Matches record and enum types together. The injected class name `Box<T, Size>` (line 66) is a tag type too.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match tagType()
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match tagType()
 ```
 
 **Expected:** 13 matches — the 9 record types, the 3 enum types and `Box<T, Size>` in `take(Box b)`.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match varDecl(hasType(tagType()))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match varDecl(hasType(tagType()))
 ```
 
 **Expected:** 6 matches — `s`, `c`, `e`, `sc` (line 39), the parameter `Box<T, Size> b` of `take` (line 66) and `q` (line 92).
@@ -447,16 +447,16 @@ Sugar nodes keep the *spelling* the programmer chose. They sit on top of the can
 
 Matches a use of a `typedef` name (`Int ti`). The declaration `typedef int Int` itself is a `typedefDecl`, not a type use.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match typedefType()
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match typedefType()
 ```
 
 **Expected:** 1 match — `Int` in `Int ti = 5` (line 43).
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match varDecl(hasType(typedefType(hasDeclaration(typedefDecl(hasName("Int"))))))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match varDecl(hasType(typedefType(hasDeclaration(typedefDecl(hasName("Int"))))))
 ```
 
 **Expected:** 1 match — `Int ti = 5` at `types.cpp:43`.
@@ -465,17 +465,17 @@ clang-query> match varDecl(hasType(typedefType(hasDeclaration(typedefDecl(hasNam
 
 Matches a type named through a `using` declaration (`using lib::T; T ut;`). `throughUsingDecl(...)` (Part 8) reaches the shadow declaration.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match usingType()
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match usingType()
 ```
 
 **Expected:** 1 match — `T` in `T ut` (line 46).
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match varDecl(hasType(hasUnqualifiedDesugaredType(
-               recordType(hasDeclaration(recordDecl(hasName("T")))))))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match varDecl(hasType(hasUnqualifiedDesugaredType(
+  recordType(hasDeclaration(recordDecl(hasName("T")))))))
 ```
 
 **Expected:** 1 match — `T ut` at `types.cpp:46`; desugaring peels the `UsingType` off and exposes `lib::T`.
@@ -484,16 +484,16 @@ clang-query> match varDecl(hasType(hasUnqualifiedDesugaredType(
 
 Matches the parentheses in declarators such as `int (*fp)(int)` and `int (*ptr_to_array)[4]`. The variable's own type is the pointer; the `ParenType` is its pointee.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match parenType()
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match parenType()
 ```
 
 **Expected:** 5 matches — `void ()` (line 19), `int (int)` (line 30), `int[4]` (line 47), `void ()` (lines 50 and 51).
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match varDecl(hasType(pointsTo(parenType())))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match varDecl(hasType(pointsTo(parenType())))
 ```
 
 **Expected:** 2 matches — `fp` (line 30) and `ptr_to_array` (line 47); `array_of_ptrs` has no parentheses.
@@ -502,16 +502,16 @@ clang-query> match varDecl(hasType(pointsTo(parenType())))
 
 Matches a type whose attribute was applied through a macro (`#define CDECL __attribute__((cdecl))`). Writing the attribute directly (`Y`, line 51) yields a plain `AttributedType`; only `X` (line 50) gets the `MacroQualifiedType` wrapper, which remembers the macro name.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match macroQualifiedType()
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match macroQualifiedType()
 ```
 
 **Expected:** 1 match — `CDECL void ()` inside the typedef of `X` (line 50).
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match typedefDecl(hasType(pointsTo(macroQualifiedType())))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match typedefDecl(hasType(pointsTo(macroQualifiedType())))
 ```
 
 **Expected:** 1 match — `typedef void (CDECL *X)()` at `types.cpp:50`.
@@ -526,16 +526,16 @@ Templates add a family of type nodes: the *written* specialization `Box<char, 2>
 
 Matches a written `Template<Args>` type. The explicit instantiation `template struct Box<int, 3>;` counts only in `AsIs` traversal; the implicit one from `Box<char, 2> box` is a `classTemplateSpecializationDecl`, not a type use.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match templateSpecializationType()
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match templateSpecializationType()
 ```
 
 **Expected:** 3 matches — `Box<T, Size>` (line 67), `Box<char, 2>` (line 70), `Holder<Wrap>` (line 84).
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match varDecl(hasType(templateSpecializationType()))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match varDecl(hasType(templateSpecializationType()))
 ```
 
 **Expected:** 3 matches — the parameter `Box<T, Size> b` of `takeSpec` (line 67), `Box<char, 2> box` (line 70) and `Holder<Wrap> holder` (line 84).
@@ -544,16 +544,16 @@ clang-query> match varDecl(hasType(templateSpecializationType()))
 
 Matches uses of a template *type parameter* (`T`) inside a template. The two `type-parameter-N-0` matches are the anonymous parameter of `Wrap` and the inner parameter of `Holder`'s template template parameter.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match templateTypeParmType()
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match templateTypeParmType()
 ```
 
 **Expected:** 13 matches — every `T` spelled inside `Box`, `Dep`, `F`, `Ctad` (11) plus the two unnamed parameters on lines 82–83.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match fieldDecl(hasType(templateTypeParmType()))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match fieldDecl(hasType(templateTypeParmType()))
 ```
 
 **Expected:** 1 match — `T value` at `types.cpp:63`.
@@ -562,16 +562,16 @@ clang-query> match fieldDecl(hasType(templateTypeParmType()))
 
 Matches the type of something that *was* a `T` and has been replaced by a concrete type in an instantiation. Implicit instantiations (`F(1)`, `Box<char, 2> box`) are skipped by `IgnoreUnlessSpelledInSource`, so reaching `F<int>` needs the default `AsIs` traversal; the *explicit* instantiation `template struct Box<int, 3>;` is spelled in source and shows up in both modes.
 
-```text
-clang-query> match parmVarDecl(hasName("t"), hasType(substTemplateTypeParmType()))
+```clang-query
+match parmVarDecl(hasName("t"), hasType(substTemplateTypeParmType()))
 ```
 
 **Expected:** 1 match — `int t` of the instantiated `F<int>` (spelled at `types.cpp:76`); the `T t` of the template itself is a `templateTypeParmType`.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> set output dump
-clang-query> match substTemplateTypeParmType()
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+set output dump
+match substTemplateTypeParmType()
 ```
 
 **Expected:** 3 matches — three `SubstTemplateTypeParmType 'int' sugar ... T` nodes, all from the explicit instantiation `Box<int, 3>` (line 69): the `value` member, the element type of `data[3]` and the `vec` typedef.
@@ -580,9 +580,9 @@ clang-query> match substTemplateTypeParmType()
 
 Inside a class template, the bare name `Box` means "this specialization" and has its own type node. Writing `Box<T, Size>` instead produces a `TemplateSpecializationType`.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match parmVarDecl(hasType(injectedClassNameType()))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match parmVarDecl(hasType(injectedClassNameType()))
 ```
 
 **Expected:** 1 match — `Box b` in `take` (line 66), printed as `Box<T, Size> b`.
@@ -591,9 +591,9 @@ clang-query> match parmVarDecl(hasType(injectedClassNameType()))
 
 Matches the C++17 CTAD placeholder: `Ctad ct(123)` names the template without arguments and lets the constructor deduce `Ctad<int>`.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match varDecl(hasType(deducedTemplateSpecializationType()))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match varDecl(hasType(deducedTemplateSpecializationType()))
 ```
 
 **Expected:** 1 match — `Ctad ct(123)` at `types.cpp:80`.
@@ -602,9 +602,9 @@ clang-query> match varDecl(hasType(deducedTemplateSpecializationType()))
 
 Matches `typename T::type`: a name that can only be looked up once `T` is known.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match dependentNameType()
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match dependentNameType()
 ```
 
 **Expected:** 1 match — `typename T::type` (line 73).
@@ -617,23 +617,23 @@ clang-query> match dependentNameType()
 
 Matches `auto` (also `auto &`, `auto &&` — the reference wraps the `AutoType`). The written `auto` is *undeduced*; the declaration's type carries the deduced `AutoType`, so `hasDeducedType(...)` (Part 8) only works through `hasType`.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match autoType()
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match autoType()
 ```
 
 **Expected:** 4 matches — the `auto` in `ar`, `fr`, `xr` (lines 12–14) and `n` (line 54).
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match varDecl(hasType(autoType(hasDeducedType(asString("int")))))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match varDecl(hasType(autoType(hasDeducedType(asString("int")))))
 ```
 
 **Expected:** 1 match — `auto n = 4` at `types.cpp:54`.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match autoType(hasDeducedType(builtinType()))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match autoType(hasDeducedType(builtinType()))
 ```
 
 **Expected:** 0 matches — standalone traversal visits the spelled, undeduced `auto`, which has no deduced type yet.
@@ -642,9 +642,9 @@ clang-query> match autoType(hasDeducedType(builtinType()))
 
 Matches `decltype(expr)`.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match decltypeType()
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match decltypeType()
 ```
 
 **Expected:** 1 match — `decltype(i + f)` (line 55).
@@ -653,9 +653,9 @@ clang-query> match decltypeType()
 
 Matches the compiler transform types such as `__underlying_type(E)`.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match unaryTransformType()
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match unaryTransformType()
 ```
 
 **Expected:** 1 match — `__underlying_type(E)` (line 56).
@@ -664,9 +664,9 @@ clang-query> match unaryTransformType()
 
 Matches C11 `_Atomic(T)`, which Clang also accepts in C++.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match atomicType()
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match atomicType()
 ```
 
 **Expected:** 1 match — `_Atomic(int)` (line 57).
@@ -675,9 +675,9 @@ clang-query> match atomicType()
 
 Matches C99 `_Complex T`.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match complexType()
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match complexType()
 ```
 
 **Expected:** 1 match — `_Complex float` (line 58).
@@ -692,16 +692,16 @@ Each `XxxTypeLoc` matcher is the located twin of `xxxType()`. Counts agree with 
 
 Matches a written `T *`.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match pointerTypeLoc()
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match pointerTypeLoc()
 ```
 
 **Expected:** 6 matches — the same six pointer spellings as `pointerType()`, now each with a `types.cpp:LINE:COL` caret.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match varDecl(hasTypeLoc(pointerTypeLoc()))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match varDecl(hasTypeLoc(pointerTypeLoc()))
 ```
 
 **Expected:** 3 matches — `p` (line 9), `fp` (line 30), `ptr_to_array` (line 47).
@@ -710,9 +710,9 @@ clang-query> match varDecl(hasTypeLoc(pointerTypeLoc()))
 
 Matches a written `T &` or `T &&`.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match referenceTypeLoc()
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match referenceTypeLoc()
 ```
 
 **Expected:** 5 matches — lines 10–14.
@@ -721,16 +721,16 @@ clang-query> match referenceTypeLoc()
 
 Matches a written array declarator, whatever its size kind.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match arrayTypeLoc()
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match arrayTypeLoc()
 ```
 
 **Expected:** 8 matches — the eight array spellings listed under `arrayType()`.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match varDecl(hasName("ca"), hasTypeLoc(arrayTypeLoc().bind("al")))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match varDecl(hasName("ca"), hasTypeLoc(arrayTypeLoc().bind("al")))
 ```
 
 **Expected:** 1 match — `int ca[2]` at `types.cpp:22`; the `al` caret spans `int ca[2]` (an array TypeLoc includes the declarator name and brackets).
@@ -739,9 +739,9 @@ clang-query> match varDecl(hasName("ca"), hasTypeLoc(arrayTypeLoc().bind("al")))
 
 Matches a written type with cv-qualifiers, `const int`.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match qualifiedTypeLoc()
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match qualifiedTypeLoc()
 ```
 
 **Expected:** 1 match — `const int` (line 93).
@@ -750,17 +750,17 @@ clang-query> match qualifiedTypeLoc()
 
 Matches a written `Template<Args>`; `hasAnyTemplateArgumentLoc` / `hasTemplateArgumentLoc(N, ...)` (Part 10) descend into the arguments.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match templateSpecializationTypeLoc()
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match templateSpecializationTypeLoc()
 ```
 
 **Expected:** 3 matches — `Box<T, Size>` (line 67), `Box<char, 2>` (line 70), `Holder<Wrap>` (line 84).
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match varDecl(hasName("box"),
-               hasTypeLoc(templateSpecializationTypeLoc().bind("tsl")))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match varDecl(hasName("box"),
+  hasTypeLoc(templateSpecializationTypeLoc().bind("tsl")))
 ```
 
 **Expected:** 1 match — `Box<char, 2> box` at `types.cpp:70`; the `tsl` caret covers `Box<char, 2>` only.
@@ -771,9 +771,9 @@ Matches a written function type such as `void (int)` or the `char ()` inside `ch
 
 **Not in clang-query 22** — trunk-only; the matcher exists in the reference but is not registered in this build. Convert a type matcher with `loc(...)` instead:
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match functionDecl(hasName("h"), hasTypeLoc(loc(functionProtoType())))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match functionDecl(hasName("h"), hasTypeLoc(loc(functionProtoType())))
 ```
 
 **Expected:** 1 match — `void h(int) {}` at `types.cpp:32`.
@@ -788,17 +788,17 @@ Three small node kinds that are neither declarations nor types but appear *insid
 
 Matches a qualifier such as `nn::`, `A::` or `T::`. `specifiesNamespace(...)` / `specifiesType(...)` (Part 6) narrow by what is before the `::`.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match nestedNameSpecifier()
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match nestedNameSpecifier()
 ```
 
 **Expected:** 9 matches — `A::` ×4 (lines 18–19), `lib::` (line 45), `T::` (line 73), `Q::` ×2 (lines 89–90), `nn::` (line 92).
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match varDecl(hasType(hasQualifier(
-               nestedNameSpecifier(specifiesNamespace(hasName("nn"))))))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match varDecl(hasType(hasQualifier(
+  nestedNameSpecifier(specifiesNamespace(hasName("nn"))))))
 ```
 
 **Expected:** 1 match — `nn::Q q` at `types.cpp:92`.
@@ -807,17 +807,17 @@ clang-query> match varDecl(hasType(hasQualifier(
 
 The located twin: same qualifiers, each with a caret on the `xx::` characters. `loc(nestedNameSpecifier(...))` converts a specifier matcher.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match nestedNameSpecifierLoc()
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match nestedNameSpecifierLoc()
 ```
 
 **Expected:** 9 matches — the same nine qualifiers, now with `types.cpp:LINE:COL` carets.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match nestedNameSpecifierLoc(loc(specifiesType(
-               hasDeclaration(recordDecl(hasName("A"))))))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match nestedNameSpecifierLoc(loc(specifiesType(
+  hasDeclaration(recordDecl(hasName("A"))))))
 ```
 
 **Expected:** 4 matches — the four `A::` on lines 18–19.
@@ -826,17 +826,17 @@ clang-query> match nestedNameSpecifierLoc(loc(specifiesType(
 
 Matches one argument of a template specialization: a type (`char`), a value (`2`) or a template (`Wrap`). It is **not a valid top-level matcher** in clang-query (there is no standalone traversal of template arguments), so reach it through `hasAnyTemplateArgument` / `hasTemplateArgument(N, ...)` on a specialization type or declaration (Part 10).
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match templateSpecializationType(hasAnyTemplateArgument(templateArgument()))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match templateSpecializationType(hasAnyTemplateArgument(templateArgument()))
 ```
 
 **Expected:** 3 matches — `Box<T, Size>`, `Box<char, 2>`, `Holder<Wrap>`.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match templateSpecializationType(hasTemplateArgument(0,
-               templateArgument(refersToType(asString("char")))))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match templateSpecializationType(hasTemplateArgument(0,
+  templateArgument(refersToType(asString("char")))))
 ```
 
 **Expected:** 1 match — `Box<char, 2>` (line 70).
@@ -845,16 +845,16 @@ clang-query> match templateSpecializationType(hasTemplateArgument(0,
 
 The located argument. Unlike `templateArgument()`, this one *is* traversed standalone, so you can count every written argument.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match templateArgumentLoc()
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match templateArgumentLoc()
 ```
 
 **Expected:** 7 matches — `T`, `Size` (line 67), `int`, `3` (line 69), `char`, `2` (line 70), `Wrap` (line 84).
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match templateArgumentLoc(hasTypeLoc(loc(asString("char"))))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match templateArgumentLoc(hasTypeLoc(loc(asString("char"))))
 ```
 
 **Expected:** 1 match — the `char` in `Box<char, 2>` at `types.cpp:70:5`.
@@ -863,17 +863,17 @@ clang-query> match templateArgumentLoc(hasTypeLoc(loc(asString("char"))))
 
 Matches the *name of a template* as a value: the `Wrap` passed to `Holder<Wrap>`. Like `templateArgument()`, it cannot stand alone; the only way in is `templateArgument(refersToTemplate(templateName()))`.
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match templateSpecializationType(hasAnyTemplateArgument(
-               templateArgument(refersToTemplate(templateName()))))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match templateSpecializationType(hasAnyTemplateArgument(
+  templateArgument(refersToTemplate(templateName()))))
 ```
 
 **Expected:** 1 match — `Holder<Wrap>` (line 84).
 
-```text
-clang-query> match classTemplateSpecializationDecl(hasTemplateArgument(0,
-               templateArgument(refersToTemplate(templateName()))))
+```clang-query
+match classTemplateSpecializationDecl(hasTemplateArgument(0,
+  templateArgument(refersToTemplate(templateName()))))
 ```
 
 **Expected:** 1 match — the implicit specialization `Holder<Wrap>` (visible only in `AsIs` traversal), located at its template on `types.cpp:83`.

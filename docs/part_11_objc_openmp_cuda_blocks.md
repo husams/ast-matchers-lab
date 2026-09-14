@@ -116,16 +116,16 @@ do not show up here. The sixth match has no location: it is the implicit
 `@class Protocol;` that Clang declares for every Objective-C translation
 unit.
 
-```text
-clang-query> match objcInterfaceDecl()
+```clang-query
+match objcInterfaceDecl()
 ```
 
 **Expected:** 6 matches — `NSObject` at `objc.m:10`, `NSString` at `objc.m:26`, `Foo` at `objc.m:37`, `Bar` at `objc.m:81`, `Baz` at `objc.m:89`, plus the implicit `Protocol`.
 
 Drop the implicit one with a narrower you already know:
 
-```text
-clang-query> match objcInterfaceDecl(unless(isImplicit()))
+```clang-query
+match objcInterfaceDecl(unless(isImplicit()))
 ```
 
 **Expected:** 5 matches — the five `@interface` lines above.
@@ -134,8 +134,8 @@ clang-query> match objcInterfaceDecl(unless(isImplicit()))
 
 Matches an `@implementation` of a class (not of a category).
 
-```text
-clang-query> match objcImplementationDecl()
+```clang-query
+match objcImplementationDecl()
 ```
 
 **Expected:** 4 matches — `NSObject` at `objc.m:18`, `Foo` at `objc.m:50`, `Bar` at `objc.m:85`, `Baz` at `objc.m:92`.
@@ -144,8 +144,8 @@ clang-query> match objcImplementationDecl()
 
 Matches a category interface, `@interface Foo (Additions)`.
 
-```text
-clang-query> match objcCategoryDecl()
+```clang-query
+match objcCategoryDecl()
 ```
 
 **Expected:** 1 match — `Foo (Additions)` at `objc.m:73`.
@@ -154,8 +154,8 @@ clang-query> match objcCategoryDecl()
 
 Matches a category implementation, `@implementation Foo (Additions)`.
 
-```text
-clang-query> match objcCategoryImplDecl()
+```clang-query
+match objcCategoryImplDecl()
 ```
 
 **Expected:** 1 match — `Foo (Additions)` at `objc.m:77`.
@@ -164,8 +164,8 @@ clang-query> match objcCategoryImplDecl()
 
 Matches an `@protocol` declaration.
 
-```text
-clang-query> match objcProtocolDecl()
+```clang-query
+match objcProtocolDecl()
 ```
 
 **Expected:** 2 matches — `FooDelegate` at `objc.m:29`, `Loggable` at `objc.m:33`.
@@ -176,8 +176,8 @@ Matches an instance variable declared in the `{ ... }` block of an
 interface or implementation. Properties are not ivars; `@synthesize` here
 reuses the existing ivars, so nothing is added.
 
-```text
-clang-query> match objcIvarDecl()
+```clang-query
+match objcIvarDecl()
 ```
 
 **Expected:** 3 matches — `isa` at `objc.m:11`, `_enabled` at `objc.m:38`, `_name` at `objc.m:39`.
@@ -186,8 +186,8 @@ clang-query> match objcIvarDecl()
 
 Matches an `@property` declaration.
 
-```text
-clang-query> match objcPropertyDecl()
+```clang-query
+match objcPropertyDecl()
 ```
 
 **Expected:** 2 matches — `enabled` at `objc.m:41`, `name` at `objc.m:42`.
@@ -199,8 +199,8 @@ definition in the `@implementation`. Method names are selectors, so
 `hasName` takes the full selector: `"method"` for a unary one,
 `"setName:enabled:"` for a keyword one.
 
-```text
-clang-query> match objcMethodDecl(hasName("method"))
+```clang-query
+match objcMethodDecl(hasName("method"))
 ```
 
 **Expected:** 2 matches — the prototype at `objc.m:44` and the definition at `objc.m:59`.
@@ -209,8 +209,8 @@ clang-query> match objcMethodDecl(hasName("method"))
 
 Narrows to `+` methods.
 
-```text
-clang-query> match objcMethodDecl(isClassMethod())
+```clang-query
+match objcMethodDecl(isClassMethod())
 ```
 
 **Expected:** 4 matches — `+alloc` at `objc.m:13` and `objc.m:19`, `+fooWithName:` at `objc.m:43` and `objc.m:54`.
@@ -220,8 +220,8 @@ clang-query> match objcMethodDecl(isClassMethod())
 Narrows to `-` methods. Combined with `hasName` it also finds the protocol's
 requirement, since a protocol method is an `ObjCMethodDecl` too.
 
-```text
-clang-query> match objcMethodDecl(isInstanceMethod(), hasName("log"))
+```clang-query
+match objcMethodDecl(isInstanceMethod(), hasName("log"))
 ```
 
 **Expected:** 3 matches — `Loggable`'s requirement at `objc.m:34`, `Foo`'s prototype at `objc.m:47`, its definition at `objc.m:70`.
@@ -231,8 +231,8 @@ clang-query> match objcMethodDecl(isInstanceMethod(), hasName("log"))
 Matches a method that has a body, i.e. the one in the `@implementation`.
 The prototype in the `@interface` is only a declaration.
 
-```text
-clang-query> match objcMethodDecl(isDefinition(), hasName("method"))
+```clang-query
+match objcMethodDecl(isDefinition(), hasName("method"))
 ```
 
 **Expected:** 1 match — the definition at `objc.m:59`.
@@ -243,17 +243,17 @@ The N-th parameter (0-based) of a method or a block. Parameters are plain
 `ParmVarDecl`s, so `hasName`, `hasType` and the rest apply. For a method both
 the prototype and the definition match.
 
-```text
-clang-query> match objcMethodDecl(hasParameter(1, hasName("flag")))
+```clang-query
+match objcMethodDecl(hasParameter(1, hasName("flag")))
 ```
 
 **Expected:** 2 matches — `setName:enabled:` at `objc.m:45` and `objc.m:63`.
 
 The same matcher on a block:
 
-```text
+```clang-query
 # sample: manifests/blocks.cpp -std=c++23 -fblocks
-clang-query> match blockDecl(hasParameter(0, hasName("p")))
+match blockDecl(hasParameter(0, hasName("p")))
 ```
 
 **Expected:** 1 match — the `^(int p)` block at `blocks.cpp:10`.
@@ -262,15 +262,15 @@ clang-query> match blockDecl(hasParameter(0, hasName("p")))
 
 Any parameter of a method or a block matches the inner matcher.
 
-```text
-clang-query> match objcMethodDecl(hasAnyParameter(hasName("foo")))
+```clang-query
+match objcMethodDecl(hasAnyParameter(hasName("foo")))
 ```
 
 **Expected:** 3 matches — `fooDidFinish:` in the protocol at `objc.m:30`, in `Bar`'s interface at `objc.m:82`, in its implementation at `objc.m:86`.
 
-```text
+```clang-query
 # sample: manifests/blocks.cpp -std=c++23 -fblocks
-clang-query> match blockDecl(hasAnyParameter(hasName("msg")))
+match blockDecl(hasAnyParameter(hasName("msg")))
 ```
 
 **Expected:** 1 match — the `report` block at `blocks.cpp:11`.
@@ -281,22 +281,22 @@ The written type of a property, or the written signature of a block. A
 block with no written signature (`^{}`) has no type location and never
 matches.
 
-```text
-clang-query> match objcPropertyDecl(hasTypeLoc(loc(asString("NSString *"))))
+```clang-query
+match objcPropertyDecl(hasTypeLoc(loc(asString("NSString *"))))
 ```
 
 **Expected:** 1 match — `@property (readonly) NSString *name` at `objc.m:42`.
 
-```text
+```clang-query
 # sample: manifests/blocks.cpp -std=c++23 -fblocks
-clang-query> match blockDecl(hasTypeLoc(loc(functionProtoType(parameterCountIs(2)))))
+match blockDecl(hasTypeLoc(loc(functionProtoType(parameterCountIs(2)))))
 ```
 
 **Expected:** 1 match — the two-parameter `report` block at `blocks.cpp:11`.
 
-```text
+```clang-query
 # sample: manifests/blocks.cpp -std=c++23 -fblocks
-clang-query> match blockDecl(hasTypeLoc(loc(functionProtoType())))
+match blockDecl(hasTypeLoc(loc(functionProtoType())))
 ```
 
 **Expected:** 3 matches — the blocks at `blocks.cpp:10`, `blocks.cpp:11` and `blocks.cpp:13`; the `^{}` at line 15 wrote no signature.
@@ -308,14 +308,14 @@ matches a class that directly or indirectly subclasses the named base. The
 string form is a shortcut for `isDerivedFrom(hasName(...))`; both forms are
 accepted. A class is not derived from itself.
 
-```text
-clang-query> match objcInterfaceDecl(isDerivedFrom("NSObject"))
+```clang-query
+match objcInterfaceDecl(isDerivedFrom("NSObject"))
 ```
 
 **Expected:** 4 matches — `NSString` at `objc.m:26`, `Foo` at `objc.m:37`, `Bar` at `objc.m:81`, `Baz` at `objc.m:89`.
 
-```text
-clang-query> match objcInterfaceDecl(isDerivedFrom(hasName("Foo")))
+```clang-query
+match objcInterfaceDecl(isDerivedFrom(hasName("Foo")))
 ```
 
 **Expected:** 2 matches — `Bar` at `objc.m:81`, `Baz` at `objc.m:89`.
@@ -324,8 +324,8 @@ clang-query> match objcInterfaceDecl(isDerivedFrom(hasName("Foo")))
 
 Only the immediate subclass.
 
-```text
-clang-query> match objcInterfaceDecl(isDirectlyDerivedFrom("Foo"))
+```clang-query
+match objcInterfaceDecl(isDirectlyDerivedFrom("Foo"))
 ```
 
 **Expected:** 1 match — `Bar` at `objc.m:81`.
@@ -334,8 +334,8 @@ clang-query> match objcInterfaceDecl(isDirectlyDerivedFrom("Foo"))
 
 Like `isDerivedFrom` but the base itself also matches.
 
-```text
-clang-query> match objcInterfaceDecl(isSameOrDerivedFrom("Bar"))
+```clang-query
+match objcInterfaceDecl(isSameOrDerivedFrom("Bar"))
 ```
 
 **Expected:** 2 matches — `Bar` at `objc.m:81`, `Baz` at `objc.m:89`.
@@ -349,8 +349,8 @@ useful form is on an expression or value whose type *is* the interface: an
 object pointer's type is `Foo *` (an `ObjCObjectPointerType`), so to find
 plain `Foo` you need a dereference. The sample has one, `(void)*foo;`.
 
-```text
-clang-query> match unaryOperator(hasType(objcInterfaceDecl(hasName("Foo"))))
+```clang-query
+match unaryOperator(hasType(objcInterfaceDecl(hasName("Foo"))))
 ```
 
 **Expected:** 1 match — `*foo` at `objc.m:101`.
@@ -358,8 +358,8 @@ clang-query> match unaryOperator(hasType(objcInterfaceDecl(hasName("Foo"))))
 For pointers go through the type: `pointsTo` (Part 10) on the
 `QualType` overload of `hasType`, then the interface declaration.
 
-```text
-clang-query> match objcIvarDecl(hasType(pointsTo(objcInterfaceDecl(hasName("NSString")))))
+```clang-query
+match objcIvarDecl(hasType(pointsTo(objcInterfaceDecl(hasName("NSString")))))
 ```
 
 **Expected:** 1 match — `NSString *_name` at `objc.m:39`.
@@ -368,8 +368,8 @@ Applied to the interface node itself, this overload asks for the *pointee*
 of the interface's own type. That type is not a pointer, so in LLVM 22 the
 matcher never fires on an `@interface`:
 
-```text
-clang-query> match objcInterfaceDecl(hasType(objcInterfaceDecl()))
+```clang-query
+match objcInterfaceDecl(hasType(objcInterfaceDecl()))
 ```
 
 **Expected:** 0 matches — the direct form is registered but has nothing to match.
@@ -380,16 +380,16 @@ An Objective-C object pointer, `Foo *` or `id`, which is a different node
 from a C `pointerType()` even though it is spelled the same. Types have no
 location, so the bare query prints only a count.
 
-```text
-clang-query> match objcObjectPointerType()
+```clang-query
+match objcObjectPointerType()
 ```
 
 **Expected:** 12 matches — one per distinct object-pointer type in the file.
 
 Wrap it in a declaration matcher to see where those types are used:
 
-```text
-clang-query> match parmVarDecl(hasType(objcObjectPointerType()))
+```clang-query
+match parmVarDecl(hasType(objcObjectPointerType()))
 ```
 
 **Expected:** 6 matches — the `name` parameters at `objc.m:43`, `objc.m:45`, `objc.m:54`, `objc.m:63` and `foo`, `bar` at `objc.m:95`.
@@ -419,8 +419,8 @@ Matches every message send. Nested sends count separately:
 `[[Foo alloc] init]` is two messages, and the inner one is reported at the
 column of `Foo`.
 
-```text
-clang-query> match objcMessageExpr()
+```clang-query
+match objcMessageExpr()
 ```
 
 **Expected:** 14 matches — every `[...]` in `objc.m`, from `[[Foo alloc] init]` at `objc.m:55` to `[foo release]` at `objc.m:113`.
@@ -429,8 +429,8 @@ clang-query> match objcMessageExpr()
 
 Matches an `@"..."` literal.
 
-```text
-clang-query> match objcStringLiteral()
+```clang-query
+match objcStringLiteral()
 ```
 
 **Expected:** 3 matches — `@"default"` at `objc.m:61`, `@"bar"` at `objc.m:98`, `@"fresh"` at `objc.m:102`.
@@ -441,16 +441,16 @@ Matches a use of an instance variable inside a method, written bare
 (`_name`) or through `self->_name`. It is not a `declRefExpr`; ivars have
 their own reference node.
 
-```text
-clang-query> match objcIvarRefExpr()
+```clang-query
+match objcIvarRefExpr()
 ```
 
 **Expected:** 4 matches — `_enabled` and `_name` at `objc.m:60`–`objc.m:61`, and again at `objc.m:64`–`objc.m:65`.
 
 `hasDeclaration` selects one ivar:
 
-```text
-clang-query> match objcIvarRefExpr(hasDeclaration(objcIvarDecl(hasName("_name"))))
+```clang-query
+match objcIvarRefExpr(hasDeclaration(objcIvarDecl(hasName("_name"))))
 ```
 
 **Expected:** 2 matches — `objc.m:61` and `objc.m:64`.
@@ -460,8 +460,8 @@ clang-query> match objcIvarRefExpr(hasDeclaration(objcIvarDecl(hasName("_name"))
 Matches an `@autoreleasepool { ... }` statement. Its only child is the
 compound statement, so use `hasDescendant` to look inside.
 
-```text
-clang-query> match autoreleasePoolStmt(hasDescendant(declStmt()))
+```clang-query
+match autoreleasePoolStmt(hasDescendant(declStmt()))
 ```
 
 **Expected:** 1 match — the pool at `objc.m:103`, which declares `int x`.
@@ -470,8 +470,8 @@ clang-query> match autoreleasePoolStmt(hasDescendant(declStmt()))
 
 Matches an `@try` statement (the whole try/catch/finally construct).
 
-```text
-clang-query> match objcTryStmt()
+```clang-query
+match objcTryStmt()
 ```
 
 **Expected:** 1 match — `@try` at `objc.m:108`.
@@ -480,8 +480,8 @@ clang-query> match objcTryStmt()
 
 Matches an `@catch (...)` clause.
 
-```text
-clang-query> match objcCatchStmt()
+```clang-query
+match objcCatchStmt()
 ```
 
 **Expected:** 1 match — `@catch (Foo *e)` at `objc.m:110`.
@@ -490,8 +490,8 @@ clang-query> match objcCatchStmt()
 
 Matches an `@finally` clause.
 
-```text
-clang-query> match objcFinallyStmt()
+```clang-query
+match objcFinallyStmt()
 ```
 
 **Expected:** 1 match — `@finally` at `objc.m:112`.
@@ -500,8 +500,8 @@ clang-query> match objcFinallyStmt()
 
 Matches an `@throw` statement.
 
-```text
-clang-query> match objcThrowStmt()
+```clang-query
+match objcThrowStmt()
 ```
 
 **Expected:** 1 match — `@throw e` at `objc.m:111`.
@@ -511,8 +511,8 @@ clang-query> match objcThrowStmt()
 The selector, spelled exactly as `Selector::getAsString()` prints it:
 colons included, no spaces.
 
-```text
-clang-query> match objcMessageExpr(hasSelector("setName:enabled:"))
+```clang-query
+match objcMessageExpr(hasSelector("setName:enabled:"))
 ```
 
 **Expected:** 2 matches — `objc.m:56` and `objc.m:98`.
@@ -521,8 +521,8 @@ clang-query> match objcMessageExpr(hasSelector("setName:enabled:"))
 
 Any of several exact selectors.
 
-```text
-clang-query> match objcMessageExpr(hasAnySelector("method", "extra"))
+```clang-query
+match objcMessageExpr(hasAnySelector("method", "extra"))
 ```
 
 **Expected:** 3 matches — `[self method]` at `objc.m:78`, `[foo method]` at `objc.m:97`, `[foo extra]` at `objc.m:109`.
@@ -532,14 +532,14 @@ clang-query> match objcMessageExpr(hasAnySelector("method", "extra"))
 Regular-expression search over the selector string. Flags are passed as a
 quoted string, combinable with `|`.
 
-```text
-clang-query> match objcMessageExpr(matchesSelector("^set"))
+```clang-query
+match objcMessageExpr(matchesSelector("^set"))
 ```
 
 **Expected:** 2 matches — the two `setName:enabled:` sends at `objc.m:56` and `objc.m:98`.
 
-```text
-clang-query> match objcMessageExpr(matchesSelector("name", "IgnoreCase"))
+```clang-query
+match objcMessageExpr(matchesSelector("name", "IgnoreCase"))
 ```
 
 **Expected:** 3 matches — `setName:enabled:` twice and `fooWithName:` at `objc.m:102`.
@@ -549,8 +549,8 @@ clang-query> match objcMessageExpr(matchesSelector("name", "IgnoreCase"))
 A selector with no colon: `alloc`, `init`, `release`, `method`, `log`,
 `extra`.
 
-```text
-clang-query> match objcMessageExpr(hasUnarySelector())
+```clang-query
+match objcMessageExpr(hasUnarySelector())
 ```
 
 **Expected:** 10 matches — every colon-free send, e.g. `[Foo alloc]` and `[... init]` at `objc.m:55`, `[baz log]` at `objc.m:106`.
@@ -559,8 +559,8 @@ clang-query> match objcMessageExpr(hasUnarySelector())
 
 A selector with at least one colon.
 
-```text
-clang-query> match objcMessageExpr(hasKeywordSelector())
+```clang-query
+match objcMessageExpr(hasKeywordSelector())
 ```
 
 **Expected:** 4 matches — `objc.m:56`, `objc.m:98`, `objc.m:99` (`countFrom:to:`), `objc.m:102` (`fooWithName:`).
@@ -571,14 +571,14 @@ The empty selector. Clang never produces one from well-formed source; the
 reference notes it "may represent an error condition in the tree". So the
 useful spelling is its negation, which proves every send has a selector:
 
-```text
-clang-query> match objcMessageExpr(unless(hasNullSelector()))
+```clang-query
+match objcMessageExpr(unless(hasNullSelector()))
 ```
 
 **Expected:** 14 matches — all message sends.
 
-```text
-clang-query> match objcMessageExpr(hasNullSelector())
+```clang-query
+match objcMessageExpr(hasNullSelector())
 ```
 
 **Expected:** 0 matches — no malformed sends in the sample.
@@ -588,8 +588,8 @@ clang-query> match objcMessageExpr(hasNullSelector())
 The number of colons in the selector, which equals the number of
 arguments.
 
-```text
-clang-query> match objcMessageExpr(numSelectorArgs(2))
+```clang-query
+match objcMessageExpr(numSelectorArgs(2))
 ```
 
 **Expected:** 3 matches — `setName:enabled:` at `objc.m:56` and `objc.m:98`, `countFrom:to:` at `objc.m:99`.
@@ -598,8 +598,8 @@ clang-query> match objcMessageExpr(numSelectorArgs(2))
 
 The receiver is a class name, `[Foo alloc]`.
 
-```text
-clang-query> match objcMessageExpr(isClassMessage())
+```clang-query
+match objcMessageExpr(isClassMessage())
 ```
 
 **Expected:** 3 matches — `[Foo alloc]` at `objc.m:55`, `[Baz alloc]` at `objc.m:96`, `[Foo fooWithName:...]` at `objc.m:102`.
@@ -609,8 +609,8 @@ clang-query> match objcMessageExpr(isClassMessage())
 The receiver is an object expression, including `self` and the result of
 another send.
 
-```text
-clang-query> match objcMessageExpr(isInstanceMessage())
+```clang-query
+match objcMessageExpr(isInstanceMessage())
 ```
 
 **Expected:** 11 matches — the remaining sends, e.g. `[... init]` at `objc.m:55`, `[self method]` at `objc.m:78`.
@@ -619,8 +619,8 @@ clang-query> match objcMessageExpr(isInstanceMessage())
 
 Exactly N arguments, the same matcher you used on `callExpr` in Part 6.
 
-```text
-clang-query> match objcMessageExpr(argumentCountIs(2))
+```clang-query
+match objcMessageExpr(argumentCountIs(2))
 ```
 
 **Expected:** 3 matches — `objc.m:56`, `objc.m:98`, `objc.m:99`.
@@ -629,8 +629,8 @@ clang-query> match objcMessageExpr(argumentCountIs(2))
 
 At least N arguments.
 
-```text
-clang-query> match objcMessageExpr(argumentCountAtLeast(1))
+```clang-query
+match objcMessageExpr(argumentCountAtLeast(1))
 ```
 
 **Expected:** 4 matches — the three two-argument sends plus `fooWithName:` at `objc.m:102`.
@@ -639,8 +639,8 @@ clang-query> match objcMessageExpr(argumentCountAtLeast(1))
 
 The N-th argument (0-based), whatever the selector's keyword for it is.
 
-```text
-clang-query> match objcMessageExpr(hasArgument(1, integerLiteral()))
+```clang-query
+match objcMessageExpr(hasArgument(1, integerLiteral()))
 ```
 
 **Expected:** 3 matches — `enabled:1` at `objc.m:56`, `enabled:0` at `objc.m:98`, `to:10` at `objc.m:99`.
@@ -649,8 +649,8 @@ clang-query> match objcMessageExpr(hasArgument(1, integerLiteral()))
 
 Any argument matches.
 
-```text
-clang-query> match objcMessageExpr(hasAnyArgument(objcStringLiteral()))
+```clang-query
+match objcMessageExpr(hasAnyArgument(objcStringLiteral()))
 ```
 
 **Expected:** 2 matches — `setName:@"bar"` at `objc.m:98`, `fooWithName:@"fresh"` at `objc.m:102`.
@@ -662,8 +662,8 @@ receiver expression and never match. Note that a `ParmVarDecl` is a
 `VarDecl`, so `varDecl(hasName("foo"))` also catches the `foo` parameter of
 `fooDidFinish:` in `Bar`.
 
-```text
-clang-query> match objcMessageExpr(hasReceiver(declRefExpr(to(varDecl(hasName("foo"))))))
+```clang-query
+match objcMessageExpr(hasReceiver(declRefExpr(to(varDecl(hasName("foo"))))))
 ```
 
 **Expected:** 5 matches — `[foo release]` at `objc.m:86`, `[foo method]` at `objc.m:97`, `[foo countFrom:...]` at `objc.m:99`, `[foo extra]` at `objc.m:109`, `[foo release]` at `objc.m:113`.
@@ -675,14 +675,14 @@ type (`Bar *`); for a class message it is the interface type itself
 (`Foo`), so this is the one receiver matcher that also reaches class
 messages.
 
-```text
-clang-query> match objcMessageExpr(hasReceiverType(asString("Bar *")))
+```clang-query
+match objcMessageExpr(hasReceiverType(asString("Bar *")))
 ```
 
 **Expected:** 1 match — `[bar setName:@"bar" enabled:0]` at `objc.m:98`.
 
-```text
-clang-query> match objcMessageExpr(hasReceiverType(asString("Foo")))
+```clang-query
+match objcMessageExpr(hasReceiverType(asString("Foo")))
 ```
 
 **Expected:** 2 matches — the class messages `[Foo alloc]` at `objc.m:55` and `[Foo fooWithName:...]` at `objc.m:102`.
@@ -692,8 +692,8 @@ clang-query> match objcMessageExpr(hasReceiverType(asString("Foo")))
 The method declaration the message resolves to. This is how you select by
 the *declared* method rather than by selector text, e.g. only class methods.
 
-```text
-clang-query> match objcMessageExpr(callee(objcMethodDecl(hasName("alloc"))))
+```clang-query
+match objcMessageExpr(callee(objcMethodDecl(hasName("alloc"))))
 ```
 
 **Expected:** 2 matches — `[Foo alloc]` at `objc.m:55`, `[Baz alloc]` at `objc.m:96`.
@@ -725,8 +725,8 @@ The sample has twelve directives: `parallel` with `;`, `parallel` with
 
 Matches any `#pragma omp` executable directive.
 
-```text
-clang-query> match ompExecutableDirective()
+```clang-query
+match ompExecutableDirective()
 ```
 
 **Expected:** 12 matches — every pragma from `openmp.cpp:7` to `openmp.cpp:39`.
@@ -735,8 +735,8 @@ clang-query> match ompExecutableDirective()
 
 A directive that cannot have a structured block.
 
-```text
-clang-query> match ompExecutableDirective(isStandaloneDirective())
+```clang-query
+match ompExecutableDirective(isStandaloneDirective())
 ```
 
 **Expected:** 4 matches — `taskyield` at `openmp.cpp:33`, `barrier` at `openmp.cpp:35`, `target update` at `openmp.cpp:37` and `openmp.cpp:39`.
@@ -747,14 +747,14 @@ The statement the directive applies to. Standalone directives never match.
 The first `parallel` in the sample is followed by a bare `;`, a null
 statement.
 
-```text
-clang-query> match ompExecutableDirective(hasStructuredBlock(nullStmt()))
+```clang-query
+match ompExecutableDirective(hasStructuredBlock(nullStmt()))
 ```
 
 **Expected:** 1 match — `#pragma omp parallel` at `openmp.cpp:7`.
 
-```text
-clang-query> match ompExecutableDirective(hasStructuredBlock(compoundStmt()))
+```clang-query
+match ompExecutableDirective(hasStructuredBlock(compoundStmt()))
 ```
 
 **Expected:** 5 matches — the five `parallel` directives with `{}` bodies at `openmp.cpp:10`–`openmp.cpp:22`.
@@ -764,8 +764,8 @@ clang-query> match ompExecutableDirective(hasStructuredBlock(compoundStmt()))
 Any clause of the directive matches. This is the only door to clause
 matchers.
 
-```text
-clang-query> match ompExecutableDirective(hasAnyClause(ompDefaultClause()))
+```clang-query
+match ompExecutableDirective(hasAnyClause(ompDefaultClause()))
 ```
 
 **Expected:** 4 matches — the `default(...)` directives at `openmp.cpp:13`, `openmp.cpp:16`, `openmp.cpp:19`, `openmp.cpp:22`.
@@ -777,14 +777,14 @@ whether it actually does. The argument is the `OpenMPClauseKind` enumerator
 as a quoted string, `"OMPC_default"`, `"OMPC_schedule"`, `"OMPC_to"` and so
 on.
 
-```text
-clang-query> match ompExecutableDirective(isAllowedToContainClauseKind("OMPC_default"))
+```clang-query
+match ompExecutableDirective(isAllowedToContainClauseKind("OMPC_default"))
 ```
 
 **Expected:** 7 matches — every `parallel` and `parallel for` (`openmp.cpp:7`–`openmp.cpp:25`); a plain `for` may not carry `default`.
 
-```text
-clang-query> match ompExecutableDirective(isAllowedToContainClauseKind("OMPC_schedule"))
+```clang-query
+match ompExecutableDirective(isAllowedToContainClauseKind("OMPC_schedule"))
 ```
 
 **Expected:** 2 matches — `parallel for` at `openmp.cpp:25` and `for` at `openmp.cpp:29`.
@@ -794,8 +794,8 @@ clang-query> match ompExecutableDirective(isAllowedToContainClauseKind("OMPC_sch
 Matches a `default(...)` clause. On its own clang-query answers "Not a valid
 top-level matcher"; nest it.
 
-```text
-clang-query> match ompExecutableDirective(hasAnyClause(ompDefaultClause()))
+```clang-query
+match ompExecutableDirective(hasAnyClause(ompDefaultClause()))
 ```
 
 **Expected:** 4 matches — `default(none)`, `default(shared)`, `default(private)`, `default(firstprivate)` at `openmp.cpp:13`–`openmp.cpp:22`.
@@ -804,8 +804,8 @@ clang-query> match ompExecutableDirective(hasAnyClause(ompDefaultClause()))
 
 The clause is `default(none)`.
 
-```text
-clang-query> match ompExecutableDirective(hasAnyClause(ompDefaultClause(isNoneKind())))
+```clang-query
+match ompExecutableDirective(hasAnyClause(ompDefaultClause(isNoneKind())))
 ```
 
 **Expected:** 1 match — `openmp.cpp:13`.
@@ -814,8 +814,8 @@ clang-query> match ompExecutableDirective(hasAnyClause(ompDefaultClause(isNoneKi
 
 The clause is `default(shared)`.
 
-```text
-clang-query> match ompExecutableDirective(hasAnyClause(ompDefaultClause(isSharedKind())))
+```clang-query
+match ompExecutableDirective(hasAnyClause(ompDefaultClause(isSharedKind())))
 ```
 
 **Expected:** 1 match — `openmp.cpp:16`.
@@ -825,8 +825,8 @@ clang-query> match ompExecutableDirective(hasAnyClause(ompDefaultClause(isShared
 The clause is `default(private)`, an OpenMP 5.1 addition that Clang 22
 accepts by default.
 
-```text
-clang-query> match ompExecutableDirective(hasAnyClause(ompDefaultClause(isPrivateKind())))
+```clang-query
+match ompExecutableDirective(hasAnyClause(ompDefaultClause(isPrivateKind())))
 ```
 
 **Expected:** 1 match — `openmp.cpp:19`.
@@ -835,8 +835,8 @@ clang-query> match ompExecutableDirective(hasAnyClause(ompDefaultClause(isPrivat
 
 The clause is `default(firstprivate)`.
 
-```text
-clang-query> match ompExecutableDirective(hasAnyClause(ompDefaultClause(isFirstPrivateKind())))
+```clang-query
+match ompExecutableDirective(hasAnyClause(ompDefaultClause(isFirstPrivateKind())))
 ```
 
 **Expected:** 1 match — `openmp.cpp:22`.
@@ -847,8 +847,8 @@ Would match a `#pragma omp target update ...` directive specifically.
 
 **Not in clang-query 22** — trunk-only: the matcher was added to the reference after the LLVM 22 registry was frozen. The directive itself parses, and `isAllowedToContainClauseKind` singles it out because `to`/`from` clauses are allowed on no other directive in the sample:
 
-```text
-clang-query> match ompExecutableDirective(isAllowedToContainClauseKind("OMPC_to"))
+```clang-query
+match ompExecutableDirective(isAllowedToContainClauseKind("OMPC_to"))
 ```
 
 **Expected:** 2 matches — `target update to(sum)` at `openmp.cpp:37`, `target update from(sum)` at `openmp.cpp:39`.
@@ -900,8 +900,8 @@ declares it (and `dim3`) by hand, so `--cuda-host-only -nocudainc
 
 Matches a `<<<...>>>` kernel launch.
 
-```text
-clang-query> match cudaKernelCallExpr()
+```clang-query
+match cudaKernelCallExpr()
 ```
 
 **Expected:** 2 matches — `scale<<<4, 64>>>(data, 2)` at `cuda.cu:37`, `fill<<<dim3(2, 2), dim3(8, 8), 0>>>(data)` at `cuda.cu:38`.
@@ -909,14 +909,14 @@ clang-query> match cudaKernelCallExpr()
 Narrow by the kernel being launched or by its arguments, exactly as with a
 call:
 
-```text
-clang-query> match cudaKernelCallExpr(callee(functionDecl(hasName("scale"))))
+```clang-query
+match cudaKernelCallExpr(callee(functionDecl(hasName("scale"))))
 ```
 
 **Expected:** 1 match — `cuda.cu:37`.
 
-```text
-clang-query> match cudaKernelCallExpr(hasArgument(1, integerLiteral(equals(2))))
+```clang-query
+match cudaKernelCallExpr(hasArgument(1, integerLiteral(equals(2))))
 ```
 
 **Expected:** 1 match — `scale<<<4, 64>>>(data, 2)` at `cuda.cu:37`.
@@ -924,8 +924,8 @@ clang-query> match cudaKernelCallExpr(hasArgument(1, integerLiteral(equals(2))))
 The kernels themselves are ordinary functions carrying a `global`
 attribute; `hasAttr` from Part 5 finds them:
 
-```text
-clang-query> match functionDecl(hasAttr("attr::CUDAGlobal"))
+```clang-query
+match functionDecl(hasAttr("attr::CUDAGlobal"))
 ```
 
 **Expected:** 2 matches — `scale` at `cuda.cu:28`, `fill` at `cuda.cu:34`.
@@ -958,8 +958,8 @@ pointee is always a function type, wrapped in a `ParenType` because of the
 
 The declaration side of a block: parameters, body, captures.
 
-```text
-clang-query> match blockDecl()
+```clang-query
+match blockDecl()
 ```
 
 **Expected:** 4 matches — the blocks at `blocks.cpp:10`, `blocks.cpp:11`, `blocks.cpp:13` and the empty `^{}` at `blocks.cpp:15`.
@@ -968,8 +968,8 @@ clang-query> match blockDecl()
 
 The expression side, one per literal, at the same locations.
 
-```text
-clang-query> match blockExpr()
+```clang-query
+match blockExpr()
 ```
 
 **Expected:** 4 matches — the same four literals.
@@ -977,8 +977,8 @@ clang-query> match blockExpr()
 Blocks capture variables like lambdas do; a captured `seed` is still a
 `declRefExpr` inside the body:
 
-```text
-clang-query> match blockExpr(hasDescendant(declRefExpr(to(varDecl(hasName("seed"))))))
+```clang-query
+match blockExpr(hasDescendant(declRefExpr(to(varDecl(hasName("seed"))))))
 ```
 
 **Expected:** 1 match — the block passed to `runOp` at `blocks.cpp:13`.
@@ -988,14 +988,14 @@ clang-query> match blockExpr(hasDescendant(declRefExpr(to(varDecl(hasName("seed"
 The type of a block, `R (^)(Args)`. Types print no location; wrap in a
 declaration matcher to see users.
 
-```text
-clang-query> match blockPointerType()
+```clang-query
+match blockPointerType()
 ```
 
 **Expected:** 3 matches — the types of `IntOp`, `Callback` and `int (^twice)(int)`.
 
-```text
-clang-query> match typedefDecl(hasType(blockPointerType()))
+```clang-query
+match typedefDecl(hasType(blockPointerType()))
 ```
 
 **Expected:** 2 matches — `IntOp` at `blocks.cpp:3`, `Callback` at `blocks.cpp:4`.
@@ -1007,22 +1007,22 @@ is a `ParenType` around the function type, so reach the prototype through
 `ignoringParens`. For an Objective-C object pointer it is the interface
 type.
 
-```text
-clang-query> match blockPointerType(pointee(parenType()))
+```clang-query
+match blockPointerType(pointee(parenType()))
 ```
 
 **Expected:** 3 matches — every block pointer type in the file.
 
-```text
-clang-query> match typedefDecl(hasType(blockPointerType(
-               pointee(ignoringParens(functionProtoType(parameterCountIs(2)))))))
+```clang-query
+match typedefDecl(hasType(blockPointerType(
+  pointee(ignoringParens(functionProtoType(parameterCountIs(2)))))))
 ```
 
 **Expected:** 1 match — `Callback` at `blocks.cpp:4`.
 
-```text
+```clang-query
 # sample: manifests/objc.m -fobjc-exceptions
-clang-query> match varDecl(hasType(objcObjectPointerType(pointee(asString("Foo")))))
+match varDecl(hasType(objcObjectPointerType(pointee(asString("Foo")))))
 ```
 
 **Expected:** 2 matches — `Foo *f` at `objc.m:55` and the parameter `Foo *foo` at `objc.m:95`.

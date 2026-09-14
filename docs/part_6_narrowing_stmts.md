@@ -76,8 +76,8 @@ Matches an operator expression (or fold expression) whose operator is
 spelled exactly `Name`. Compound assignments are their own spelling, so
 `"+="` is not `"+"`.
 
-```text
-clang-query> match binaryOperator(hasOperatorName("+="))
+```clang-query
+match binaryOperator(hasOperatorName("+="))
 ```
 
 **Expected:** 1 match — `r += a * b` at `narrow_stmts.cpp:47`.
@@ -85,8 +85,8 @@ clang-query> match binaryOperator(hasOperatorName("+="))
 Unary operators use the same names; the minus in `-13` is a `UnaryOperator`
 wrapped around the literal `13`:
 
-```text
-clang-query> match unaryOperator(hasOperatorName("-"))
+```clang-query
+match unaryOperator(hasOperatorName("-"))
 ```
 
 **Expected:** 2 matches — `-a` at `narrow_stmts.cpp:54` and `-13` at `narrow_stmts.cpp:111`.
@@ -94,16 +94,16 @@ clang-query> match unaryOperator(hasOperatorName("-"))
 For an overloaded operator the name is what was written between the
 operands, not `operator<<`:
 
-```text
-clang-query> match cxxOperatorCallExpr(hasOperatorName("<<"))
+```clang-query
+match cxxOperatorCallExpr(hasOperatorName("<<"))
 ```
 
 **Expected:** 1 match — `log << 7` at `narrow_stmts.cpp:69`.
 
 A rewritten comparison keeps the operator the programmer wrote:
 
-```text
-clang-query> match cxxRewrittenBinaryOperator(hasOperatorName("<"))
+```clang-query
+match cxxRewrittenBinaryOperator(hasOperatorName("<"))
 ```
 
 **Expected:** 1 match — `a < b` on `Version` at `narrow_stmts.cpp:74`.
@@ -112,16 +112,16 @@ Underneath, every rewritten comparison is a call to `operator<=>` followed
 by a comparison against `0`, so asking for `<=>` calls finds the three
 hidden ones plus the explicit `a <=> b`:
 
-```text
-clang-query> match cxxOperatorCallExpr(hasOperatorName("<=>"))
+```clang-query
+match cxxOperatorCallExpr(hasOperatorName("<=>"))
 ```
 
 **Expected:** 4 matches — inside `a < b`, `a > b`, `a <= b` (`narrow_stmts.cpp:74`–`76`) and the explicit `a <=> b` at `narrow_stmts.cpp:78`.
 
 Fold expressions carry the folded operator:
 
-```text
-clang-query> match cxxFoldExpr(hasOperatorName("+"))
+```clang-query
+match cxxFoldExpr(hasOperatorName("+"))
 ```
 
 **Expected:** 1 match — `(0 + ... + args)` at `narrow_stmts.cpp:84`.
@@ -131,26 +131,26 @@ clang-query> match cxxFoldExpr(hasOperatorName("+"))
 Shorthand for `anyOf(hasOperatorName(a), hasOperatorName(b), …)`. It takes
 any number of names.
 
-```text
-clang-query> match binaryOperator(hasAnyOperatorName("&&", "||"))
+```clang-query
+match binaryOperator(hasAnyOperatorName("&&", "||"))
 ```
 
 **Expected:** 5 matches — `eq && lt` at `narrow_stmts.cpp:52` and the four `||` of the return at `narrow_stmts.cpp:79`.
 
-```text
-clang-query> match unaryOperator(hasAnyOperatorName("++", "--"))
+```clang-query
+match unaryOperator(hasAnyOperatorName("++", "--"))
 ```
 
 **Expected:** 2 matches — `++r` at `narrow_stmts.cpp:55` and `r--` at `narrow_stmts.cpp:56`.
 
-```text
-clang-query> match cxxOperatorCallExpr(hasAnyOperatorName("=", "+="))
+```clang-query
+match cxxOperatorCallExpr(hasAnyOperatorName("=", "+="))
 ```
 
 **Expected:** 2 matches — `v1 = v2` and `v1 += v2` at `narrow_stmts.cpp:62`–`63`.
 
-```text
-clang-query> match cxxRewrittenBinaryOperator(hasAnyOperatorName("<=", "!="))
+```clang-query
+match cxxRewrittenBinaryOperator(hasAnyOperatorName("<=", "!="))
 ```
 
 **Expected:** 2 matches — `a <= b` at `narrow_stmts.cpp:76` and `a != b` at `narrow_stmts.cpp:77` (rewritten as `!(a == b)`).
@@ -160,14 +160,14 @@ clang-query> match cxxRewrittenBinaryOperator(hasAnyOperatorName("<=", "!="))
 Matches plain assignment and every compound assignment (`=`, `+=`, `-=`,
 `*=`, …) without listing them.
 
-```text
-clang-query> match binaryOperator(isAssignmentOperator())
+```clang-query
+match binaryOperator(isAssignmentOperator())
 ```
 
 **Expected:** 4 matches — `r = …`, `r += …`, `r -= …` at `narrow_stmts.cpp:46`–`48` and the dependent `b.value = T()` at `narrow_stmts.cpp:196`.
 
-```text
-clang-query> match cxxOperatorCallExpr(isAssignmentOperator())
+```clang-query
+match cxxOperatorCallExpr(isAssignmentOperator())
 ```
 
 **Expected:** 2 matches — `v1 = v2` at `narrow_stmts.cpp:62` and `v1 += v2` at `narrow_stmts.cpp:63`.
@@ -175,8 +175,8 @@ clang-query> match cxxOperatorCallExpr(isAssignmentOperator())
 The rewritten-operator overload exists for API symmetry, but a rewritten
 operator is always a comparison, so it never matches:
 
-```text
-clang-query> match cxxRewrittenBinaryOperator(isAssignmentOperator())
+```clang-query
+match cxxRewrittenBinaryOperator(isAssignmentOperator())
 ```
 
 **Expected:** 0 matches — nothing to find.
@@ -185,14 +185,14 @@ clang-query> match cxxRewrittenBinaryOperator(isAssignmentOperator())
 
 Matches `==`, `!=`, `<`, `>`, `<=`, `>=` and `<=>`.
 
-```text
-clang-query> match binaryOperator(isComparisonOperator())
+```clang-query
+match binaryOperator(isComparisonOperator())
 ```
 
 **Expected:** 3 matches — `a == b`, `a < b`, `a >= b` at `narrow_stmts.cpp:49`–`51`.
 
-```text
-clang-query> match cxxRewrittenBinaryOperator(isComparisonOperator())
+```clang-query
+match cxxRewrittenBinaryOperator(isComparisonOperator())
 ```
 
 **Expected:** 4 matches — the four rewritten comparisons on `Version` at `narrow_stmts.cpp:74`–`77`.
@@ -202,8 +202,8 @@ guess: each rewritten `a < b` contains two calls (`operator<=>` and the
 `operator<` on `std::strong_ordering`), plus the `Vec2` comparisons, the
 explicit `<=>`, and `ord < 0`:
 
-```text
-clang-query> match cxxOperatorCallExpr(isComparisonOperator())
+```clang-query
+match cxxOperatorCallExpr(isComparisonOperator())
 ```
 
 **Expected:** 11 matches — `v1 < v2`, `v1 == v2` (`narrow_stmts.cpp:64`–`65`), two per rewritten `<`/`>`/`<=` (`narrow_stmts.cpp:74`–`76`), `a != b` (`narrow_stmts.cpp:77`), `a <=> b` (`narrow_stmts.cpp:78`) and `ord < 0` (`narrow_stmts.cpp:79`).
@@ -214,14 +214,14 @@ Matches by overloaded operator name written without the `operator` prefix.
 On a call it is the same test as `hasOperatorName`; on a `FunctionDecl` it
 lets you find the operator *definitions* themselves.
 
-```text
-clang-query> match cxxOperatorCallExpr(hasOverloadedOperatorName("[]"))
+```clang-query
+match cxxOperatorCallExpr(hasOverloadedOperatorName("[]"))
 ```
 
 **Expected:** 1 match — `v1[0]` at `narrow_stmts.cpp:70`.
 
-```text
-clang-query> match functionDecl(hasOverloadedOperatorName("<"))
+```clang-query
+match functionDecl(hasOverloadedOperatorName("<"))
 ```
 
 **Expected:** 2 matches — the hidden-friend `operator<` of the `strong_ordering` stub at `narrow_stmts.cpp:10` and `Vec2::operator<` at `narrow_stmts.cpp:26`.
@@ -229,8 +229,8 @@ clang-query> match functionDecl(hasOverloadedOperatorName("<"))
 Combined with a traversal matcher it finds the class that *has* an
 operator:
 
-```text
-clang-query> match cxxRecordDecl(hasMethod(hasOverloadedOperatorName("*")))
+```clang-query
+match cxxRecordDecl(hasMethod(hasOverloadedOperatorName("*")))
 ```
 
 **Expected:** 1 match — `Vec2` at `narrow_stmts.cpp:19`.
@@ -239,14 +239,14 @@ clang-query> match cxxRecordDecl(hasMethod(hasOverloadedOperatorName("*")))
 
 `anyOf` over several overloaded operator names.
 
-```text
-clang-query> match cxxOperatorCallExpr(hasAnyOverloadedOperatorName("[]", "<<"))
+```clang-query
+match cxxOperatorCallExpr(hasAnyOverloadedOperatorName("[]", "<<"))
 ```
 
 **Expected:** 2 matches — `log << 7` at `narrow_stmts.cpp:69` and `v1[0]` at `narrow_stmts.cpp:70`.
 
-```text
-clang-query> match functionDecl(hasAnyOverloadedOperatorName("<", ">", "<=>"))
+```clang-query
+match functionDecl(hasAnyOverloadedOperatorName("<", ">", "<=>"))
 ```
 
 **Expected:** 4 matches — stub `operator<` and `operator>` at `narrow_stmts.cpp:10`–`11`, `Vec2::operator<` at `narrow_stmts.cpp:26`, `Version::operator<=>` at `narrow_stmts.cpp:41`.
@@ -256,8 +256,8 @@ clang-query> match functionDecl(hasAnyOverloadedOperatorName("<", ">", "<=>"))
 A binary fold has an initializer next to the pack: `(0 + ... + args)` or
 `(args * ... * 1)`.
 
-```text
-clang-query> match cxxFoldExpr(isBinaryFold())
+```clang-query
+match cxxFoldExpr(isBinaryFold())
 ```
 
 **Expected:** 2 matches — `sum` at `narrow_stmts.cpp:84` and `product` at `narrow_stmts.cpp:88`.
@@ -267,8 +267,8 @@ clang-query> match cxxFoldExpr(isBinaryFold())
 A unary fold has only the pack and the operator: `(args && ...)` or
 `(... || args)`.
 
-```text
-clang-query> match cxxFoldExpr(isUnaryFold())
+```clang-query
+match cxxFoldExpr(isUnaryFold())
 ```
 
 **Expected:** 2 matches — `all_of` at `narrow_stmts.cpp:92` and `any_of` at `narrow_stmts.cpp:96`.
@@ -278,8 +278,8 @@ clang-query> match cxxFoldExpr(isUnaryFold())
 Left folds have the `...` on the left of the pack: `(0 + ... + args)` and
 `(... || args)`. Left/right is independent of unary/binary.
 
-```text
-clang-query> match cxxFoldExpr(isLeftFold())
+```clang-query
+match cxxFoldExpr(isLeftFold())
 ```
 
 **Expected:** 2 matches — `sum` at `narrow_stmts.cpp:84` and `any_of` at `narrow_stmts.cpp:96`.
@@ -289,16 +289,16 @@ clang-query> match cxxFoldExpr(isLeftFold())
 Right folds have the pack on the left of the `...`: `(args * ... * 1)` and
 `(args && ...)`.
 
-```text
-clang-query> match cxxFoldExpr(isRightFold())
+```clang-query
+match cxxFoldExpr(isRightFold())
 ```
 
 **Expected:** 2 matches — `product` at `narrow_stmts.cpp:88` and `all_of` at `narrow_stmts.cpp:92`.
 
 The two axes combine freely:
 
-```text
-clang-query> match cxxFoldExpr(isUnaryFold(), isLeftFold())
+```clang-query
+match cxxFoldExpr(isUnaryFold(), isLeftFold())
 ```
 
 **Expected:** 1 match — `(... || args)` at `narrow_stmts.cpp:96`.
@@ -318,28 +318,28 @@ is no character-literal syntax, so a `CharacterLiteral` is compared by its
 code point (`97` for `'a'`), and integer suffixes such as `42u` are not
 accepted by the parser.
 
-```text
-clang-query> match cxxBoolLiteral(equals(true))
+```clang-query
+match cxxBoolLiteral(equals(true))
 ```
 
 **Expected:** 1 match — `true` at `narrow_stmts.cpp:102`.
 
 `0`/`1` also work for booleans:
 
-```text
-clang-query> match cxxBoolLiteral(equals(0))
+```clang-query
+match cxxBoolLiteral(equals(0))
 ```
 
 **Expected:** 1 match — `false` at `narrow_stmts.cpp:103`.
 
-```text
-clang-query> match characterLiteral(equals(97))
+```clang-query
+match characterLiteral(equals(97))
 ```
 
 **Expected:** 1 match — `'a'` at `narrow_stmts.cpp:104`.
 
-```text
-clang-query> match characterLiteral(equals(0))
+```clang-query
+match characterLiteral(equals(0))
 ```
 
 **Expected:** 1 match — `'\0'` at `narrow_stmts.cpp:105`.
@@ -347,22 +347,22 @@ clang-query> match characterLiteral(equals(0))
 Floating values compare numerically, so any spelling of the same number
 works:
 
-```text
-clang-query> match floatLiteral(equals(3.14))
+```clang-query
+match floatLiteral(equals(3.14))
 ```
 
 **Expected:** 1 match — `3.14` at `narrow_stmts.cpp:106`.
 
-```text
-clang-query> match floatLiteral(equals(314e-2))
+```clang-query
+match floatLiteral(equals(314e-2))
 ```
 
 **Expected:** 1 match — the same `3.14` at `narrow_stmts.cpp:106`.
 
 Integer literals compare by value regardless of type or suffix:
 
-```text
-clang-query> match integerLiteral(equals(42))
+```clang-query
+match integerLiteral(equals(42))
 ```
 
 **Expected:** 3 matches — `42` at `narrow_stmts.cpp:109`, `42LL` at `narrow_stmts.cpp:112` and the argument of `y(42)` at `narrow_stmts.cpp:164`.
@@ -370,9 +370,9 @@ clang-query> match integerLiteral(equals(42))
 A negative number is not a literal: the minus is a `UnaryOperator` whose
 operand is the positive literal. Match the operator and narrow its operand:
 
-```text
-clang-query> match unaryOperator(hasOperatorName("-"),
-                                 hasUnaryOperand(integerLiteral(equals(13))))
+```clang-query
+match unaryOperator(hasOperatorName("-"),
+                    hasUnaryOperand(integerLiteral(equals(13))))
 ```
 
 **Expected:** 1 match — `-13` at `narrow_stmts.cpp:111`.
@@ -384,8 +384,8 @@ Matches an expression that is a null pointer constant: `nullptr`, GNU
 A `0` used as an `int` is *not* matched, which is what makes this the
 right tool for "replace 0 with nullptr" checks.
 
-```text
-clang-query> match expr(nullPointerConstant())
+```clang-query
+match expr(nullPointerConstant())
 ```
 
 **Expected:** 5 matches — `nullptr` at `narrow_stmts.cpp:117`, `__null` at `narrow_stmts.cpp:118`, the `0` of `(char *)0` at `narrow_stmts.cpp:119`, `int *ip = 0` at `narrow_stmts.cpp:120` and again at `narrow_stmts.cpp:180`; `int n = 0` is not matched.
@@ -393,8 +393,8 @@ clang-query> match expr(nullPointerConstant())
 The initializer of a pointer variable is an implicit cast *around* the
 constant, so to go from the variable you must look through it:
 
-```text
-clang-query> match varDecl(hasInitializer(ignoringImplicit(nullPointerConstant())))
+```clang-query
+match varDecl(hasInitializer(ignoringImplicit(nullPointerConstant())))
 ```
 
 **Expected:** 4 matches — `v2`, `v3`, `ip` at `narrow_stmts.cpp:117`, `118`, `120` and `ip` at `narrow_stmts.cpp:180` (`cp` is excluded: its initializer is an explicit C-style cast).
@@ -412,14 +412,14 @@ Matches a call or constructor call with exactly `N` arguments. Absent
 default arguments still count, so `fd(1)` with `void fd(int, int = 0)` has
 two.
 
-```text
-clang-query> match callExpr(argumentCountIs(2), unless(cxxOperatorCallExpr()))
+```clang-query
+match callExpr(argumentCountIs(2), unless(cxxOperatorCallExpr()))
 ```
 
 **Expected:** 2 matches — `f2(0, 0)` at `narrow_stmts.cpp:143` and `fd(1)` at `narrow_stmts.cpp:145`.
 
-```text
-clang-query> match cxxConstructExpr(argumentCountIs(2))
+```clang-query
+match cxxConstructExpr(argumentCountIs(2))
 ```
 
 **Expected:** 3 matches — `Pt c(1, 2)`, `Pt d{3, 4}`, `Pt e = {5, 6}` at `narrow_stmts.cpp:148`–`150`.
@@ -427,8 +427,8 @@ clang-query> match cxxConstructExpr(argumentCountIs(2))
 Inside a template, `T(1, 2)` with `T` unknown is a
 `CXXUnresolvedConstructExpr`:
 
-```text
-clang-query> match cxxUnresolvedConstructExpr(argumentCountIs(2))
+```clang-query
+match cxxUnresolvedConstructExpr(argumentCountIs(2))
 ```
 
 **Expected:** 1 match — `T(1, 2)` at `narrow_stmts.cpp:197`.
@@ -437,20 +437,20 @@ clang-query> match cxxUnresolvedConstructExpr(argumentCountIs(2))
 
 Same counting rule, with `>= N`.
 
-```text
-clang-query> match callExpr(argumentCountAtLeast(2), unless(cxxOperatorCallExpr()))
+```clang-query
+match callExpr(argumentCountAtLeast(2), unless(cxxOperatorCallExpr()))
 ```
 
 **Expected:** 3 matches — `f2(0, 0)`, `f3(0, 0, 0)`, `fd(1)` at `narrow_stmts.cpp:143`–`145`.
 
-```text
-clang-query> match cxxConstructExpr(argumentCountAtLeast(2))
+```clang-query
+match cxxConstructExpr(argumentCountAtLeast(2))
 ```
 
 **Expected:** 3 matches — the two-argument `Pt` constructions at `narrow_stmts.cpp:148`–`150`.
 
-```text
-clang-query> match cxxUnresolvedConstructExpr(argumentCountAtLeast(1))
+```clang-query
+match cxxUnresolvedConstructExpr(argumentCountAtLeast(1))
 ```
 
 **Expected:** 1 match — `T(1, 2)` at `narrow_stmts.cpp:197` (`T()` at `narrow_stmts.cpp:196` has zero arguments).
@@ -463,8 +463,8 @@ qualified and `y(42)` is found by ordinary lookup. The hidden-friend
 comparison operators of the `strong_ordering` stub are also reachable only
 through ADL, so the rewritten `Version` comparisons show up too.
 
-```text
-clang-query> match callExpr(usesADL())
+```clang-query
+match callExpr(usesADL())
 ```
 
 **Expected:** 5 matches — `y(x)` at `narrow_stmts.cpp:162` plus the `strong_ordering` friend calls hidden inside `a < b`, `a > b`, `a <= b` (`narrow_stmts.cpp:74`–`76`) and `ord < 0` at `narrow_stmts.cpp:79`.
@@ -474,8 +474,8 @@ clang-query> match callExpr(usesADL())
 Matches a constructor call written with braces, whether direct (`Pt d{3, 4}`)
 or copy-list (`Pt e = {5, 6}`).
 
-```text
-clang-query> match cxxConstructExpr(isListInitialization())
+```clang-query
+match cxxConstructExpr(isListInitialization())
 ```
 
 **Expected:** 2 matches — `Pt d{3, 4}` at `narrow_stmts.cpp:149` and `Pt e = {5, 6}` at `narrow_stmts.cpp:150`.
@@ -486,8 +486,8 @@ Matches a constructor call that must zero the object first: value
 initialization of a class with a trivial default constructor, such as
 `Point()`.
 
-```text
-clang-query> match cxxConstructExpr(requiresZeroInitialization())
+```clang-query
+match cxxConstructExpr(requiresZeroInitialization())
 ```
 
 **Expected:** 1 match — `Point()` at `narrow_stmts.cpp:151`.
@@ -496,14 +496,14 @@ clang-query> match cxxConstructExpr(requiresZeroInitialization())
 
 Matches `new T[n]` as opposed to `new T` / `new T(args)`.
 
-```text
-clang-query> match cxxNewExpr(isArray())
+```clang-query
+match cxxNewExpr(isArray())
 ```
 
 **Expected:** 2 matches — `new int[10]` at `narrow_stmts.cpp:168` and `new Pt[3]` at `narrow_stmts.cpp:170`.
 
-```text
-clang-query> match cxxNewExpr(unless(isArray()))
+```clang-query
+match cxxNewExpr(unless(isArray()))
 ```
 
 **Expected:** 1 match — `new int(5)` at `narrow_stmts.cpp:169`.
@@ -517,26 +517,26 @@ kind*. The kind names are Clang's `CK_…` enumerators, passed as strings.
 
 Matches a cast whose kind is `Kind`, spelled `"CK_<Name>"`.
 
-```text
-clang-query> match castExpr(hasCastKind("CK_IntegralToFloating"))
+```clang-query
+match castExpr(hasCastKind("CK_IntegralToFloating"))
 ```
 
 **Expected:** 1 match — the implicit `int` → `double` in `double widened = n` at `narrow_stmts.cpp:176`.
 
-```text
-clang-query> match castExpr(hasCastKind("CK_FloatingToIntegral"))
+```clang-query
+match castExpr(hasCastKind("CK_FloatingToIntegral"))
 ```
 
 **Expected:** 1 match — `int narrowed = d` at `narrow_stmts.cpp:177`.
 
-```text
-clang-query> match castExpr(hasCastKind("CK_NullToPointer"))
+```clang-query
+match castExpr(hasCastKind("CK_NullToPointer"))
 ```
 
 **Expected:** 5 matches — the implicit casts around `nullptr`, `__null`, the `0` of `(char *)0`, and both `int *ip = 0` (`narrow_stmts.cpp:117`–`120`, `180`).
 
-```text
-clang-query> match castExpr(hasCastKind("CK_BitCast"))
+```clang-query
+match castExpr(hasCastKind("CK_BitCast"))
 ```
 
 **Expected:** 1 match — `int *` → `void *` in `void *vp = &n` at `narrow_stmts.cpp:181`.
@@ -545,14 +545,14 @@ Explicit casts often do less than they look: `static_cast<long>(n)` is a
 `CXXStaticCastExpr` of kind `CK_NoOp` whose *child* implicit cast carries
 the real `CK_IntegralCast`.
 
-```text
-clang-query> match cxxStaticCastExpr(hasCastKind("CK_IntegralCast"))
+```clang-query
+match cxxStaticCastExpr(hasCastKind("CK_IntegralCast"))
 ```
 
 **Expected:** 0 matches — the static cast node itself is `CK_NoOp`.
 
-```text
-clang-query> match cxxStaticCastExpr(has(implicitCastExpr(hasCastKind("CK_IntegralCast"))))
+```clang-query
+match cxxStaticCastExpr(has(implicitCastExpr(hasCastKind("CK_IntegralCast"))))
 ```
 
 **Expected:** 1 match — `static_cast<long>(n)` at `narrow_stmts.cpp:178`.
@@ -572,20 +572,20 @@ Matches member accesses written with `->` rather than `.`. An access
 through the implicit `this` (`width` alone inside a method, or `count`
 inside a lambda that captured `this`) counts as `->`.
 
-```text
-clang-query> match memberExpr(isArrow())
+```clang-query
+match memberExpr(isArrow())
 ```
 
 **Expected:** 5 matches — `this->width` and bare `width` at `narrow_stmts.cpp:209`, `pp->width` at `narrow_stmts.cpp:212`, and `count` inside the two `this`-capturing lambdas at `narrow_stmts.cpp:241`–`242`.
 
-```text
-clang-query> match cxxDependentScopeMemberExpr(isArrow())
+```clang-query
+match cxxDependentScopeMemberExpr(isArrow())
 ```
 
 **Expected:** 1 match — `p->reset()` at `narrow_stmts.cpp:195`.
 
-```text
-clang-query> match unresolvedMemberExpr(isArrow())
+```clang-query
+match unresolvedMemberExpr(isArrow())
 ```
 
 **Expected:** 2 matches — `this->print(v)` and `print(v)` at `narrow_stmts.cpp:206`–`207`.
@@ -595,8 +595,8 @@ clang-query> match unresolvedMemberExpr(isArrow())
 A dependent member has no declaration to name, but its spelling is known.
 This matches on that spelling.
 
-```text
-clang-query> match cxxDependentScopeMemberExpr(hasMemberName("reset"))
+```clang-query
+match cxxDependentScopeMemberExpr(hasMemberName("reset"))
 ```
 
 **Expected:** 2 matches — `b.reset()` and `p->reset()` at `narrow_stmts.cpp:194`–`195`.
@@ -610,24 +610,24 @@ walk from the object expression's type to the class template, bind the
 member you care about there, then compare. Here `b` has type `Box<T>`, a
 `TemplateSpecializationType` whose declaration is the `Box` template:
 
-```text
-clang-query> match cxxDependentScopeMemberExpr(
-               hasObjectExpression(hasType(templateSpecializationType(
-                 hasDeclaration(classTemplateDecl(has(cxxRecordDecl(has(
-                   cxxMethodDecl(hasName("reset")).bind("templMem"))))))))),
-               memberHasSameNameAsBoundNode("templMem"))
+```clang-query
+match cxxDependentScopeMemberExpr(
+  hasObjectExpression(hasType(templateSpecializationType(
+    hasDeclaration(classTemplateDecl(has(cxxRecordDecl(has(
+      cxxMethodDecl(hasName("reset")).bind("templMem"))))))))),
+  memberHasSameNameAsBoundNode("templMem"))
 ```
 
 **Expected:** 1 match — `b.reset()` at `narrow_stmts.cpp:194`, with `templMem` bound to `Box::reset` at `narrow_stmts.cpp:189` (`p->reset()` is excluded because `p` has pointer type, not the specialization type).
 
 The same shape with a field instead of a method:
 
-```text
-clang-query> match cxxDependentScopeMemberExpr(
-               hasObjectExpression(hasType(templateSpecializationType(
-                 hasDeclaration(classTemplateDecl(has(cxxRecordDecl(has(
-                   fieldDecl(hasName("value")).bind("f"))))))))),
-               memberHasSameNameAsBoundNode("f"))
+```clang-query
+match cxxDependentScopeMemberExpr(
+  hasObjectExpression(hasType(templateSpecializationType(
+    hasDeclaration(classTemplateDecl(has(cxxRecordDecl(has(
+      fieldDecl(hasName("value")).bind("f"))))))))),
+  memberHasSameNameAsBoundNode("f"))
 ```
 
 **Expected:** 1 match — `b.value` at `narrow_stmts.cpp:196`, with `f` bound to `Box::value` at `narrow_stmts.cpp:188`.
@@ -644,15 +644,15 @@ default traversal also visits the implicit bodies Clang synthesizes for
 defaulted special members (they are empty blocks), so switch to
 `IgnoreUnlessSpelledInSource` to count only what is in the file:
 
-```text
-clang-query> set traversal IgnoreUnlessSpelledInSource
-clang-query> match compoundStmt(statementCountIs(0))
+```clang-query
+set traversal IgnoreUnlessSpelledInSource
+match compoundStmt(statementCountIs(0))
 ```
 
 **Expected:** 1 match — the empty inner block at `narrow_stmts.cpp:217` (in the default traversal you would see 5, the extra four being implicit constructor bodies).
 
-```text
-clang-query> match compoundStmt(statementCountIs(3))
+```clang-query
+match compoundStmt(statementCountIs(3))
 ```
 
 **Expected:** 3 matches — the bodies of `news` at `narrow_stmts.cpp:167`, the second block of `bodies` at `narrow_stmts.cpp:219`, and `traits` at `narrow_stmts.cpp:251`.
@@ -661,8 +661,8 @@ clang-query> match compoundStmt(statementCountIs(3))
 
 Matches a declaration statement declaring exactly `N` names.
 
-```text
-clang-query> match declStmt(declCountIs(2))
+```clang-query
+match declStmt(declCountIs(2))
 ```
 
 **Expected:** 2 matches — `int a, b;` at `narrow_stmts.cpp:220` and `int d = 2, e;` at `narrow_stmts.cpp:222`.
@@ -674,16 +674,16 @@ Each element such as `[2].y = 1.0` is its own `DesignatedInitExpr` with
 two designators (array index, then field). Array and nested designators are
 C-only, so this example uses a small C sample:
 
-```text
+```clang-query
 # sample: manifests/designators.c -std=c17
-clang-query> match designatedInitExpr(designatorCountIs(2))
+match designatedInitExpr(designatorCountIs(2))
 ```
 
 **Expected:** 5 matches — `[2].y`, `[0].x` at `designators.c:9` and `[2].y`, `[2].x`, `[0].x` at `designators.c:10`.
 
-```text
+```clang-query
 # sample: manifests/designators.c -std=c17
-clang-query> match designatedInitExpr(designatorCountIs(1))
+match designatedInitExpr(designatorCountIs(1))
 ```
 
 **Expected:** 2 matches — `.x = 1.0` and `.y = 2.0` at `designators.c:11`.
@@ -692,14 +692,14 @@ clang-query> match designatedInitExpr(designatorCountIs(1))
 
 Matches `catch (...)` but not a typed handler.
 
-```text
-clang-query> match cxxCatchStmt(isCatchAll())
+```clang-query
+match cxxCatchStmt(isCatchAll())
 ```
 
 **Expected:** 1 match — `catch (...)` at `narrow_stmts.cpp:231`.
 
-```text
-clang-query> match cxxCatchStmt(unless(isCatchAll()))
+```clang-query
+match cxxCatchStmt(unless(isCatchAll()))
 ```
 
 **Expected:** 1 match — `catch (int)` at `narrow_stmts.cpp:229`.
@@ -715,8 +715,8 @@ them from `lambdaExpr()` through `hasAnyCapture`.
 Matches a capture of `this`, explicit (`[this]`) or implicit (a `[&]` or
 `[=]` lambda that uses a member).
 
-```text
-clang-query> match lambdaExpr(hasAnyCapture(lambdaCapture(capturesThis())))
+```clang-query
+match lambdaExpr(hasAnyCapture(lambdaCapture(capturesThis())))
 ```
 
 **Expected:** 2 matches — `[this]() { return count; }` at `narrow_stmts.cpp:241` and `[&]() { return count; }` at `narrow_stmts.cpp:242`; the `[local]` lambda does not capture `this`.
@@ -731,14 +731,14 @@ a string.
 
 Matches the trait expression of the given kind.
 
-```text
-clang-query> match unaryExprOrTypeTraitExpr(ofKind("UETT_SizeOf"))
+```clang-query
+match unaryExprOrTypeTraitExpr(ofKind("UETT_SizeOf"))
 ```
 
 **Expected:** 2 matches — `sizeof(x)` and `sizeof(double)` at `narrow_stmts.cpp:253`.
 
-```text
-clang-query> match unaryExprOrTypeTraitExpr(ofKind("UETT_AlignOf"))
+```clang-query
+match unaryExprOrTypeTraitExpr(ofKind("UETT_AlignOf"))
 ```
 
 **Expected:** 1 match — `alignof(int)` at `narrow_stmts.cpp:253`.

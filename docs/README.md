@@ -121,7 +121,7 @@ Everything below is explained again where it bites; this is the short list.
 
 ## Conventions
 
-- `clang-query> …` — a command to type at the clang-query prompt
+- ```` ```clang-query ```` block — commands to type at the clang-query prompt, shown without the prompt so the block pastes as-is; an indented line continues the command above it
 - `**Expected:** N matches` — the exact result you should see (verified by `scripts/check.py`)
 - `### \`name(params)\` — Matcher<Ret>` — one entry per reference matcher; `Ret` is the node matcher it plugs into
 - `**Not in clang-query 22**` — reference names this build does not register (see Part 12 appendix)
