@@ -163,6 +163,11 @@ match fileScopeAsmDecl()
 
 **Expected:** 1 match — `__asm("nop")` at `decls.cpp:13`.
 
+> [!note] Requires clang-query 22+
+> `fileScopeAsmDecl` was registered in LLVM 22. On clang-query 21 or older
+> you get `Matcher not found: fileScopeAsmDecl` — there is no direct
+> substitute; upgrade to LLVM 22 (this lab's baseline) to run this entry.
+
 ## 2.2 — Functions, Parameters and Methods
 
 The `FunctionDecl` family. Remember that in Clang every constructor, destructor, conversion function and method *is* a `FunctionDecl`, so `functionDecl()` alone casts a wide net; the specialised matchers narrow it by kind.
