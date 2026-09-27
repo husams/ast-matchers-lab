@@ -30,6 +30,8 @@ DO_EXT=1
 DO_CONFIG=1
 DO_VIM=0
 DO_UNINSTALL=0
+MANUAL=auto
+EXTDIR=""
 OFFLINE=0
 
 log()  { printf '\033[1;32m==\033[0m %s\n' "$*"; }
@@ -51,6 +53,9 @@ Options
       --code PATH        VS Code CLI (default: code, codium, remote-cli/code)
       --vsix FILE        install this prebuilt .vsix instead of building one
       --vsce SPEC        npx spec for the packager (default: picked per node major)
+      --extensions-dir D VS Code extensions dir for the filesystem install
+      --install-manual   always install by unpacking the vsix into that dir
+      --no-manual        never do that; only use the VS Code CLI
       --settings FILE    VS Code settings.json to configure (repeatable; it is
                          rewritten as plain JSON, comments dropped, .bak kept)
       --sample PATH      astmatcher.sample default (default: <lab>/manifests/intro.cpp)
@@ -78,6 +83,9 @@ while [ $# -gt 0 ]; do
     --vsix)           VSIX=${2:?}; DO_VSIX=0; shift 2;;
     --vsce)           VSCE_SPEC=${2:?}; shift 2;;
     --settings)       SETTINGS_FILES+=("${2:?}"); shift 2;;
+    --extensions-dir) EXTDIR=${2:?}; shift 2;;
+    --install-manual) MANUAL=always; shift;;
+    --no-manual)      MANUAL=never; shift;;
     --sample)         SAMPLE=${2:?}; shift 2;;
     --flags)          FLAGS=${2:?}; shift 2;;
     --regenerate)     DO_REGEN=1; shift;;
@@ -110,11 +118,29 @@ find_code() {
   for c in code code-insiders codium vscodium; do
     have "$c" && { command -v "$c"; return; }
   done
-  # Remote-SSH: the server's CLI only works inside a VS Code terminal.
+  # Remote-SSH / devcontainer: the server ships remote-cli/code, but it drives
+  # the running window through $VSCODE_IPC_HOOK_CLI and fails without it.
   [ -n "${VSCODE_IPC_HOOK_CLI:-}" ] || return 0
-  ls -td "$HOME"/.vscode-server/cli/servers/*/server/bin/remote-cli/code \
-         "$HOME"/.vscode-server/bin/*/bin/remote-cli/code \
-         "$HOME"/.vscode-server-insiders/bin/*/bin/remote-cli/code 2>/dev/null | head -1
+  find "$HOME"/.vscode-server "$HOME"/.vscode-server-insiders \
+       "$HOME"/.vscode-remote -maxdepth 6 -type f -name code -path '*remote-cli*' \
+       2>/dev/null | while read -r c; do
+    [ -x "$c" ] || continue
+    printf '%s %s\n' "$(stat -c %Y "$c" 2>/dev/null || stat -f %m "$c" 2>/dev/null)" "$c"
+  done | sort -rn | head -1 | cut -d' ' -f2-
+}
+
+# Where VS Code looks for extensions on this host.
+extensions_dir() {
+  [ -n "$EXTDIR" ] && { printf '%s\n' "$EXTDIR"; return; }
+  [ -n "${VSCODE_EXTENSIONS:-}" ] && { printf '%s\n' "$VSCODE_EXTENSIONS"; return; }
+  local d
+  for d in "$HOME/.vscode-server/extensions" "$HOME/.vscode-server-insiders/extensions" \
+           "$HOME/.vscode-remote/extensions" "$HOME/.vscode/extensions" \
+           "$HOME/.vscode-oss/extensions"; do
+    [ -d "$d" ] && { printf '%s\n' "$d"; return; }
+  done
+  if [ -d "$HOME/.vscode-server" ]; then printf '%s\n' "$HOME/.vscode-server/extensions"
+  else printf '%s\n' "$HOME/.vscode/extensions"; fi
 }
 
 default_settings_files() {
@@ -134,6 +160,83 @@ default_settings_files() {
   fi
 }
 
+
+# Install (or remove) the extension by unpacking it into the extensions
+# directory and registering it in extensions.json — what the CLI does for us
+# when it is reachable. VS Code picks it up on the next window reload.
+manual_extension() {
+  local mode=$1 vsix=${2:-} dir
+  dir=$(extensions_dir)
+  mkdir -p "$dir"
+  "${PYTHON:-python3}" - "$mode" "$dir" "$vsix" <<'PYX'
+import json, os, pathlib, shutil, sys, time, zipfile
+
+mode, extdir, vsix = sys.argv[1], pathlib.Path(sys.argv[2]), sys.argv[3]
+EXT_ID = "ast-matchers-lab.astmatcher-dsl"
+manifest = extdir / "extensions.json"
+
+entries = []
+if manifest.exists():
+    try:
+        entries = json.loads(manifest.read_text(encoding="utf-8") or "[]")
+    except json.JSONDecodeError:
+        entries = []
+    if not isinstance(entries, list):
+        entries = []
+
+def ident_of(entry):
+    return ((entry.get("identifier") or {}).get("id") or "").lower()
+
+def write_manifest(items):
+    manifest.write_text(json.dumps(items, indent=0) + "\n", encoding="utf-8")
+
+if mode == "remove":
+    kept = [e for e in entries if ident_of(e) != EXT_ID.lower()]
+    for d in extdir.glob(EXT_ID + "-*"):
+        shutil.rmtree(d, ignore_errors=True)
+    if len(kept) != len(entries):
+        write_manifest(kept)
+    print(f"   removed {EXT_ID} from {extdir}")
+    raise SystemExit(0)
+
+with zipfile.ZipFile(vsix) as z:
+    pkg = json.loads(z.read("extension/package.json"))
+    ident = f'{pkg["publisher"]}.{pkg["name"]}'
+    version = pkg["version"]
+    rel = f"{ident}-{version}"
+    dest = extdir / rel
+    if dest.exists():
+        shutil.rmtree(dest)
+    for info in z.infolist():
+        if info.is_dir() or not info.filename.startswith("extension/"):
+            continue
+        target = dest / info.filename[len("extension/"):]
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with z.open(info) as src, open(target, "wb") as out:
+            shutil.copyfileobj(src, out)
+        bits = (info.external_attr >> 16) & 0o7777
+        if bits & 0o111:
+            os.chmod(target, bits or 0o755)
+
+# Two copies of the same extension would both load.
+for old in extdir.glob(ident + "-*"):
+    if old.is_dir() and old != dest:
+        shutil.rmtree(old, ignore_errors=True)
+
+entries = [e for e in entries if ident_of(e) != ident.lower()]
+entries.append({
+    "identifier": {"id": ident},
+    "version": version,
+    "location": {"$mid": 1, "path": str(dest), "scheme": "file"},
+    "relativeLocation": rel,
+    "metadata": {"installedTimestamp": int(time.time() * 1000),
+                 "source": "vsix", "pinned": True},
+})
+write_manifest(entries)
+print(f"   unpacked {ident}@{version} into {dest}")
+PYX
+}
+
 # ---------------------------------------------------------------- uninstall
 if [ "$DO_UNINSTALL" = 1 ]; then
   log "uninstalling from $PREFIX"
@@ -141,8 +244,9 @@ if [ "$DO_UNINSTALL" = 1 ]; then
   code=$(find_code || true)
   if [ -n "$code" ]; then
     "$code" --uninstall-extension ast-matchers-lab.astmatcher-dsl || \
-      warn "extension was not installed"
+      warn "the VS Code CLI could not uninstall it"
   fi
+  manual_extension remove || true
   warn "VS Code settings left untouched (astmatcher.* keys still point here)"
   log "done"
   exit 0
@@ -305,12 +409,20 @@ if [ "$DO_EXT" = 1 ] || [ "$DO_CONFIG" = 1 ]; then
   [ -n "$CODE" ] && step "code CLI     $CODE" || warn "no VS Code CLI found (pass --code, or use --server-only)"
 fi
 
-if [ "$DO_EXT" = 1 ] && [ -n "$CODE" ] && [ -n "$VSIX" ]; then
-  log "installing the extension"
-  "$CODE" --install-extension "$VSIX" --force || \
-    warn "extension install failed; run: code --install-extension $VSIX"
+if [ "$DO_EXT" = 1 ] && [ -z "$VSIX" ]; then
+  warn "no vsix to install"
 elif [ "$DO_EXT" = 1 ]; then
-  [ -n "$VSIX" ] || warn "no vsix to install"
+  log "installing the extension"
+  installed=0
+  if [ "$MANUAL" != always ] && [ -n "$CODE" ]; then
+    if "$CODE" --install-extension "$VSIX" --force; then installed=1
+    else warn "the VS Code CLI could not install it"; fi
+  fi
+  if [ "$installed" = 0 ] && [ "$MANUAL" != never ]; then
+    manual_extension install "$VSIX"
+    installed=1
+  fi
+  [ "$installed" = 1 ] || warn "extension not installed; run: code --install-extension $VSIX"
 fi
 
 # ---------------------------------------------------------------- settings
@@ -378,8 +490,8 @@ PY
   done <<EOF
 $(default_settings_files)
 EOF
-  [ "$DO_EXT" = 1 ] && [ -n "$CODE" ] && \
-    warn "reload the VS Code window (or run 'AST Matcher: Restart Language Server')"
+  [ "$DO_EXT" = 1 ] && \
+    warn "reload the VS Code window to load the extension (Developer: Reload Window)"
 fi
 
 # ---------------------------------------------------------------- verify
