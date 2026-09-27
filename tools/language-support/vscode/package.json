@@ -1,0 +1,134 @@
+{
+  "name": "astmatcher-dsl",
+  "displayName": "AST Matcher DSL (clang-query)",
+  "description": "Syntax highlighting, completion, hover and diagnostics for Clang AST matcher scripts (.query).",
+  "version": "1.0.0",
+  "publisher": "ast-matchers-lab",
+  "license": "MIT",
+  "private": true,
+  "engines": {
+    "vscode": "^1.82.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters",
+    "Snippets"
+  ],
+  "keywords": [
+    "clang",
+    "clang-query",
+    "clang-tidy",
+    "ast",
+    "matcher"
+  ],
+  "main": "./extension.js",
+  "activationEvents": [
+    "onLanguage:astmatcher"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "astmatcher",
+        "aliases": [
+          "AST Matcher DSL",
+          "clang-query"
+        ],
+        "extensions": [
+          ".query"
+        ],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./icon.svg",
+          "dark": "./icon.svg"
+        }
+      }
+    ],
+    "grammars": [
+      {
+        "language": "astmatcher",
+        "scopeName": "source.astmatcher",
+        "path": "./syntaxes/astmatcher.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "astmatcher",
+        "path": "./snippets/astmatcher.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "astmatcher.runQuery",
+        "title": "AST Matcher: Run this query with clang-query",
+        "category": "AST Matcher"
+      },
+      {
+        "command": "astmatcher.restartServer",
+        "title": "AST Matcher: Restart language server",
+        "category": "AST Matcher"
+      }
+    ],
+    "menus": {
+      "editor/title/run": [
+        {
+          "command": "astmatcher.runQuery",
+          "when": "resourceLangId == astmatcher"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "astmatcher.runQuery",
+        "key": "ctrl+enter",
+        "mac": "cmd+enter",
+        "when": "editorTextFocus && resourceLangId == astmatcher"
+      }
+    ],
+    "configuration": {
+      "title": "AST Matcher DSL",
+      "properties": {
+        "astmatcher.server.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Run the astmatcher language server (completion, hover, diagnostics). Turn off to keep syntax highlighting only."
+        },
+        "astmatcher.server.path": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the astmatcher-lsp launcher. Empty: look for tools/language-support/astmatcher-lsp/bin/astmatcher-lsp in the workspace, then on PATH."
+        },
+        "astmatcher.server.python": {
+          "type": "string",
+          "default": "python3",
+          "description": "Python 3.10+ interpreter used to run the server."
+        },
+        "astmatcher.clangQueryPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to clang-query. Empty: $LLVM/bin/clang-query, else clang-query on PATH."
+        },
+        "astmatcher.sample": {
+          "type": "string",
+          "default": "manifests/intro.cpp",
+          "description": "Sample translation unit the run command feeds to clang-query. A `# sample: <path> [flags\u2026]` first line in the .query file overrides it."
+        },
+        "astmatcher.flags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "-std=c++23"
+          ],
+          "description": "Compiler flags passed after `--` to clang-query."
+        }
+      }
+    }
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "scripts": {
+    "package": "vsce package --allow-missing-repository"
+  }
+}

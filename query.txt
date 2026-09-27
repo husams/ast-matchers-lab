@@ -1,0 +1,2 @@
+match functionDecl(hasExternalFormalLinkage(),
+                   hasAnyName("helper", "file_local", "defined"))

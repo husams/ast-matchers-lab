@@ -1,0 +1,8 @@
+#!/bin/sh
+# Launcher for the AST matcher DSL language server.
+#   astmatcher-lsp --stdio            speak LSP over stdin/stdout
+#   astmatcher-lsp --check file.query type-check a script
+# Set ASTMATCHER_PYTHON to pick a specific interpreter (needs Python 3.10+).
+here=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+PYTHONPATH="$here${PYTHONPATH:+:$PYTHONPATH}" \
+  exec "${ASTMATCHER_PYTHON:-python3}" -m astmatcher_lsp "$@"

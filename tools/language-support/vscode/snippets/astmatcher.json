@@ -1,0 +1,3555 @@
+{
+  "accessSpecDecl": {
+    "body": [
+      "accessSpecDecl(${1:AccessSpecDecl})"
+    ],
+    "description": "Matches C++ access specifier declarations.",
+    "prefix": "accessSpecDecl"
+  },
+  "addrLabelExpr": {
+    "body": [
+      "addrLabelExpr(${1:AddrLabelExpr})"
+    ],
+    "description": "Matches address of label statements (GNU extension).",
+    "prefix": "addrLabelExpr"
+  },
+  "alignOfExpr": {
+    "body": [
+      "alignOfExpr(${1:UnaryExprOrTypeTraitExpr})"
+    ],
+    "description": "Same as unaryExprOrTypeTraitExpr, but only matching",
+    "prefix": "alignOfExpr"
+  },
+  "allOf": {
+    "body": [
+      "allOf(${1:anything()})"
+    ],
+    "description": "Matches if all given matchers match.",
+    "prefix": "allOf"
+  },
+  "anyOf": {
+    "body": [
+      "anyOf(${1:anything()})"
+    ],
+    "description": "Matches if any of the given matchers matches.",
+    "prefix": "anyOf"
+  },
+  "anything": {
+    "body": [
+      "anything()"
+    ],
+    "description": "Matches any node.",
+    "prefix": "anything"
+  },
+  "argumentCountAtLeast": {
+    "body": [
+      "argumentCountAtLeast(${1:N})"
+    ],
+    "description": "Checks that a call expression or a constructor call expression has at least",
+    "prefix": "argumentCountAtLeast"
+  },
+  "argumentCountIs": {
+    "body": [
+      "argumentCountIs(${1:N})"
+    ],
+    "description": "Checks that a call expression or a constructor call expression has",
+    "prefix": "argumentCountIs"
+  },
+  "arrayInitIndexExpr": {
+    "body": [
+      "arrayInitIndexExpr(${1:ArrayInitIndexExpr})"
+    ],
+    "description": "The arrayInitIndexExpr consists of two subexpressions: a common expression",
+    "prefix": "arrayInitIndexExpr"
+  },
+  "arrayInitLoopExpr": {
+    "body": [
+      "arrayInitLoopExpr(${1:ArrayInitLoopExpr})"
+    ],
+    "description": "Matches a loop initializing the elements of an array in a number of contexts:",
+    "prefix": "arrayInitLoopExpr"
+  },
+  "arraySubscriptExpr": {
+    "body": [
+      "arraySubscriptExpr(${1:ArraySubscriptExpr})"
+    ],
+    "description": "Matches array subscript expressions.",
+    "prefix": "arraySubscriptExpr"
+  },
+  "arrayType": {
+    "body": [
+      "arrayType(${1:ArrayType})"
+    ],
+    "description": "Matches all kinds of arrays.",
+    "prefix": "arrayType"
+  },
+  "arrayTypeLoc": {
+    "body": [
+      "arrayTypeLoc(${1:ArrayTypeLoc})"
+    ],
+    "description": "Matches `ArrayTypeLoc`s.",
+    "prefix": "arrayTypeLoc"
+  },
+  "asString": {
+    "body": [
+      "asString(\"${1:Name}\")"
+    ],
+    "description": "Matches if the matched type is represented by the given string.",
+    "prefix": "asString"
+  },
+  "asmStmt": {
+    "body": [
+      "asmStmt(${1:AsmStmt})"
+    ],
+    "description": "Matches asm statements.",
+    "prefix": "asmStmt"
+  },
+  "atomicExpr": {
+    "body": [
+      "atomicExpr(${1:AtomicExpr})"
+    ],
+    "description": "Matches atomic builtins.",
+    "prefix": "atomicExpr"
+  },
+  "atomicType": {
+    "body": [
+      "atomicType(${1:AtomicType})"
+    ],
+    "description": "Matches atomic types.",
+    "prefix": "atomicType"
+  },
+  "attr": {
+    "body": [
+      "attr(${1:Attr})"
+    ],
+    "description": "Matches attributes.",
+    "prefix": "attr"
+  },
+  "autoType": {
+    "body": [
+      "autoType(${1:AutoType})"
+    ],
+    "description": "Matches types nodes representing C++11 auto types.",
+    "prefix": "autoType"
+  },
+  "autoreleasePoolStmt": {
+    "body": [
+      "autoreleasePoolStmt(${1:ObjCAutoreleasePoolStmt})"
+    ],
+    "description": "Matches an Objective-C autorelease pool statement.",
+    "prefix": "autoreleasePoolStmt"
+  },
+  "binaryConditionalOperator": {
+    "body": [
+      "binaryConditionalOperator(${1:BinaryConditionalOperator})"
+    ],
+    "description": "Matches binary conditional operator expressions (GNU extension).",
+    "prefix": "binaryConditionalOperator"
+  },
+  "binaryOperation": {
+    "body": [
+      "binaryOperation(${1:anything()})"
+    ],
+    "description": "Matches nodes which can be used with binary operators.",
+    "prefix": "binaryOperation"
+  },
+  "binaryOperator": {
+    "body": [
+      "binaryOperator(${1:BinaryOperator})"
+    ],
+    "description": "Matches binary operator expressions.",
+    "prefix": "binaryOperator"
+  },
+  "bindingDecl": {
+    "body": [
+      "bindingDecl(${1:BindingDecl})"
+    ],
+    "description": "Matches binding declarations",
+    "prefix": "bindingDecl"
+  },
+  "blockDecl": {
+    "body": [
+      "blockDecl(${1:BlockDecl})"
+    ],
+    "description": "Matches block declarations.",
+    "prefix": "blockDecl"
+  },
+  "blockExpr": {
+    "body": [
+      "blockExpr(${1:BlockExpr})"
+    ],
+    "description": "Matches a reference to a block.",
+    "prefix": "blockExpr"
+  },
+  "blockPointerType": {
+    "body": [
+      "blockPointerType(${1:BlockPointerType})"
+    ],
+    "description": "Matches block pointer types, i.e. types syntactically represented as",
+    "prefix": "blockPointerType"
+  },
+  "booleanType": {
+    "body": [
+      "booleanType()"
+    ],
+    "description": "Matches type bool.",
+    "prefix": "booleanType"
+  },
+  "breakStmt": {
+    "body": [
+      "breakStmt(${1:BreakStmt})"
+    ],
+    "description": "Matches break statements.",
+    "prefix": "breakStmt"
+  },
+  "builtinType": {
+    "body": [
+      "builtinType(${1:BuiltinType})"
+    ],
+    "description": "Matches builtin Types.",
+    "prefix": "builtinType"
+  },
+  "cStyleCastExpr": {
+    "body": [
+      "cStyleCastExpr(${1:CStyleCastExpr})"
+    ],
+    "description": "Matches a C-style cast expression.",
+    "prefix": "cStyleCastExpr"
+  },
+  "callExpr": {
+    "body": [
+      "callExpr(${1:CallExpr})"
+    ],
+    "description": "Matches call expressions.",
+    "prefix": "callExpr"
+  },
+  "callee": {
+    "body": [
+      "callee(${1:Stmt})"
+    ],
+    "description": "Matches if the call or fold expression's callee expression matches.",
+    "prefix": "callee"
+  },
+  "capturesThis": {
+    "body": [
+      "capturesThis()"
+    ],
+    "description": "Matches a `LambdaCapture` that refers to 'this'.",
+    "prefix": "capturesThis"
+  },
+  "capturesVar": {
+    "body": [
+      "capturesVar(${1:ValueDecl})"
+    ],
+    "description": "Matches a `LambdaCapture` that refers to the specified `VarDecl`. The",
+    "prefix": "capturesVar"
+  },
+  "caseStmt": {
+    "body": [
+      "caseStmt(${1:CaseStmt})"
+    ],
+    "description": "Matches case statements inside switch statements.",
+    "prefix": "caseStmt"
+  },
+  "castExpr": {
+    "body": [
+      "castExpr(${1:CastExpr})"
+    ],
+    "description": "Matches any cast nodes of Clang's AST.",
+    "prefix": "castExpr"
+  },
+  "characterLiteral": {
+    "body": [
+      "characterLiteral(${1:CharacterLiteral})"
+    ],
+    "description": "Matches character literals (also matches wchar_t).",
+    "prefix": "characterLiteral"
+  },
+  "chooseExpr": {
+    "body": [
+      "chooseExpr(${1:ChooseExpr})"
+    ],
+    "description": "Matches GNU __builtin_choose_expr.",
+    "prefix": "chooseExpr"
+  },
+  "classTemplateDecl": {
+    "body": [
+      "classTemplateDecl(${1:ClassTemplateDecl})"
+    ],
+    "description": "Matches C++ class template declarations.",
+    "prefix": "classTemplateDecl"
+  },
+  "classTemplatePartialSpecializationDecl": {
+    "body": [
+      "classTemplatePartialSpecializationDecl(${1:ClassTemplatePartialSpecializationDecl})"
+    ],
+    "description": "Matches C++ class template partial specializations.",
+    "prefix": "classTemplatePartialSpecializationDecl"
+  },
+  "classTemplateSpecializationDecl": {
+    "body": [
+      "classTemplateSpecializationDecl(${1:ClassTemplateSpecializationDecl})"
+    ],
+    "description": "Matches C++ class template specializations.",
+    "prefix": "classTemplateSpecializationDecl"
+  },
+  "coawaitExpr": {
+    "body": [
+      "coawaitExpr(${1:CoawaitExpr})"
+    ],
+    "description": "Matches co_await expressions.",
+    "prefix": "coawaitExpr"
+  },
+  "complexType": {
+    "body": [
+      "complexType(${1:ComplexType})"
+    ],
+    "description": "Matches C99 complex types.",
+    "prefix": "complexType"
+  },
+  "compoundLiteralExpr": {
+    "body": [
+      "compoundLiteralExpr(${1:CompoundLiteralExpr})"
+    ],
+    "description": "Matches compound (i.e. non-scalar) literals",
+    "prefix": "compoundLiteralExpr"
+  },
+  "compoundStmt": {
+    "body": [
+      "compoundStmt(${1:CompoundStmt})"
+    ],
+    "description": "Matches compound statements.",
+    "prefix": "compoundStmt"
+  },
+  "conceptDecl": {
+    "body": [
+      "conceptDecl(${1:ConceptDecl})"
+    ],
+    "description": "Matches concept declarations.",
+    "prefix": "conceptDecl"
+  },
+  "conditionalOperator": {
+    "body": [
+      "conditionalOperator(${1:ConditionalOperator})"
+    ],
+    "description": "Matches conditional operator expressions.",
+    "prefix": "conditionalOperator"
+  },
+  "constantArrayType": {
+    "body": [
+      "constantArrayType(${1:ConstantArrayType})"
+    ],
+    "description": "Matches C arrays with a specified constant size.",
+    "prefix": "constantArrayType"
+  },
+  "constantExpr": {
+    "body": [
+      "constantExpr(${1:ConstantExpr})"
+    ],
+    "description": "Matches a constant expression wrapper.",
+    "prefix": "constantExpr"
+  },
+  "containsDeclaration": {
+    "body": [
+      "containsDeclaration(${1:N}, ${2:Decl})"
+    ],
+    "description": "Matches the n'th declaration of a declaration statement.",
+    "prefix": "containsDeclaration"
+  },
+  "continueStmt": {
+    "body": [
+      "continueStmt(${1:ContinueStmt})"
+    ],
+    "description": "Matches continue statements.",
+    "prefix": "continueStmt"
+  },
+  "convertVectorExpr": {
+    "body": [
+      "convertVectorExpr(${1:ConvertVectorExpr})"
+    ],
+    "description": "Matches builtin function __builtin_convertvector.",
+    "prefix": "convertVectorExpr"
+  },
+  "coreturnStmt": {
+    "body": [
+      "coreturnStmt(${1:CoreturnStmt})"
+    ],
+    "description": "Matches co_return statements.",
+    "prefix": "coreturnStmt"
+  },
+  "coroutineBodyStmt": {
+    "body": [
+      "coroutineBodyStmt(${1:CoroutineBodyStmt})"
+    ],
+    "description": "Matches coroutine body statements.",
+    "prefix": "coroutineBodyStmt"
+  },
+  "coyieldExpr": {
+    "body": [
+      "coyieldExpr(${1:CoyieldExpr})"
+    ],
+    "description": "Matches co_yield expressions.",
+    "prefix": "coyieldExpr"
+  },
+  "cudaKernelCallExpr": {
+    "body": [
+      "cudaKernelCallExpr(${1:CUDAKernelCallExpr})"
+    ],
+    "description": "Matches CUDA kernel call expression.",
+    "prefix": "cudaKernelCallExpr"
+  },
+  "cxxBaseSpecifier": {
+    "body": [
+      "cxxBaseSpecifier(${1:CXXBaseSpecifier})"
+    ],
+    "description": "Matches class bases.",
+    "prefix": "cxxBaseSpecifier"
+  },
+  "cxxBindTemporaryExpr": {
+    "body": [
+      "cxxBindTemporaryExpr(${1:CXXBindTemporaryExpr})"
+    ],
+    "description": "Matches nodes where temporaries are created.",
+    "prefix": "cxxBindTemporaryExpr"
+  },
+  "cxxBoolLiteral": {
+    "body": [
+      "cxxBoolLiteral(${1:CXXBoolLiteralExpr})"
+    ],
+    "description": "Matches bool literals.",
+    "prefix": "cxxBoolLiteral"
+  },
+  "cxxCatchStmt": {
+    "body": [
+      "cxxCatchStmt(${1:CXXCatchStmt})"
+    ],
+    "description": "Matches catch statements.",
+    "prefix": "cxxCatchStmt"
+  },
+  "cxxConstCastExpr": {
+    "body": [
+      "cxxConstCastExpr(${1:CXXConstCastExpr})"
+    ],
+    "description": "Matches a const_cast expression.",
+    "prefix": "cxxConstCastExpr"
+  },
+  "cxxConstructExpr": {
+    "body": [
+      "cxxConstructExpr(${1:CXXConstructExpr})"
+    ],
+    "description": "Matches constructor call expressions (including implicit ones).",
+    "prefix": "cxxConstructExpr"
+  },
+  "cxxConstructorDecl": {
+    "body": [
+      "cxxConstructorDecl(${1:CXXConstructorDecl})"
+    ],
+    "description": "Matches C++ constructor declarations.",
+    "prefix": "cxxConstructorDecl"
+  },
+  "cxxConversionDecl": {
+    "body": [
+      "cxxConversionDecl(${1:CXXConversionDecl})"
+    ],
+    "description": "Matches conversion operator declarations.",
+    "prefix": "cxxConversionDecl"
+  },
+  "cxxCtorInitializer": {
+    "body": [
+      "cxxCtorInitializer(${1:CXXCtorInitializer})"
+    ],
+    "description": "Matches constructor initializers.",
+    "prefix": "cxxCtorInitializer"
+  },
+  "cxxDeductionGuideDecl": {
+    "body": [
+      "cxxDeductionGuideDecl(${1:CXXDeductionGuideDecl})"
+    ],
+    "description": "Matches user-defined and implicitly generated deduction guide.",
+    "prefix": "cxxDeductionGuideDecl"
+  },
+  "cxxDefaultArgExpr": {
+    "body": [
+      "cxxDefaultArgExpr(${1:CXXDefaultArgExpr})"
+    ],
+    "description": "Matches the value of a default argument at the call site.",
+    "prefix": "cxxDefaultArgExpr"
+  },
+  "cxxDeleteExpr": {
+    "body": [
+      "cxxDeleteExpr(${1:CXXDeleteExpr})"
+    ],
+    "description": "Matches delete expressions.",
+    "prefix": "cxxDeleteExpr"
+  },
+  "cxxDependentScopeMemberExpr": {
+    "body": [
+      "cxxDependentScopeMemberExpr(${1:CXXDependentScopeMemberExpr})"
+    ],
+    "description": "Matches member expressions where the actual member referenced could not be",
+    "prefix": "cxxDependentScopeMemberExpr"
+  },
+  "cxxDestructorDecl": {
+    "body": [
+      "cxxDestructorDecl(${1:CXXDestructorDecl})"
+    ],
+    "description": "Matches explicit C++ destructor declarations.",
+    "prefix": "cxxDestructorDecl"
+  },
+  "cxxDynamicCastExpr": {
+    "body": [
+      "cxxDynamicCastExpr(${1:CXXDynamicCastExpr})"
+    ],
+    "description": "Matches a dynamic_cast expression.",
+    "prefix": "cxxDynamicCastExpr"
+  },
+  "cxxFoldExpr": {
+    "body": [
+      "cxxFoldExpr(${1:CXXFoldExpr})"
+    ],
+    "description": "Matches C++17 fold expressions.",
+    "prefix": "cxxFoldExpr"
+  },
+  "cxxForRangeStmt": {
+    "body": [
+      "cxxForRangeStmt(${1:CXXForRangeStmt})"
+    ],
+    "description": "Matches range-based for statements.",
+    "prefix": "cxxForRangeStmt"
+  },
+  "cxxFunctionalCastExpr": {
+    "body": [
+      "cxxFunctionalCastExpr(${1:CXXFunctionalCastExpr})"
+    ],
+    "description": "Matches functional cast expressions",
+    "prefix": "cxxFunctionalCastExpr"
+  },
+  "cxxMemberCallExpr": {
+    "body": [
+      "cxxMemberCallExpr(${1:CXXMemberCallExpr})"
+    ],
+    "description": "Matches member call expressions.",
+    "prefix": "cxxMemberCallExpr"
+  },
+  "cxxMethodDecl": {
+    "body": [
+      "cxxMethodDecl(${1:CXXMethodDecl})"
+    ],
+    "description": "Matches method declarations.",
+    "prefix": "cxxMethodDecl"
+  },
+  "cxxNewExpr": {
+    "body": [
+      "cxxNewExpr(${1:CXXNewExpr})"
+    ],
+    "description": "Matches new expressions.",
+    "prefix": "cxxNewExpr"
+  },
+  "cxxNoexceptExpr": {
+    "body": [
+      "cxxNoexceptExpr(${1:CXXNoexceptExpr})"
+    ],
+    "description": "Matches noexcept expressions.",
+    "prefix": "cxxNoexceptExpr"
+  },
+  "cxxNullPtrLiteralExpr": {
+    "body": [
+      "cxxNullPtrLiteralExpr(${1:CXXNullPtrLiteralExpr})"
+    ],
+    "description": "Matches nullptr literal.",
+    "prefix": "cxxNullPtrLiteralExpr"
+  },
+  "cxxOperatorCallExpr": {
+    "body": [
+      "cxxOperatorCallExpr(${1:CXXOperatorCallExpr})"
+    ],
+    "description": "Matches overloaded operator calls.",
+    "prefix": "cxxOperatorCallExpr"
+  },
+  "cxxRecordDecl": {
+    "body": [
+      "cxxRecordDecl(${1:CXXRecordDecl})"
+    ],
+    "description": "Matches C++ class declarations.",
+    "prefix": "cxxRecordDecl"
+  },
+  "cxxReinterpretCastExpr": {
+    "body": [
+      "cxxReinterpretCastExpr(${1:CXXReinterpretCastExpr})"
+    ],
+    "description": "Matches a reinterpret_cast expression.",
+    "prefix": "cxxReinterpretCastExpr"
+  },
+  "cxxRewrittenBinaryOperator": {
+    "body": [
+      "cxxRewrittenBinaryOperator(${1:CXXRewrittenBinaryOperator})"
+    ],
+    "description": "Matches rewritten binary operators",
+    "prefix": "cxxRewrittenBinaryOperator"
+  },
+  "cxxStaticCastExpr": {
+    "body": [
+      "cxxStaticCastExpr(${1:CXXStaticCastExpr})"
+    ],
+    "description": "Matches a C++ static_cast expression.",
+    "prefix": "cxxStaticCastExpr"
+  },
+  "cxxStdInitializerListExpr": {
+    "body": [
+      "cxxStdInitializerListExpr(${1:CXXStdInitializerListExpr})"
+    ],
+    "description": "Matches C++ initializer list expressions.",
+    "prefix": "cxxStdInitializerListExpr"
+  },
+  "cxxTemporaryObjectExpr": {
+    "body": [
+      "cxxTemporaryObjectExpr(${1:CXXTemporaryObjectExpr})"
+    ],
+    "description": "Matches functional cast expressions having N != 1 arguments",
+    "prefix": "cxxTemporaryObjectExpr"
+  },
+  "cxxThisExpr": {
+    "body": [
+      "cxxThisExpr(${1:CXXThisExpr})"
+    ],
+    "description": "Matches implicit and explicit this expressions.",
+    "prefix": "cxxThisExpr"
+  },
+  "cxxThrowExpr": {
+    "body": [
+      "cxxThrowExpr(${1:CXXThrowExpr})"
+    ],
+    "description": "Matches throw expressions.",
+    "prefix": "cxxThrowExpr"
+  },
+  "cxxTryStmt": {
+    "body": [
+      "cxxTryStmt(${1:CXXTryStmt})"
+    ],
+    "description": "Matches try statements.",
+    "prefix": "cxxTryStmt"
+  },
+  "cxxUnresolvedConstructExpr": {
+    "body": [
+      "cxxUnresolvedConstructExpr(${1:CXXUnresolvedConstructExpr})"
+    ],
+    "description": "Matches unresolved constructor call expressions.",
+    "prefix": "cxxUnresolvedConstructExpr"
+  },
+  "decayedType": {
+    "body": [
+      "decayedType(${1:DecayedType})"
+    ],
+    "description": "Matches decayed type",
+    "prefix": "decayedType"
+  },
+  "decl": {
+    "body": [
+      "decl(${1:Decl})"
+    ],
+    "description": "Matches declarations.",
+    "prefix": "decl"
+  },
+  "declCountIs": {
+    "body": [
+      "declCountIs(${1:N})"
+    ],
+    "description": "Matches declaration statements that contain a specific number of",
+    "prefix": "declCountIs"
+  },
+  "declRefExpr": {
+    "body": [
+      "declRefExpr(${1:DeclRefExpr})"
+    ],
+    "description": "Matches expressions that refer to declarations.",
+    "prefix": "declRefExpr"
+  },
+  "declStmt": {
+    "body": [
+      "declStmt(${1:DeclStmt})"
+    ],
+    "description": "Matches declaration statements.",
+    "prefix": "declStmt"
+  },
+  "declaratorDecl": {
+    "body": [
+      "declaratorDecl(${1:DeclaratorDecl})"
+    ],
+    "description": "Matches declarator declarations (field, variable, function",
+    "prefix": "declaratorDecl"
+  },
+  "declaresSameEntityAsBoundNode": {
+    "body": [
+      "declaresSameEntityAsBoundNode(\"${1:ID}\")"
+    ],
+    "description": "Matches a declaration if it declares the same entity as the node previously",
+    "prefix": "declaresSameEntityAsBoundNode"
+  },
+  "decltypeType": {
+    "body": [
+      "decltypeType(${1:DecltypeType})"
+    ],
+    "description": "Matches types nodes representing C++11 decltype(<expr>) types.",
+    "prefix": "decltypeType"
+  },
+  "decompositionDecl": {
+    "body": [
+      "decompositionDecl(${1:DecompositionDecl})"
+    ],
+    "description": "Matches decomposition-declarations.",
+    "prefix": "decompositionDecl"
+  },
+  "deducedTemplateSpecializationType": {
+    "body": [
+      "deducedTemplateSpecializationType(${1:DeducedTemplateSpecializationType})"
+    ],
+    "description": "Matches C++17 deduced template specialization types, e.g. deduced class",
+    "prefix": "deducedTemplateSpecializationType"
+  },
+  "defaultStmt": {
+    "body": [
+      "defaultStmt(${1:DefaultStmt})"
+    ],
+    "description": "Matches default statements inside switch statements.",
+    "prefix": "defaultStmt"
+  },
+  "dependentCoawaitExpr": {
+    "body": [
+      "dependentCoawaitExpr(${1:DependentCoawaitExpr})"
+    ],
+    "description": "Matches co_await expressions where the type of the promise is dependent",
+    "prefix": "dependentCoawaitExpr"
+  },
+  "dependentNameType": {
+    "body": [
+      "dependentNameType(${1:DependentNameType})"
+    ],
+    "description": "Matches a dependent name type",
+    "prefix": "dependentNameType"
+  },
+  "dependentScopeDeclRefExpr": {
+    "body": [
+      "dependentScopeDeclRefExpr(${1:DependentScopeDeclRefExpr})"
+    ],
+    "description": "Matches expressions that refer to dependent scope declarations.",
+    "prefix": "dependentScopeDeclRefExpr"
+  },
+  "dependentSizedArrayType": {
+    "body": [
+      "dependentSizedArrayType(${1:DependentSizedArrayType})"
+    ],
+    "description": "Matches C++ arrays whose size is a value-dependent expression.",
+    "prefix": "dependentSizedArrayType"
+  },
+  "dependentSizedExtVectorType": {
+    "body": [
+      "dependentSizedExtVectorType(${1:DependentSizedExtVectorType})"
+    ],
+    "description": "Matches C++ extended vector type where either the type or size is",
+    "prefix": "dependentSizedExtVectorType"
+  },
+  "designatedInitExpr": {
+    "body": [
+      "designatedInitExpr(${1:DesignatedInitExpr})"
+    ],
+    "description": "Matches C99 designated initializer expressions [C99 6.7.8].",
+    "prefix": "designatedInitExpr"
+  },
+  "designatorCountIs": {
+    "body": [
+      "designatorCountIs(${1:N})"
+    ],
+    "description": "Matches designated initializer expressions that contain",
+    "prefix": "designatorCountIs"
+  },
+  "doStmt": {
+    "body": [
+      "doStmt(${1:DoStmt})"
+    ],
+    "description": "Matches do statements.",
+    "prefix": "doStmt"
+  },
+  "eachOf": {
+    "body": [
+      "eachOf(${1:anything()})"
+    ],
+    "description": "Matches if any of the given matchers matches.",
+    "prefix": "eachOf"
+  },
+  "enumConstantDecl": {
+    "body": [
+      "enumConstantDecl(${1:EnumConstantDecl})"
+    ],
+    "description": "Matches enum constants.",
+    "prefix": "enumConstantDecl"
+  },
+  "enumDecl": {
+    "body": [
+      "enumDecl(${1:EnumDecl})"
+    ],
+    "description": "Matches enum declarations.",
+    "prefix": "enumDecl"
+  },
+  "enumType": {
+    "body": [
+      "enumType(${1:EnumType})"
+    ],
+    "description": "Matches enum types.",
+    "prefix": "enumType"
+  },
+  "equals": {
+    "body": [
+      "equals(${1:Value})"
+    ],
+    "description": "Matches literals that are equal to the given value of type ValueT.",
+    "prefix": "equals"
+  },
+  "equalsBoundNode": {
+    "body": [
+      "equalsBoundNode(\"${1:ID}\")"
+    ],
+    "description": "Matches if a node equals a previously bound node.",
+    "prefix": "equalsBoundNode"
+  },
+  "equalsIntegralValue": {
+    "body": [
+      "equalsIntegralValue(\"${1:Value}\")"
+    ],
+    "description": "Matches a TemplateArgument of integral type with a given value.",
+    "prefix": "equalsIntegralValue"
+  },
+  "explicitCastExpr": {
+    "body": [
+      "explicitCastExpr(${1:ExplicitCastExpr})"
+    ],
+    "description": "Matches explicit cast expressions.",
+    "prefix": "explicitCastExpr"
+  },
+  "exportDecl": {
+    "body": [
+      "exportDecl(${1:ExportDecl})"
+    ],
+    "description": "Matches any export declaration.",
+    "prefix": "exportDecl"
+  },
+  "expr": {
+    "body": [
+      "expr(${1:Expr})"
+    ],
+    "description": "Matches expressions.",
+    "prefix": "expr"
+  },
+  "exprWithCleanups": {
+    "body": [
+      "exprWithCleanups(${1:ExprWithCleanups})"
+    ],
+    "description": "Matches expressions that introduce cleanups to be run at the end",
+    "prefix": "exprWithCleanups"
+  },
+  "fieldDecl": {
+    "body": [
+      "fieldDecl(${1:FieldDecl})"
+    ],
+    "description": "Matches field declarations.",
+    "prefix": "fieldDecl"
+  },
+  "fileScopeAsmDecl": {
+    "body": [
+      "fileScopeAsmDecl(${1:FileScopeAsmDecl})"
+    ],
+    "description": "Matches top level asm declarations.",
+    "prefix": "fileScopeAsmDecl"
+  },
+  "fixedPointLiteral": {
+    "body": [
+      "fixedPointLiteral(${1:FixedPointLiteral})"
+    ],
+    "description": "Matches fixed-point literals eg.",
+    "prefix": "fixedPointLiteral"
+  },
+  "floatLiteral": {
+    "body": [
+      "floatLiteral(${1:FloatingLiteral})"
+    ],
+    "description": "Matches float literals of all sizes / encodings, e.g.",
+    "prefix": "floatLiteral"
+  },
+  "forCallable": {
+    "body": [
+      "forCallable(${1:Decl})"
+    ],
+    "description": "Matches declaration of the function, method, or block the statement",
+    "prefix": "forCallable"
+  },
+  "forDecomposition": {
+    "body": [
+      "forDecomposition(${1:ValueDecl})"
+    ],
+    "description": "Matches the DecompositionDecl the binding belongs to.",
+    "prefix": "forDecomposition"
+  },
+  "forEach": {
+    "body": [
+      "forEach(${1:anything()})"
+    ],
+    "description": "Matches AST nodes that have child AST nodes that match the",
+    "prefix": "forEach"
+  },
+  "forEachArgumentWithParam": {
+    "body": [
+      "forEachArgumentWithParam(${1:Expr}, ${2:ParmVarDecl})"
+    ],
+    "description": "Matches all arguments and their respective ParmVarDecl.",
+    "prefix": "forEachArgumentWithParam"
+  },
+  "forEachArgumentWithParamType": {
+    "body": [
+      "forEachArgumentWithParamType(${1:Expr}, ${2:QualType})"
+    ],
+    "description": "Matches all arguments and their respective types for a CallExpr or",
+    "prefix": "forEachArgumentWithParamType"
+  },
+  "forEachConstructorInitializer": {
+    "body": [
+      "forEachConstructorInitializer(${1:CXXCtorInitializer})"
+    ],
+    "description": "Matches each constructor initializer in a constructor definition.",
+    "prefix": "forEachConstructorInitializer"
+  },
+  "forEachDescendant": {
+    "body": [
+      "forEachDescendant(${1:anything()})"
+    ],
+    "description": "Matches AST nodes that have descendant AST nodes that match the",
+    "prefix": "forEachDescendant"
+  },
+  "forEachLambdaCapture": {
+    "body": [
+      "forEachLambdaCapture(${1:LambdaCapture})"
+    ],
+    "description": "Matches each lambda capture in a lambda expression.",
+    "prefix": "forEachLambdaCapture"
+  },
+  "forEachOverridden": {
+    "body": [
+      "forEachOverridden(${1:CXXMethodDecl})"
+    ],
+    "description": "Matches each method overridden by the given method. This matcher may",
+    "prefix": "forEachOverridden"
+  },
+  "forEachSwitchCase": {
+    "body": [
+      "forEachSwitchCase(${1:SwitchCase})"
+    ],
+    "description": "Matches each case or default statement belonging to the given switch",
+    "prefix": "forEachSwitchCase"
+  },
+  "forEachTemplateArgument": {
+    "body": [
+      "forEachTemplateArgument(${1:TemplateArgument})"
+    ],
+    "description": "Matches templateSpecializationType, class template specialization,",
+    "prefix": "forEachTemplateArgument"
+  },
+  "forField": {
+    "body": [
+      "forField(${1:FieldDecl})"
+    ],
+    "description": "Matches the field declaration of a constructor initializer.",
+    "prefix": "forField"
+  },
+  "forFunction": {
+    "body": [
+      "forFunction(${1:FunctionDecl})"
+    ],
+    "description": "Matches declaration of the function the statement belongs to.",
+    "prefix": "forFunction"
+  },
+  "forStmt": {
+    "body": [
+      "forStmt(${1:ForStmt})"
+    ],
+    "description": "Matches for statements.",
+    "prefix": "forStmt"
+  },
+  "friendDecl": {
+    "body": [
+      "friendDecl(${1:FriendDecl})"
+    ],
+    "description": "Matches friend declarations.",
+    "prefix": "friendDecl"
+  },
+  "functionDecl": {
+    "body": [
+      "functionDecl(${1:FunctionDecl})"
+    ],
+    "description": "Matches function declarations.",
+    "prefix": "functionDecl"
+  },
+  "functionProtoType": {
+    "body": [
+      "functionProtoType(${1:FunctionProtoType})"
+    ],
+    "description": "Matches FunctionProtoType nodes.",
+    "prefix": "functionProtoType"
+  },
+  "functionTemplateDecl": {
+    "body": [
+      "functionTemplateDecl(${1:FunctionTemplateDecl})"
+    ],
+    "description": "Matches C++ function template declarations.",
+    "prefix": "functionTemplateDecl"
+  },
+  "functionType": {
+    "body": [
+      "functionType(${1:FunctionType})"
+    ],
+    "description": "Matches FunctionType nodes.",
+    "prefix": "functionType"
+  },
+  "genericSelectionExpr": {
+    "body": [
+      "genericSelectionExpr(${1:GenericSelectionExpr})"
+    ],
+    "description": "Matches C11 _Generic expression.",
+    "prefix": "genericSelectionExpr"
+  },
+  "gnuNullExpr": {
+    "body": [
+      "gnuNullExpr(${1:GNUNullExpr})"
+    ],
+    "description": "Matches GNU __null expression.",
+    "prefix": "gnuNullExpr"
+  },
+  "gotoStmt": {
+    "body": [
+      "gotoStmt(${1:GotoStmt})"
+    ],
+    "description": "Matches goto statements.",
+    "prefix": "gotoStmt"
+  },
+  "has": {
+    "body": [
+      "has(${1:anything()})"
+    ],
+    "description": "Matches AST nodes that have child AST nodes that match the",
+    "prefix": "has"
+  },
+  "hasAncestor": {
+    "body": [
+      "hasAncestor(${1:anything()})"
+    ],
+    "description": "Matches AST nodes that have an ancestor that matches the provided",
+    "prefix": "hasAncestor"
+  },
+  "hasAnyArgument": {
+    "body": [
+      "hasAnyArgument(${1:Expr})"
+    ],
+    "description": "Matches any argument of a call expression or a constructor call",
+    "prefix": "hasAnyArgument"
+  },
+  "hasAnyBase": {
+    "body": [
+      "hasAnyBase(${1:CXXBaseSpecifier})"
+    ],
+    "description": "Matches C++ classes that have a direct or indirect base matching BaseSpecMatcher.",
+    "prefix": "hasAnyBase"
+  },
+  "hasAnyBinding": {
+    "body": [
+      "hasAnyBinding(${1:BindingDecl})"
+    ],
+    "description": "Matches any binding of a DecompositionDecl.",
+    "prefix": "hasAnyBinding"
+  },
+  "hasAnyBody": {
+    "body": [
+      "hasAnyBody(${1:Stmt})"
+    ],
+    "description": "Matches a function declaration that has a given body present in the AST.",
+    "prefix": "hasAnyBody"
+  },
+  "hasAnyCapture": {
+    "body": [
+      "hasAnyCapture(${1:LambdaCapture})"
+    ],
+    "description": "Matches any capture in a lambda expression.",
+    "prefix": "hasAnyCapture"
+  },
+  "hasAnyClause": {
+    "body": [
+      "hasAnyClause(${1:OMPClause})"
+    ],
+    "description": "Matches any clause in an OpenMP directive.",
+    "prefix": "hasAnyClause"
+  },
+  "hasAnyConstructorInitializer": {
+    "body": [
+      "hasAnyConstructorInitializer(${1:CXXCtorInitializer})"
+    ],
+    "description": "Matches a constructor initializer.",
+    "prefix": "hasAnyConstructorInitializer"
+  },
+  "hasAnyDeclaration": {
+    "body": [
+      "hasAnyDeclaration(${1:Decl})"
+    ],
+    "description": "Matches an OverloadExpr if any of the declarations in the set of",
+    "prefix": "hasAnyDeclaration"
+  },
+  "hasAnyName": {
+    "body": [
+      "hasAnyName(\"${1:}\")"
+    ],
+    "description": "Matches NamedDecl nodes that have any of the specified names.",
+    "prefix": "hasAnyName"
+  },
+  "hasAnyOperatorName": {
+    "body": [
+      "hasAnyOperatorName(\"${1:}\")"
+    ],
+    "description": "Matches operator expressions (binary or unary) that have any of the",
+    "prefix": "hasAnyOperatorName"
+  },
+  "hasAnyOverloadedOperatorName": {
+    "body": [
+      "hasAnyOverloadedOperatorName(\"${1:}\")"
+    ],
+    "description": "Matches overloaded operator names.",
+    "prefix": "hasAnyOverloadedOperatorName"
+  },
+  "hasAnyParameter": {
+    "body": [
+      "hasAnyParameter(${1:ParmVarDecl})"
+    ],
+    "description": "Matches any parameter of a function or an ObjC method declaration or a",
+    "prefix": "hasAnyParameter"
+  },
+  "hasAnyPlacementArg": {
+    "body": [
+      "hasAnyPlacementArg(${1:Expr})"
+    ],
+    "description": "Matches any placement new expression arguments.",
+    "prefix": "hasAnyPlacementArg"
+  },
+  "hasAnySelector": {
+    "body": [
+      "hasAnySelector(\"${1:}\")"
+    ],
+    "description": "Matches when at least one of the supplied string equals to the",
+    "prefix": "hasAnySelector"
+  },
+  "hasAnySubstatement": {
+    "body": [
+      "hasAnySubstatement(${1:Stmt})"
+    ],
+    "description": "Matches compound statements where at least one substatement matches",
+    "prefix": "hasAnySubstatement"
+  },
+  "hasAnyTemplateArgument": {
+    "body": [
+      "hasAnyTemplateArgument(${1:TemplateArgument})"
+    ],
+    "description": "Matches templateSpecializationTypes, class template specializations,",
+    "prefix": "hasAnyTemplateArgument"
+  },
+  "hasAnyTemplateArgumentLoc": {
+    "body": [
+      "hasAnyTemplateArgumentLoc(${1:TemplateArgumentLoc})"
+    ],
+    "description": "Matches template specialization `TypeLoc`s, class template specializations,",
+    "prefix": "hasAnyTemplateArgumentLoc"
+  },
+  "hasAnyUsingShadowDecl": {
+    "body": [
+      "hasAnyUsingShadowDecl(${1:UsingShadowDecl})"
+    ],
+    "description": "Matches any using shadow declaration.",
+    "prefix": "hasAnyUsingShadowDecl"
+  },
+  "hasArgument": {
+    "body": [
+      "hasArgument(${1:N}, ${2:Expr})"
+    ],
+    "description": "Matches the n'th argument of a call expression or a constructor",
+    "prefix": "hasArgument"
+  },
+  "hasArgumentOfType": {
+    "body": [
+      "hasArgumentOfType(${1:QualType})"
+    ],
+    "description": "Matches unary expressions that have a specific type of argument.",
+    "prefix": "hasArgumentOfType"
+  },
+  "hasArraySize": {
+    "body": [
+      "hasArraySize(${1:Expr})"
+    ],
+    "description": "Matches array new expressions with a given array size.",
+    "prefix": "hasArraySize"
+  },
+  "hasAttr": {
+    "body": [
+      "hasAttr(\"${1:attr::Kind}\")"
+    ],
+    "description": "Matches declaration that has a given attribute.",
+    "prefix": "hasAttr"
+  },
+  "hasAutomaticStorageDuration": {
+    "body": [
+      "hasAutomaticStorageDuration()"
+    ],
+    "description": "Matches a variable declaration that has automatic storage duration.",
+    "prefix": "hasAutomaticStorageDuration"
+  },
+  "hasBase": {
+    "body": [
+      "hasBase(${1:Expr})"
+    ],
+    "description": "Matches the base expression of an array subscript expression.",
+    "prefix": "hasBase"
+  },
+  "hasBinding": {
+    "body": [
+      "hasBinding(${1:N}, ${2:BindingDecl})"
+    ],
+    "description": "Matches the Nth binding of a DecompositionDecl.",
+    "prefix": "hasBinding"
+  },
+  "hasBitWidth": {
+    "body": [
+      "hasBitWidth(${1:Width})"
+    ],
+    "description": "Matches non-static data members that are bit-fields of the specified",
+    "prefix": "hasBitWidth"
+  },
+  "hasBody": {
+    "body": [
+      "hasBody(${1:Stmt})"
+    ],
+    "description": "Matches a 'for', 'while', 'while' statement or a function or coroutine",
+    "prefix": "hasBody"
+  },
+  "hasCanonicalType": {
+    "body": [
+      "hasCanonicalType(${1:QualType})"
+    ],
+    "description": "Matches QualTypes whose canonical type matches InnerMatcher.",
+    "prefix": "hasCanonicalType"
+  },
+  "hasCaseConstant": {
+    "body": [
+      "hasCaseConstant(${1:Expr})"
+    ],
+    "description": "If the given case statement does not use the GNU case range",
+    "prefix": "hasCaseConstant"
+  },
+  "hasCastKind": {
+    "body": [
+      "hasCastKind(\"${1:CastKind}\")"
+    ],
+    "description": "Matches casts that has a given cast kind.",
+    "prefix": "hasCastKind"
+  },
+  "hasCondition": {
+    "body": [
+      "hasCondition(${1:Expr})"
+    ],
+    "description": "Matches the condition expression of an if statement, for loop, while loop,",
+    "prefix": "hasCondition"
+  },
+  "hasConditionVariableStatement": {
+    "body": [
+      "hasConditionVariableStatement(${1:DeclStmt})"
+    ],
+    "description": "Matches the condition variable statement in an if statement, for loop,",
+    "prefix": "hasConditionVariableStatement"
+  },
+  "hasDecayedType": {
+    "body": [
+      "hasDecayedType(${1:QualType})"
+    ],
+    "description": "Matches the decayed type, whose decayed type matches InnerMatcher",
+    "prefix": "hasDecayedType"
+  },
+  "hasDeclContext": {
+    "body": [
+      "hasDeclContext(${1:Decl})"
+    ],
+    "description": "Matches declarations whose declaration context, interpreted as a",
+    "prefix": "hasDeclContext"
+  },
+  "hasDeclaration": {
+    "body": [
+      "hasDeclaration(${1:Decl})"
+    ],
+    "description": "Matches a node if the declaration associated with that node",
+    "prefix": "hasDeclaration"
+  },
+  "hasDeducedType": {
+    "body": [
+      "hasDeducedType(${1:Type})"
+    ],
+    "description": "Matches AutoType nodes where the deduced type is a specific type.",
+    "prefix": "hasDeducedType"
+  },
+  "hasDefaultArgument": {
+    "body": [
+      "hasDefaultArgument()"
+    ],
+    "description": "Matches a declaration that has default arguments.",
+    "prefix": "hasDefaultArgument"
+  },
+  "hasDefinition": {
+    "body": [
+      "hasDefinition()"
+    ],
+    "description": "Matches a class declaration that is defined.",
+    "prefix": "hasDefinition"
+  },
+  "hasDependentName": {
+    "body": [
+      "hasDependentName(\"${1:N}\")"
+    ],
+    "description": "Matches the dependent name of a DependentScopeDeclRefExpr or",
+    "prefix": "hasDependentName"
+  },
+  "hasDescendant": {
+    "body": [
+      "hasDescendant(${1:anything()})"
+    ],
+    "description": "Matches AST nodes that have descendant AST nodes that match the",
+    "prefix": "hasDescendant"
+  },
+  "hasDestinationType": {
+    "body": [
+      "hasDestinationType(${1:QualType})"
+    ],
+    "description": "Matches casts whose destination type matches a given matcher.",
+    "prefix": "hasDestinationType"
+  },
+  "hasDirectBase": {
+    "body": [
+      "hasDirectBase(${1:CXXBaseSpecifier})"
+    ],
+    "description": "Matches C++ classes that have a direct base matching BaseSpecMatcher.",
+    "prefix": "hasDirectBase"
+  },
+  "hasDynamicExceptionSpec": {
+    "body": [
+      "hasDynamicExceptionSpec()"
+    ],
+    "description": "Matches functions that have a dynamic exception specification.",
+    "prefix": "hasDynamicExceptionSpec"
+  },
+  "hasEitherOperand": {
+    "body": [
+      "hasEitherOperand(${1:Expr})"
+    ],
+    "description": "Matches if either the left hand side or the right hand side of a",
+    "prefix": "hasEitherOperand"
+  },
+  "hasElementType": {
+    "body": [
+      "hasElementType(${1:Type})"
+    ],
+    "description": "Matches arrays and C99 complex types that have a specific element",
+    "prefix": "hasElementType"
+  },
+  "hasElse": {
+    "body": [
+      "hasElse(${1:Stmt})"
+    ],
+    "description": "Matches the else-statement of an if statement.",
+    "prefix": "hasElse"
+  },
+  "hasExplicitSpecifier": {
+    "body": [
+      "hasExplicitSpecifier(${1:Expr})"
+    ],
+    "description": "Matches the expression in an explicit specifier if present in the given",
+    "prefix": "hasExplicitSpecifier"
+  },
+  "hasExternalFormalLinkage": {
+    "body": [
+      "hasExternalFormalLinkage()"
+    ],
+    "description": "Matches a declaration that has external formal linkage.",
+    "prefix": "hasExternalFormalLinkage"
+  },
+  "hasFalseExpression": {
+    "body": [
+      "hasFalseExpression(${1:Expr})"
+    ],
+    "description": "Matches the false branch expression of a conditional operator",
+    "prefix": "hasFalseExpression"
+  },
+  "hasFoldInit": {
+    "body": [
+      "hasFoldInit(${1:Expr})"
+    ],
+    "description": "Matches the operand that does not contain the parameter pack.",
+    "prefix": "hasFoldInit"
+  },
+  "hasGlobalStorage": {
+    "body": [
+      "hasGlobalStorage()"
+    ],
+    "description": "Matches a variable declaration that does not have local storage.",
+    "prefix": "hasGlobalStorage"
+  },
+  "hasImplicitDestinationType": {
+    "body": [
+      "hasImplicitDestinationType(${1:QualType})"
+    ],
+    "description": "Matches implicit casts whose destination type matches a given",
+    "prefix": "hasImplicitDestinationType"
+  },
+  "hasInClassInitializer": {
+    "body": [
+      "hasInClassInitializer(${1:Expr})"
+    ],
+    "description": "Matches non-static data members that have an in-class initializer.",
+    "prefix": "hasInClassInitializer"
+  },
+  "hasIncrement": {
+    "body": [
+      "hasIncrement(${1:Stmt})"
+    ],
+    "description": "Matches the increment statement of a for loop.",
+    "prefix": "hasIncrement"
+  },
+  "hasIndex": {
+    "body": [
+      "hasIndex(${1:Expr})"
+    ],
+    "description": "Matches the index expression of an array subscript expression.",
+    "prefix": "hasIndex"
+  },
+  "hasInit": {
+    "body": [
+      "hasInit(${1:N}, ${2:Expr})"
+    ],
+    "description": "Matches the n'th item of an initializer list expression.",
+    "prefix": "hasInit"
+  },
+  "hasInitStatement": {
+    "body": [
+      "hasInitStatement(${1:Stmt})"
+    ],
+    "description": "Matches selection statements with initializer.",
+    "prefix": "hasInitStatement"
+  },
+  "hasInitializer": {
+    "body": [
+      "hasInitializer(${1:Expr})"
+    ],
+    "description": "Matches a variable declaration that has an initializer expression",
+    "prefix": "hasInitializer"
+  },
+  "hasKeywordSelector": {
+    "body": [
+      "hasKeywordSelector()"
+    ],
+    "description": "Matches when the selector is a keyword selector",
+    "prefix": "hasKeywordSelector"
+  },
+  "hasLHS": {
+    "body": [
+      "hasLHS(${1:Expr})"
+    ],
+    "description": "Matches the left hand side of binary operator expressions.",
+    "prefix": "hasLHS"
+  },
+  "hasLocalQualifiers": {
+    "body": [
+      "hasLocalQualifiers()"
+    ],
+    "description": "Matches QualType nodes that have local CV-qualifiers attached to",
+    "prefix": "hasLocalQualifiers"
+  },
+  "hasLocalStorage": {
+    "body": [
+      "hasLocalStorage()"
+    ],
+    "description": "Matches a variable declaration that has function scope and is a",
+    "prefix": "hasLocalStorage"
+  },
+  "hasLoopInit": {
+    "body": [
+      "hasLoopInit(${1:Stmt})"
+    ],
+    "description": "Matches the initialization statement of a for loop.",
+    "prefix": "hasLoopInit"
+  },
+  "hasLoopVariable": {
+    "body": [
+      "hasLoopVariable(${1:VarDecl})"
+    ],
+    "description": "Matches the initialization statement of a for loop.",
+    "prefix": "hasLoopVariable"
+  },
+  "hasMemberName": {
+    "body": [
+      "hasMemberName(\"${1:N}\")"
+    ],
+    "description": "Matches template-dependent, but known, member names.",
+    "prefix": "hasMemberName"
+  },
+  "hasMethod": {
+    "body": [
+      "hasMethod(${1:CXXMethodDecl})"
+    ],
+    "description": "Matches the first method of a class or struct that satisfies InnerMatcher.",
+    "prefix": "hasMethod"
+  },
+  "hasName": {
+    "body": [
+      "hasName(\"${1:Name}\")"
+    ],
+    "description": "Matches NamedDecl nodes that have the specified name.",
+    "prefix": "hasName"
+  },
+  "hasNullSelector": {
+    "body": [
+      "hasNullSelector()"
+    ],
+    "description": "Matches when the selector is the empty selector",
+    "prefix": "hasNullSelector"
+  },
+  "hasObjectExpression": {
+    "body": [
+      "hasObjectExpression(${1:Expr})"
+    ],
+    "description": "Matches a member expression where the object expression is matched by a",
+    "prefix": "hasObjectExpression"
+  },
+  "hasOperands": {
+    "body": [
+      "hasOperands(${1:Expr}, ${2:Expr})"
+    ],
+    "description": "Matches if both matchers match with opposite sides of the binary operator",
+    "prefix": "hasOperands"
+  },
+  "hasOperatorName": {
+    "body": [
+      "hasOperatorName(\"${1:Name}\")"
+    ],
+    "description": "Matches the operator Name of operator expressions and fold expressions",
+    "prefix": "hasOperatorName"
+  },
+  "hasOverloadedOperatorName": {
+    "body": [
+      "hasOverloadedOperatorName(\"${1:Name}\")"
+    ],
+    "description": "Matches overloaded operator names.",
+    "prefix": "hasOverloadedOperatorName"
+  },
+  "hasParameter": {
+    "body": [
+      "hasParameter(${1:N}, ${2:ParmVarDecl})"
+    ],
+    "description": "Matches the n'th parameter of a function or an ObjC method",
+    "prefix": "hasParameter"
+  },
+  "hasParent": {
+    "body": [
+      "hasParent(${1:anything()})"
+    ],
+    "description": "Matches AST nodes that have a parent that matches the provided",
+    "prefix": "hasParent"
+  },
+  "hasPattern": {
+    "body": [
+      "hasPattern(${1:Expr})"
+    ],
+    "description": "Matches the operand that contains the parameter pack.",
+    "prefix": "hasPattern"
+  },
+  "hasPlacementArg": {
+    "body": [
+      "hasPlacementArg(${1:Index}, ${2:Expr})"
+    ],
+    "description": "Matches placement new expression arguments.",
+    "prefix": "hasPlacementArg"
+  },
+  "hasPointeeLoc": {
+    "body": [
+      "hasPointeeLoc(${1:TypeLoc})"
+    ],
+    "description": "Matches pointer `TypeLoc`s that have a pointee `TypeLoc` matching",
+    "prefix": "hasPointeeLoc"
+  },
+  "hasPrefix": {
+    "body": [
+      "hasPrefix(${1:NestedNameSpecifierLoc})"
+    ],
+    "description": "Matches on the prefix of a NestedNameSpecifierLoc.",
+    "prefix": "hasPrefix"
+  },
+  "hasQualifier": {
+    "body": [
+      "hasQualifier(${1:NestedNameSpecifier})"
+    ],
+    "description": "Matches Types whose qualifier, a NestedNameSpecifier,",
+    "prefix": "hasQualifier"
+  },
+  "hasRHS": {
+    "body": [
+      "hasRHS(${1:Expr})"
+    ],
+    "description": "Matches the right hand side of binary operator expressions.",
+    "prefix": "hasRHS"
+  },
+  "hasRangeInit": {
+    "body": [
+      "hasRangeInit(${1:Expr})"
+    ],
+    "description": "Matches the range initialization statement of a for loop.",
+    "prefix": "hasRangeInit"
+  },
+  "hasReceiver": {
+    "body": [
+      "hasReceiver(${1:Expr})"
+    ],
+    "description": "Matches if the Objective-C message is sent to an instance,",
+    "prefix": "hasReceiver"
+  },
+  "hasReceiverType": {
+    "body": [
+      "hasReceiverType(${1:QualType})"
+    ],
+    "description": "Matches on the receiver of an ObjectiveC Message expression.",
+    "prefix": "hasReceiverType"
+  },
+  "hasReferentLoc": {
+    "body": [
+      "hasReferentLoc(${1:TypeLoc})"
+    ],
+    "description": "Matches reference `TypeLoc`s that have a referent `TypeLoc` matching",
+    "prefix": "hasReferentLoc"
+  },
+  "hasReplacementType": {
+    "body": [
+      "hasReplacementType(${1:Type})"
+    ],
+    "description": "Matches template type parameter substitutions that have a replacement",
+    "prefix": "hasReplacementType"
+  },
+  "hasReturnTypeLoc": {
+    "body": [
+      "hasReturnTypeLoc(${1:TypeLoc})"
+    ],
+    "description": "Matches a function declared with the specified return `TypeLoc`.",
+    "prefix": "hasReturnTypeLoc"
+  },
+  "hasReturnValue": {
+    "body": [
+      "hasReturnValue(${1:Expr})"
+    ],
+    "description": "Matches the return value expression of a return statement",
+    "prefix": "hasReturnValue"
+  },
+  "hasSelector": {
+    "body": [
+      "hasSelector(\"${1:BaseName}\")"
+    ],
+    "description": "Matches when BaseName == Selector.getAsString()",
+    "prefix": "hasSelector"
+  },
+  "hasSingleDecl": {
+    "body": [
+      "hasSingleDecl(${1:Decl})"
+    ],
+    "description": "Matches the Decl of a DeclStmt which has a single declaration.",
+    "prefix": "hasSingleDecl"
+  },
+  "hasSize": {
+    "body": [
+      "hasSize(${1:N})"
+    ],
+    "description": "Matches nodes that have the specified size.",
+    "prefix": "hasSize"
+  },
+  "hasSizeExpr": {
+    "body": [
+      "hasSizeExpr(${1:Expr})"
+    ],
+    "description": "Matches VariableArrayType nodes that have a specific size",
+    "prefix": "hasSizeExpr"
+  },
+  "hasSourceExpression": {
+    "body": [
+      "hasSourceExpression(${1:Expr})"
+    ],
+    "description": "Matches if the cast's source expression",
+    "prefix": "hasSourceExpression"
+  },
+  "hasSpecializedTemplate": {
+    "body": [
+      "hasSpecializedTemplate(${1:ClassTemplateDecl})"
+    ],
+    "description": "Matches the specialized template of a specialization declaration.",
+    "prefix": "hasSpecializedTemplate"
+  },
+  "hasStaticStorageDuration": {
+    "body": [
+      "hasStaticStorageDuration()"
+    ],
+    "description": "Matches a variable declaration that has static storage duration.",
+    "prefix": "hasStaticStorageDuration"
+  },
+  "hasStructuredBlock": {
+    "body": [
+      "hasStructuredBlock(${1:Stmt})"
+    ],
+    "description": "Matches the structured-block of the OpenMP executable directive",
+    "prefix": "hasStructuredBlock"
+  },
+  "hasSyntacticForm": {
+    "body": [
+      "hasSyntacticForm(${1:Expr})"
+    ],
+    "description": "Matches the syntactic form of init list expressions",
+    "prefix": "hasSyntacticForm"
+  },
+  "hasTargetDecl": {
+    "body": [
+      "hasTargetDecl(${1:NamedDecl})"
+    ],
+    "description": "Matches a using shadow declaration where the target declaration is",
+    "prefix": "hasTargetDecl"
+  },
+  "hasTemplateArgument": {
+    "body": [
+      "hasTemplateArgument(${1:N}, ${2:TemplateArgument})"
+    ],
+    "description": "Matches templateSpecializationType, class template specializations,",
+    "prefix": "hasTemplateArgument"
+  },
+  "hasTemplateArgumentLoc": {
+    "body": [
+      "hasTemplateArgumentLoc(${1:Index}, ${2:TemplateArgumentLoc})"
+    ],
+    "description": "Matches template specialization `TypeLoc`s, class template specializations,",
+    "prefix": "hasTemplateArgumentLoc"
+  },
+  "hasThen": {
+    "body": [
+      "hasThen(${1:Stmt})"
+    ],
+    "description": "Matches the then-statement of an if statement.",
+    "prefix": "hasThen"
+  },
+  "hasThreadStorageDuration": {
+    "body": [
+      "hasThreadStorageDuration()"
+    ],
+    "description": "Matches a variable declaration that has thread storage duration.",
+    "prefix": "hasThreadStorageDuration"
+  },
+  "hasTrailingReturn": {
+    "body": [
+      "hasTrailingReturn()"
+    ],
+    "description": "Matches a function declared with a trailing return type.",
+    "prefix": "hasTrailingReturn"
+  },
+  "hasTrueExpression": {
+    "body": [
+      "hasTrueExpression(${1:Expr})"
+    ],
+    "description": "Matches the true branch expression of a conditional operator.",
+    "prefix": "hasTrueExpression"
+  },
+  "hasType": {
+    "body": [
+      "hasType(${1:Decl})"
+    ],
+    "description": "Overloaded to match the declaration of the expression's or value",
+    "prefix": "hasType"
+  },
+  "hasTypeLoc": {
+    "body": [
+      "hasTypeLoc(${1:TypeLoc})"
+    ],
+    "description": "Matches if the type location of a node matches the inner matcher.",
+    "prefix": "hasTypeLoc"
+  },
+  "hasUnaryOperand": {
+    "body": [
+      "hasUnaryOperand(${1:Expr})"
+    ],
+    "description": "Matches if the operand of a unary operator matches.",
+    "prefix": "hasUnaryOperand"
+  },
+  "hasUnarySelector": {
+    "body": [
+      "hasUnarySelector()"
+    ],
+    "description": "Matches when the selector is a Unary Selector",
+    "prefix": "hasUnarySelector"
+  },
+  "hasUnderlyingDecl": {
+    "body": [
+      "hasUnderlyingDecl(${1:NamedDecl})"
+    ],
+    "description": "Matches a NamedDecl whose underlying declaration matches the given",
+    "prefix": "hasUnderlyingDecl"
+  },
+  "hasUnderlyingType": {
+    "body": [
+      "hasUnderlyingType(${1:QualType})"
+    ],
+    "description": "Matches QualType nodes to find the underlying type.",
+    "prefix": "hasUnderlyingType"
+  },
+  "hasUnqualifiedDesugaredType": {
+    "body": [
+      "hasUnqualifiedDesugaredType(${1:Type})"
+    ],
+    "description": "Matches if the matched type matches the unqualified desugared",
+    "prefix": "hasUnqualifiedDesugaredType"
+  },
+  "hasUnqualifiedLoc": {
+    "body": [
+      "hasUnqualifiedLoc(${1:TypeLoc})"
+    ],
+    "description": "Matches `QualifiedTypeLoc`s that have an unqualified `TypeLoc` matching",
+    "prefix": "hasUnqualifiedLoc"
+  },
+  "hasValueType": {
+    "body": [
+      "hasValueType(${1:Type})"
+    ],
+    "description": "Matches atomic types with a specific value type.",
+    "prefix": "hasValueType"
+  },
+  "ifStmt": {
+    "body": [
+      "ifStmt(${1:IfStmt})"
+    ],
+    "description": "Matches if statements.",
+    "prefix": "ifStmt"
+  },
+  "ignoringElidableConstructorCall": {
+    "body": [
+      "ignoringElidableConstructorCall(${1:Expr})"
+    ],
+    "description": "Matches expressions that match InnerMatcher that are possibly wrapped in an",
+    "prefix": "ignoringElidableConstructorCall"
+  },
+  "ignoringImpCasts": {
+    "body": [
+      "ignoringImpCasts(${1:Expr})"
+    ],
+    "description": "Matches expressions that match InnerMatcher after any implicit casts",
+    "prefix": "ignoringImpCasts"
+  },
+  "ignoringImplicit": {
+    "body": [
+      "ignoringImplicit(${1:Expr})"
+    ],
+    "description": "Matches expressions that match InnerMatcher after any implicit AST",
+    "prefix": "ignoringImplicit"
+  },
+  "ignoringParenCasts": {
+    "body": [
+      "ignoringParenCasts(${1:Expr})"
+    ],
+    "description": "Matches expressions that match InnerMatcher after parentheses and",
+    "prefix": "ignoringParenCasts"
+  },
+  "ignoringParenImpCasts": {
+    "body": [
+      "ignoringParenImpCasts(${1:Expr})"
+    ],
+    "description": "Matches expressions that match InnerMatcher after implicit casts and",
+    "prefix": "ignoringParenImpCasts"
+  },
+  "ignoringParens": {
+    "body": [
+      "ignoringParens(${1:Expr})"
+    ],
+    "description": "Overload ignoringParens for Expr.",
+    "prefix": "ignoringParens"
+  },
+  "imaginaryLiteral": {
+    "body": [
+      "imaginaryLiteral(${1:ImaginaryLiteral})"
+    ],
+    "description": "Matches imaginary literals, which are based on integer and floating",
+    "prefix": "imaginaryLiteral"
+  },
+  "implicitCastExpr": {
+    "body": [
+      "implicitCastExpr(${1:ImplicitCastExpr})"
+    ],
+    "description": "Matches the implicit cast nodes of Clang's AST.",
+    "prefix": "implicitCastExpr"
+  },
+  "implicitValueInitExpr": {
+    "body": [
+      "implicitValueInitExpr(${1:ImplicitValueInitExpr})"
+    ],
+    "description": "Matches implicit initializers of init list expressions.",
+    "prefix": "implicitValueInitExpr"
+  },
+  "incompleteArrayType": {
+    "body": [
+      "incompleteArrayType(${1:IncompleteArrayType})"
+    ],
+    "description": "Matches C arrays with unspecified size.",
+    "prefix": "incompleteArrayType"
+  },
+  "indirectFieldDecl": {
+    "body": [
+      "indirectFieldDecl(${1:IndirectFieldDecl})"
+    ],
+    "description": "Matches indirect field declarations.",
+    "prefix": "indirectFieldDecl"
+  },
+  "initListExpr": {
+    "body": [
+      "initListExpr(${1:InitListExpr})"
+    ],
+    "description": "Matches init list expressions.",
+    "prefix": "initListExpr"
+  },
+  "injectedClassNameType": {
+    "body": [
+      "injectedClassNameType(${1:InjectedClassNameType})"
+    ],
+    "description": "Matches injected class name types.",
+    "prefix": "injectedClassNameType"
+  },
+  "innerType": {
+    "body": [
+      "innerType(${1:Type})"
+    ],
+    "description": "Matches ParenType nodes where the inner type is a specific type.",
+    "prefix": "innerType"
+  },
+  "integerLiteral": {
+    "body": [
+      "integerLiteral(${1:IntegerLiteral})"
+    ],
+    "description": "Matches integer literals of all sizes / encodings, e.g.",
+    "prefix": "integerLiteral"
+  },
+  "invocation": {
+    "body": [
+      "invocation(${1:anything()})"
+    ],
+    "description": "Matches function calls and constructor calls",
+    "prefix": "invocation"
+  },
+  "isAllowedToContainClauseKind": {
+    "body": [
+      "isAllowedToContainClauseKind(\"${1:OpenMPClauseKind}\")"
+    ],
+    "description": "Matches if the OpenMP directive is allowed to contain the specified OpenMP",
+    "prefix": "isAllowedToContainClauseKind"
+  },
+  "isAnonymous": {
+    "body": [
+      "isAnonymous()"
+    ],
+    "description": "Matches anonymous namespace declarations.",
+    "prefix": "isAnonymous"
+  },
+  "isAnyCharacter": {
+    "body": [
+      "isAnyCharacter()"
+    ],
+    "description": "Matches QualType nodes that are of character type.",
+    "prefix": "isAnyCharacter"
+  },
+  "isAnyPointer": {
+    "body": [
+      "isAnyPointer()"
+    ],
+    "description": "Matches QualType nodes that are of any pointer type; this includes",
+    "prefix": "isAnyPointer"
+  },
+  "isArray": {
+    "body": [
+      "isArray()"
+    ],
+    "description": "Matches array new expressions.",
+    "prefix": "isArray"
+  },
+  "isArrow": {
+    "body": [
+      "isArrow()"
+    ],
+    "description": "Matches member expressions that are called with '->' as opposed",
+    "prefix": "isArrow"
+  },
+  "isAssignmentOperator": {
+    "body": [
+      "isAssignmentOperator()"
+    ],
+    "description": "Matches all kinds of assignment operators.",
+    "prefix": "isAssignmentOperator"
+  },
+  "isAtPosition": {
+    "body": [
+      "isAtPosition(${1:N})"
+    ],
+    "description": "Matches the ParmVarDecl nodes that are at the N'th position in the parameter",
+    "prefix": "isAtPosition"
+  },
+  "isBaseInitializer": {
+    "body": [
+      "isBaseInitializer()"
+    ],
+    "description": "Matches a constructor initializer if it is initializing a base, as",
+    "prefix": "isBaseInitializer"
+  },
+  "isBinaryFold": {
+    "body": [
+      "isBinaryFold()"
+    ],
+    "description": "Matches binary fold expressions, i.e. fold expressions with an initializer.",
+    "prefix": "isBinaryFold"
+  },
+  "isBitField": {
+    "body": [
+      "isBitField()"
+    ],
+    "description": "Matches non-static data members that are bit-fields.",
+    "prefix": "isBitField"
+  },
+  "isCatchAll": {
+    "body": [
+      "isCatchAll()"
+    ],
+    "description": "Matches a C++ catch statement that has a catch-all handler.",
+    "prefix": "isCatchAll"
+  },
+  "isClass": {
+    "body": [
+      "isClass()"
+    ],
+    "description": "Matches TagDecl object that are spelled with \"class.\"",
+    "prefix": "isClass"
+  },
+  "isClassMessage": {
+    "body": [
+      "isClassMessage()"
+    ],
+    "description": "Returns true when the Objective-C message is sent to a class.",
+    "prefix": "isClassMessage"
+  },
+  "isClassMethod": {
+    "body": [
+      "isClassMethod()"
+    ],
+    "description": "Returns true when the Objective-C method declaration is a class method.",
+    "prefix": "isClassMethod"
+  },
+  "isComparisonOperator": {
+    "body": [
+      "isComparisonOperator()"
+    ],
+    "description": "Matches comparison operators.",
+    "prefix": "isComparisonOperator"
+  },
+  "isConst": {
+    "body": [
+      "isConst()"
+    ],
+    "description": "Matches if the given method declaration is const.",
+    "prefix": "isConst"
+  },
+  "isConstQualified": {
+    "body": [
+      "isConstQualified()"
+    ],
+    "description": "Matches QualType nodes that are const-qualified, i.e., that",
+    "prefix": "isConstQualified"
+  },
+  "isConsteval": {
+    "body": [
+      "isConsteval()"
+    ],
+    "description": "Matches consteval function declarations and if consteval/if ! consteval",
+    "prefix": "isConsteval"
+  },
+  "isConstexpr": {
+    "body": [
+      "isConstexpr()"
+    ],
+    "description": "Matches constexpr variable and function declarations,",
+    "prefix": "isConstexpr"
+  },
+  "isConstinit": {
+    "body": [
+      "isConstinit()"
+    ],
+    "description": "Matches constinit variable declarations.",
+    "prefix": "isConstinit"
+  },
+  "isCopyAssignmentOperator": {
+    "body": [
+      "isCopyAssignmentOperator()"
+    ],
+    "description": "Matches if the given method declaration declares a copy assignment",
+    "prefix": "isCopyAssignmentOperator"
+  },
+  "isCopyConstructor": {
+    "body": [
+      "isCopyConstructor()"
+    ],
+    "description": "Matches constructor declarations that are copy constructors.",
+    "prefix": "isCopyConstructor"
+  },
+  "isDefaultConstructor": {
+    "body": [
+      "isDefaultConstructor()"
+    ],
+    "description": "Matches constructor declarations that are default constructors.",
+    "prefix": "isDefaultConstructor"
+  },
+  "isDefaulted": {
+    "body": [
+      "isDefaulted()"
+    ],
+    "description": "Matches defaulted function declarations.",
+    "prefix": "isDefaulted"
+  },
+  "isDefinition": {
+    "body": [
+      "isDefinition()"
+    ],
+    "description": "Matches if a declaration has a body attached.",
+    "prefix": "isDefinition"
+  },
+  "isDelegatingConstructor": {
+    "body": [
+      "isDelegatingConstructor()"
+    ],
+    "description": "Matches constructors that delegate to another constructor.",
+    "prefix": "isDelegatingConstructor"
+  },
+  "isDeleted": {
+    "body": [
+      "isDeleted()"
+    ],
+    "description": "Matches deleted function declarations.",
+    "prefix": "isDeleted"
+  },
+  "isDerivedFrom": {
+    "body": [
+      "isDerivedFrom(\"${1:BaseName}\")"
+    ],
+    "description": "Overloaded method as shortcut for isDerivedFrom(hasName(...)).",
+    "prefix": "isDerivedFrom"
+  },
+  "isDirectlyDerivedFrom": {
+    "body": [
+      "isDirectlyDerivedFrom(\"${1:BaseName}\")"
+    ],
+    "description": "Overloaded method as shortcut for isDirectlyDerivedFrom(hasName(...)).",
+    "prefix": "isDirectlyDerivedFrom"
+  },
+  "isEnum": {
+    "body": [
+      "isEnum()"
+    ],
+    "description": "Matches TagDecl object that are spelled with \"enum.\"",
+    "prefix": "isEnum"
+  },
+  "isExceptionVariable": {
+    "body": [
+      "isExceptionVariable()"
+    ],
+    "description": "Matches a variable declaration that is an exception variable from",
+    "prefix": "isExceptionVariable"
+  },
+  "isExpandedFromMacro": {
+    "body": [
+      "isExpandedFromMacro(\"${1:MacroName}\")"
+    ],
+    "description": "Matches statements that are (transitively) expanded from the named macro.",
+    "prefix": "isExpandedFromMacro"
+  },
+  "isExpansionInFileMatching": {
+    "body": [
+      "isExpansionInFileMatching(\"${1:RegExp}\", ${2:Flags})"
+    ],
+    "description": "Matches AST nodes that were expanded within files whose name is",
+    "prefix": "isExpansionInFileMatching"
+  },
+  "isExpansionInMainFile": {
+    "body": [
+      "isExpansionInMainFile()"
+    ],
+    "description": "Matches AST nodes that were expanded within the main-file.",
+    "prefix": "isExpansionInMainFile"
+  },
+  "isExpansionInSystemHeader": {
+    "body": [
+      "isExpansionInSystemHeader()"
+    ],
+    "description": "Matches AST nodes that were expanded within system-header-files.",
+    "prefix": "isExpansionInSystemHeader"
+  },
+  "isExplicit": {
+    "body": [
+      "isExplicit()"
+    ],
+    "description": "Matches constructor, conversion function, and deduction guide declarations",
+    "prefix": "isExplicit"
+  },
+  "isExplicitObjectMemberFunction": {
+    "body": [
+      "isExplicitObjectMemberFunction()"
+    ],
+    "description": "Matches if the given method declaration declares a member function with an",
+    "prefix": "isExplicitObjectMemberFunction"
+  },
+  "isExplicitTemplateSpecialization": {
+    "body": [
+      "isExplicitTemplateSpecialization()"
+    ],
+    "description": "Matches explicit template specializations of function, class, or",
+    "prefix": "isExplicitTemplateSpecialization"
+  },
+  "isExpr": {
+    "body": [
+      "isExpr(${1:Expr})"
+    ],
+    "description": "Matches a sugar TemplateArgument that refers to a certain expression.",
+    "prefix": "isExpr"
+  },
+  "isExternC": {
+    "body": [
+      "isExternC()"
+    ],
+    "description": "Matches extern \"C\" function or variable declarations.",
+    "prefix": "isExternC"
+  },
+  "isFinal": {
+    "body": [
+      "isFinal()"
+    ],
+    "description": "Matches if the given method or class declaration is final.",
+    "prefix": "isFinal"
+  },
+  "isFirstPrivateKind": {
+    "body": [
+      "isFirstPrivateKind()"
+    ],
+    "description": "Matches if the OpenMP ``default`` clause has ``firstprivate`` kind",
+    "prefix": "isFirstPrivateKind"
+  },
+  "isImplicit": {
+    "body": [
+      "isImplicit()"
+    ],
+    "description": "Matches an entity that has been implicitly added by the compiler (e.g.",
+    "prefix": "isImplicit"
+  },
+  "isInAnonymousNamespace": {
+    "body": [
+      "isInAnonymousNamespace()"
+    ],
+    "description": "Matches declarations in an anonymous namespace.",
+    "prefix": "isInAnonymousNamespace"
+  },
+  "isInStdNamespace": {
+    "body": [
+      "isInStdNamespace()"
+    ],
+    "description": "Matches declarations in the namespace `std`, but not in nested namespaces.",
+    "prefix": "isInStdNamespace"
+  },
+  "isInTemplateInstantiation": {
+    "body": [
+      "isInTemplateInstantiation()"
+    ],
+    "description": "Matches statements inside of a template instantiation.",
+    "prefix": "isInTemplateInstantiation"
+  },
+  "isInitCapture": {
+    "body": [
+      "isInitCapture()"
+    ],
+    "description": "Matches a variable serving as the implicit variable for a lambda init-",
+    "prefix": "isInitCapture"
+  },
+  "isInline": {
+    "body": [
+      "isInline()"
+    ],
+    "description": "Matches functions, variables and namespace declarations that are marked with",
+    "prefix": "isInline"
+  },
+  "isInstanceMessage": {
+    "body": [
+      "isInstanceMessage()"
+    ],
+    "description": "Returns true when the Objective-C message is sent to an instance.",
+    "prefix": "isInstanceMessage"
+  },
+  "isInstanceMethod": {
+    "body": [
+      "isInstanceMethod()"
+    ],
+    "description": "Returns true when the Objective-C method declaration is an instance method.",
+    "prefix": "isInstanceMethod"
+  },
+  "isInstantiated": {
+    "body": [
+      "isInstantiated()"
+    ],
+    "description": "Matches declarations that are template instantiations or are inside",
+    "prefix": "isInstantiated"
+  },
+  "isInstantiationDependent": {
+    "body": [
+      "isInstantiationDependent()"
+    ],
+    "description": "Matches expressions that are instantiation-dependent even if it is",
+    "prefix": "isInstantiationDependent"
+  },
+  "isInteger": {
+    "body": [
+      "isInteger()"
+    ],
+    "description": "Matches QualType nodes that are of integer type.",
+    "prefix": "isInteger"
+  },
+  "isIntegral": {
+    "body": [
+      "isIntegral()"
+    ],
+    "description": "Matches a TemplateArgument that is an integral value.",
+    "prefix": "isIntegral"
+  },
+  "isLambda": {
+    "body": [
+      "isLambda()"
+    ],
+    "description": "Matches the generated class of lambda expressions.",
+    "prefix": "isLambda"
+  },
+  "isLeftFold": {
+    "body": [
+      "isLeftFold()"
+    ],
+    "description": "Matches left-folding fold expressions.",
+    "prefix": "isLeftFold"
+  },
+  "isListInitialization": {
+    "body": [
+      "isListInitialization()"
+    ],
+    "description": "Matches a constructor call expression which uses list initialization.",
+    "prefix": "isListInitialization"
+  },
+  "isMain": {
+    "body": [
+      "isMain()"
+    ],
+    "description": "Determines whether the function is \"main\", which is the entry point",
+    "prefix": "isMain"
+  },
+  "isMemberInitializer": {
+    "body": [
+      "isMemberInitializer()"
+    ],
+    "description": "Matches a constructor initializer if it is initializing a member, as",
+    "prefix": "isMemberInitializer"
+  },
+  "isMoveAssignmentOperator": {
+    "body": [
+      "isMoveAssignmentOperator()"
+    ],
+    "description": "Matches if the given method declaration declares a move assignment",
+    "prefix": "isMoveAssignmentOperator"
+  },
+  "isMoveConstructor": {
+    "body": [
+      "isMoveConstructor()"
+    ],
+    "description": "Matches constructor declarations that are move constructors.",
+    "prefix": "isMoveConstructor"
+  },
+  "isNoReturn": {
+    "body": [
+      "isNoReturn()"
+    ],
+    "description": "Matches FunctionDecls that have a noreturn attribute.",
+    "prefix": "isNoReturn"
+  },
+  "isNoThrow": {
+    "body": [
+      "isNoThrow()"
+    ],
+    "description": "Matches functions that have a non-throwing exception specification.",
+    "prefix": "isNoThrow"
+  },
+  "isNoneKind": {
+    "body": [
+      "isNoneKind()"
+    ],
+    "description": "Matches if the OpenMP ``default`` clause has ``none`` kind specified.",
+    "prefix": "isNoneKind"
+  },
+  "isOverride": {
+    "body": [
+      "isOverride()"
+    ],
+    "description": "Matches if the given method declaration overrides another method.",
+    "prefix": "isOverride"
+  },
+  "isPrivate": {
+    "body": [
+      "isPrivate()"
+    ],
+    "description": "Matches private C++ declarations and C++ base specifiers that specify",
+    "prefix": "isPrivate"
+  },
+  "isPrivateKind": {
+    "body": [
+      "isPrivateKind()"
+    ],
+    "description": "Matches if the OpenMP ``default`` clause has ``private`` kind",
+    "prefix": "isPrivateKind"
+  },
+  "isProtected": {
+    "body": [
+      "isProtected()"
+    ],
+    "description": "Matches protected C++ declarations and C++ base specifiers that specify",
+    "prefix": "isProtected"
+  },
+  "isPublic": {
+    "body": [
+      "isPublic()"
+    ],
+    "description": "Matches public C++ declarations and C++ base specifiers that specify public",
+    "prefix": "isPublic"
+  },
+  "isPure": {
+    "body": [
+      "isPure()"
+    ],
+    "description": "Matches if the given method declaration is pure.",
+    "prefix": "isPure"
+  },
+  "isRightFold": {
+    "body": [
+      "isRightFold()"
+    ],
+    "description": "Matches right-folding fold expressions.",
+    "prefix": "isRightFold"
+  },
+  "isSameOrDerivedFrom": {
+    "body": [
+      "isSameOrDerivedFrom(\"${1:BaseName}\")"
+    ],
+    "description": "Overloaded method as shortcut for",
+    "prefix": "isSameOrDerivedFrom"
+  },
+  "isScoped": {
+    "body": [
+      "isScoped()"
+    ],
+    "description": "Matches C++11 scoped enum declaration.",
+    "prefix": "isScoped"
+  },
+  "isSharedKind": {
+    "body": [
+      "isSharedKind()"
+    ],
+    "description": "Matches if the OpenMP ``default`` clause has ``shared`` kind specified.",
+    "prefix": "isSharedKind"
+  },
+  "isSignedInteger": {
+    "body": [
+      "isSignedInteger()"
+    ],
+    "description": "Matches QualType nodes that are of signed integer type.",
+    "prefix": "isSignedInteger"
+  },
+  "isStandaloneDirective": {
+    "body": [
+      "isStandaloneDirective()"
+    ],
+    "description": "Matches standalone OpenMP directives,",
+    "prefix": "isStandaloneDirective"
+  },
+  "isStaticLocal": {
+    "body": [
+      "isStaticLocal()"
+    ],
+    "description": "Matches a static variable with local scope.",
+    "prefix": "isStaticLocal"
+  },
+  "isStaticStorageClass": {
+    "body": [
+      "isStaticStorageClass()"
+    ],
+    "description": "Matches variable/function declarations that have \"static\" storage",
+    "prefix": "isStaticStorageClass"
+  },
+  "isStruct": {
+    "body": [
+      "isStruct()"
+    ],
+    "description": "Matches TagDecl object that are spelled with \"struct.\"",
+    "prefix": "isStruct"
+  },
+  "isTemplateInstantiation": {
+    "body": [
+      "isTemplateInstantiation()"
+    ],
+    "description": "Matches template instantiations of function, class, or static",
+    "prefix": "isTemplateInstantiation"
+  },
+  "isTypeDependent": {
+    "body": [
+      "isTypeDependent()"
+    ],
+    "description": "Matches expressions that are type-dependent because the template type",
+    "prefix": "isTypeDependent"
+  },
+  "isUnaryFold": {
+    "body": [
+      "isUnaryFold()"
+    ],
+    "description": "Matches unary fold expressions, i.e. fold expressions without an",
+    "prefix": "isUnaryFold"
+  },
+  "isUnion": {
+    "body": [
+      "isUnion()"
+    ],
+    "description": "Matches TagDecl object that are spelled with \"union.\"",
+    "prefix": "isUnion"
+  },
+  "isUnsignedInteger": {
+    "body": [
+      "isUnsignedInteger()"
+    ],
+    "description": "Matches QualType nodes that are of unsigned integer type.",
+    "prefix": "isUnsignedInteger"
+  },
+  "isUserProvided": {
+    "body": [
+      "isUserProvided()"
+    ],
+    "description": "Matches method declarations that are user-provided.",
+    "prefix": "isUserProvided"
+  },
+  "isValueDependent": {
+    "body": [
+      "isValueDependent()"
+    ],
+    "description": "Matches expression that are value-dependent because they contain a",
+    "prefix": "isValueDependent"
+  },
+  "isVariadic": {
+    "body": [
+      "isVariadic()"
+    ],
+    "description": "Matches if a function declaration is variadic.",
+    "prefix": "isVariadic"
+  },
+  "isVirtual": {
+    "body": [
+      "isVirtual()"
+    ],
+    "description": "Matches declarations of virtual methods and C++ base specifiers that specify",
+    "prefix": "isVirtual"
+  },
+  "isVirtualAsWritten": {
+    "body": [
+      "isVirtualAsWritten()"
+    ],
+    "description": "Matches if the given method declaration has an explicit \"virtual\".",
+    "prefix": "isVirtualAsWritten"
+  },
+  "isVolatileQualified": {
+    "body": [
+      "isVolatileQualified()"
+    ],
+    "description": "Matches QualType nodes that are volatile-qualified, i.e., that",
+    "prefix": "isVolatileQualified"
+  },
+  "isWeak": {
+    "body": [
+      "isWeak()"
+    ],
+    "description": "Matches weak function declarations.",
+    "prefix": "isWeak"
+  },
+  "isWritten": {
+    "body": [
+      "isWritten()"
+    ],
+    "description": "Matches a constructor initializer if it is explicitly written in",
+    "prefix": "isWritten"
+  },
+  "lValueReferenceType": {
+    "body": [
+      "lValueReferenceType(${1:LValueReferenceType})"
+    ],
+    "description": "Matches lvalue reference types.",
+    "prefix": "lValueReferenceType"
+  },
+  "labelDecl": {
+    "body": [
+      "labelDecl(${1:LabelDecl})"
+    ],
+    "description": "Matches a declaration of label.",
+    "prefix": "labelDecl"
+  },
+  "labelStmt": {
+    "body": [
+      "labelStmt(${1:LabelStmt})"
+    ],
+    "description": "Matches label statements.",
+    "prefix": "labelStmt"
+  },
+  "lambdaCapture": {
+    "body": [
+      "lambdaCapture(${1:LambdaCapture})"
+    ],
+    "description": "Matches lambda captures.",
+    "prefix": "lambdaCapture"
+  },
+  "lambdaExpr": {
+    "body": [
+      "lambdaExpr(${1:LambdaExpr})"
+    ],
+    "description": "Matches lambda expressions.",
+    "prefix": "lambdaExpr"
+  },
+  "let": {
+    "body": [
+      "let ${1:name} ${2:matcher}()"
+    ],
+    "description": "Name a matcher expression for reuse.",
+    "prefix": "let"
+  },
+  "linkageSpecDecl": {
+    "body": [
+      "linkageSpecDecl(${1:LinkageSpecDecl})"
+    ],
+    "description": "Matches a declaration of a linkage specification.",
+    "prefix": "linkageSpecDecl"
+  },
+  "loc": {
+    "body": [
+      "loc(${1:NestedNameSpecifier})"
+    ],
+    "description": "Matches NestedNameSpecifierLocs for which the given inner",
+    "prefix": "loc"
+  },
+  "macroQualifiedType": {
+    "body": [
+      "macroQualifiedType(${1:MacroQualifiedType})"
+    ],
+    "description": "Matches qualified types when the qualifier is applied via a macro.",
+    "prefix": "macroQualifiedType"
+  },
+  "mapAnyOf": {
+    "body": [
+      "mapAnyOf(${1:nodeMatcherFunction})"
+    ],
+    "description": "Matches any of the NodeMatchers with InnerMatchers nested within",
+    "prefix": "mapAnyOf"
+  },
+  "match": {
+    "body": [
+      "match ${1:functionDecl}(${2}).bind(\"${3:m}\")"
+    ],
+    "description": "Match the loaded ASTs against a matcher.",
+    "prefix": "match"
+  },
+  "matchesName": {
+    "body": [
+      "matchesName(\"${1:RegExp}\", ${2:Flags})"
+    ],
+    "description": "Matches NamedDecl nodes whose fully qualified names contain",
+    "prefix": "matchesName"
+  },
+  "matchesSelector": {
+    "body": [
+      "matchesSelector(\"${1:RegExp}\", ${2:Flags})"
+    ],
+    "description": "Matches ObjC selectors whose name contains",
+    "prefix": "matchesSelector"
+  },
+  "materializeTemporaryExpr": {
+    "body": [
+      "materializeTemporaryExpr(${1:MaterializeTemporaryExpr})"
+    ],
+    "description": "Matches nodes where temporaries are materialized.",
+    "prefix": "materializeTemporaryExpr"
+  },
+  "member": {
+    "body": [
+      "member(${1:ValueDecl})"
+    ],
+    "description": "Matches a member expression where the member is matched by a",
+    "prefix": "member"
+  },
+  "memberExpr": {
+    "body": [
+      "memberExpr(${1:MemberExpr})"
+    ],
+    "description": "Matches member expressions.",
+    "prefix": "memberExpr"
+  },
+  "memberHasSameNameAsBoundNode": {
+    "body": [
+      "memberHasSameNameAsBoundNode(\"${1:BindingID}\")"
+    ],
+    "description": "Matches template-dependent, but known, member names against an already-bound",
+    "prefix": "memberHasSameNameAsBoundNode"
+  },
+  "memberPointerType": {
+    "body": [
+      "memberPointerType(${1:MemberPointerType})"
+    ],
+    "description": "Matches member pointer types.",
+    "prefix": "memberPointerType"
+  },
+  "namedDecl": {
+    "body": [
+      "namedDecl(${1:NamedDecl})"
+    ],
+    "description": "Matches a declaration of anything that could have a name.",
+    "prefix": "namedDecl"
+  },
+  "namespaceAliasDecl": {
+    "body": [
+      "namespaceAliasDecl(${1:NamespaceAliasDecl})"
+    ],
+    "description": "Matches a declaration of a namespace alias.",
+    "prefix": "namespaceAliasDecl"
+  },
+  "namespaceDecl": {
+    "body": [
+      "namespaceDecl(${1:NamespaceDecl})"
+    ],
+    "description": "Matches a declaration of a namespace.",
+    "prefix": "namespaceDecl"
+  },
+  "nestedNameSpecifier": {
+    "body": [
+      "nestedNameSpecifier(${1:NestedNameSpecifier})"
+    ],
+    "description": "Matches nested name specifiers.",
+    "prefix": "nestedNameSpecifier"
+  },
+  "nestedNameSpecifierLoc": {
+    "body": [
+      "nestedNameSpecifierLoc(${1:NestedNameSpecifierLoc})"
+    ],
+    "description": "Same as nestedNameSpecifier but matches NestedNameSpecifierLoc.",
+    "prefix": "nestedNameSpecifierLoc"
+  },
+  "nonTypeTemplateParmDecl": {
+    "body": [
+      "nonTypeTemplateParmDecl(${1:NonTypeTemplateParmDecl})"
+    ],
+    "description": "Matches non-type template parameter declarations.",
+    "prefix": "nonTypeTemplateParmDecl"
+  },
+  "nullPointerConstant": {
+    "body": [
+      "nullPointerConstant()"
+    ],
+    "description": "Matches expressions that resolve to a null pointer constant, such as",
+    "prefix": "nullPointerConstant"
+  },
+  "nullStmt": {
+    "body": [
+      "nullStmt(${1:NullStmt})"
+    ],
+    "description": "Matches null statements.",
+    "prefix": "nullStmt"
+  },
+  "numSelectorArgs": {
+    "body": [
+      "numSelectorArgs(${1:N})"
+    ],
+    "description": "Matches when the selector has the specified number of arguments",
+    "prefix": "numSelectorArgs"
+  },
+  "objcCatchStmt": {
+    "body": [
+      "objcCatchStmt(${1:ObjCAtCatchStmt})"
+    ],
+    "description": "Matches Objective-C @catch statements.",
+    "prefix": "objcCatchStmt"
+  },
+  "objcCategoryDecl": {
+    "body": [
+      "objcCategoryDecl(${1:ObjCCategoryDecl})"
+    ],
+    "description": "Matches Objective-C category declarations.",
+    "prefix": "objcCategoryDecl"
+  },
+  "objcCategoryImplDecl": {
+    "body": [
+      "objcCategoryImplDecl(${1:ObjCCategoryImplDecl})"
+    ],
+    "description": "Matches Objective-C category definitions.",
+    "prefix": "objcCategoryImplDecl"
+  },
+  "objcFinallyStmt": {
+    "body": [
+      "objcFinallyStmt(${1:ObjCAtFinallyStmt})"
+    ],
+    "description": "Matches Objective-C @finally statements.",
+    "prefix": "objcFinallyStmt"
+  },
+  "objcImplementationDecl": {
+    "body": [
+      "objcImplementationDecl(${1:ObjCImplementationDecl})"
+    ],
+    "description": "Matches Objective-C implementation declarations.",
+    "prefix": "objcImplementationDecl"
+  },
+  "objcInterfaceDecl": {
+    "body": [
+      "objcInterfaceDecl(${1:ObjCInterfaceDecl})"
+    ],
+    "description": "Matches Objective-C interface declarations.",
+    "prefix": "objcInterfaceDecl"
+  },
+  "objcIvarDecl": {
+    "body": [
+      "objcIvarDecl(${1:ObjCIvarDecl})"
+    ],
+    "description": "Matches Objective-C instance variable declarations.",
+    "prefix": "objcIvarDecl"
+  },
+  "objcIvarRefExpr": {
+    "body": [
+      "objcIvarRefExpr(${1:ObjCIvarRefExpr})"
+    ],
+    "description": "Matches a reference to an ObjCIvar.",
+    "prefix": "objcIvarRefExpr"
+  },
+  "objcMessageExpr": {
+    "body": [
+      "objcMessageExpr(${1:ObjCMessageExpr})"
+    ],
+    "description": "Matches ObjectiveC Message invocation expressions.",
+    "prefix": "objcMessageExpr"
+  },
+  "objcMethodDecl": {
+    "body": [
+      "objcMethodDecl(${1:ObjCMethodDecl})"
+    ],
+    "description": "Matches Objective-C method declarations.",
+    "prefix": "objcMethodDecl"
+  },
+  "objcObjectPointerType": {
+    "body": [
+      "objcObjectPointerType(${1:ObjCObjectPointerType})"
+    ],
+    "description": "Matches an Objective-C object pointer type, which is different from",
+    "prefix": "objcObjectPointerType"
+  },
+  "objcPropertyDecl": {
+    "body": [
+      "objcPropertyDecl(${1:ObjCPropertyDecl})"
+    ],
+    "description": "Matches Objective-C property declarations.",
+    "prefix": "objcPropertyDecl"
+  },
+  "objcProtocolDecl": {
+    "body": [
+      "objcProtocolDecl(${1:ObjCProtocolDecl})"
+    ],
+    "description": "Matches Objective-C protocol declarations.",
+    "prefix": "objcProtocolDecl"
+  },
+  "objcStringLiteral": {
+    "body": [
+      "objcStringLiteral(${1:ObjCStringLiteral})"
+    ],
+    "description": "Matches ObjectiveC String literal expressions.",
+    "prefix": "objcStringLiteral"
+  },
+  "objcThrowStmt": {
+    "body": [
+      "objcThrowStmt(${1:ObjCAtThrowStmt})"
+    ],
+    "description": "Matches Objective-C statements.",
+    "prefix": "objcThrowStmt"
+  },
+  "objcTryStmt": {
+    "body": [
+      "objcTryStmt(${1:ObjCAtTryStmt})"
+    ],
+    "description": "Matches Objective-C @try statements.",
+    "prefix": "objcTryStmt"
+  },
+  "ofClass": {
+    "body": [
+      "ofClass(${1:CXXRecordDecl})"
+    ],
+    "description": "Matches the class declaration that the given method declaration",
+    "prefix": "ofClass"
+  },
+  "ofKind": {
+    "body": [
+      "ofKind(\"${1:UnaryExprOrTypeTrait}\")"
+    ],
+    "description": "Matches unary expressions of a certain kind.",
+    "prefix": "ofKind"
+  },
+  "ompDefaultClause": {
+    "body": [
+      "ompDefaultClause(${1:OMPDefaultClause})"
+    ],
+    "description": "Matches OpenMP ``default`` clause.",
+    "prefix": "ompDefaultClause"
+  },
+  "ompExecutableDirective": {
+    "body": [
+      "ompExecutableDirective(${1:OMPExecutableDirective})"
+    ],
+    "description": "Matches any ``#pragma omp`` executable directive.",
+    "prefix": "ompExecutableDirective"
+  },
+  "on": {
+    "body": [
+      "on(${1:Expr})"
+    ],
+    "description": "Matches on the implicit object argument of a member call expression, after",
+    "prefix": "on"
+  },
+  "onImplicitObjectArgument": {
+    "body": [
+      "onImplicitObjectArgument(${1:Expr})"
+    ],
+    "description": "Matches on the implicit object argument of a member call expression. Unlike",
+    "prefix": "onImplicitObjectArgument"
+  },
+  "opaqueValueExpr": {
+    "body": [
+      "opaqueValueExpr(${1:OpaqueValueExpr})"
+    ],
+    "description": "Matches opaque value expressions. They are used as helpers",
+    "prefix": "opaqueValueExpr"
+  },
+  "optionally": {
+    "body": [
+      "optionally(${1:anything()})"
+    ],
+    "description": "Matches any node regardless of the submatcher.",
+    "prefix": "optionally"
+  },
+  "parameterCountIs": {
+    "body": [
+      "parameterCountIs(${1:N})"
+    ],
+    "description": "Matches FunctionDecls and FunctionProtoTypes that have a",
+    "prefix": "parameterCountIs"
+  },
+  "parenExpr": {
+    "body": [
+      "parenExpr(${1:ParenExpr})"
+    ],
+    "description": "Matches parentheses used in expressions.",
+    "prefix": "parenExpr"
+  },
+  "parenListExpr": {
+    "body": [
+      "parenListExpr(${1:ParenListExpr})"
+    ],
+    "description": "Matches paren list expressions.",
+    "prefix": "parenListExpr"
+  },
+  "parenType": {
+    "body": [
+      "parenType(${1:ParenType})"
+    ],
+    "description": "Matches ParenType nodes.",
+    "prefix": "parenType"
+  },
+  "parmVarDecl": {
+    "body": [
+      "parmVarDecl(${1:ParmVarDecl})"
+    ],
+    "description": "Matches parameter variable declarations.",
+    "prefix": "parmVarDecl"
+  },
+  "pointee": {
+    "body": [
+      "pointee(${1:Type})"
+    ],
+    "description": "Narrows PointerType (and similar) matchers to those where the",
+    "prefix": "pointee"
+  },
+  "pointerType": {
+    "body": [
+      "pointerType(${1:PointerType})"
+    ],
+    "description": "Matches pointer types, but does not match Objective-C object pointer",
+    "prefix": "pointerType"
+  },
+  "pointerTypeLoc": {
+    "body": [
+      "pointerTypeLoc(${1:PointerTypeLoc})"
+    ],
+    "description": "Matches pointer `TypeLoc`s.",
+    "prefix": "pointerTypeLoc"
+  },
+  "pointsTo": {
+    "body": [
+      "pointsTo(${1:Decl})"
+    ],
+    "description": "Overloaded to match the pointee type's declaration.",
+    "prefix": "pointsTo"
+  },
+  "predefinedExpr": {
+    "body": [
+      "predefinedExpr(${1:PredefinedExpr})"
+    ],
+    "description": "Matches predefined identifier expressions [C99 6.4.2.2].",
+    "prefix": "predefinedExpr"
+  },
+  "qualType": {
+    "body": [
+      "qualType(${1:QualType})"
+    ],
+    "description": "Matches QualTypes in the clang AST.",
+    "prefix": "qualType"
+  },
+  "qualifiedTypeLoc": {
+    "body": [
+      "qualifiedTypeLoc(${1:QualifiedTypeLoc})"
+    ],
+    "description": "Matches `QualifiedTypeLoc`s in the clang AST.",
+    "prefix": "qualifiedTypeLoc"
+  },
+  "query file header": {
+    "body": [
+      "# ${1:name}.query \u2014 ${2:what this check finds}.",
+      "# Run:  \\$LLVM/bin/clang-query -f ${3:manifests/queries/$1.query} ${4:manifests/capstone.cpp} -- -std=c++23",
+      "set output diag",
+      "",
+      "match ${5:functionDecl}().bind(\"${6:m}\")"
+    ],
+    "description": "Skeleton for a clang-query -f script.",
+    "prefix": "queryheader"
+  },
+  "rValueReferenceType": {
+    "body": [
+      "rValueReferenceType(${1:RValueReferenceType})"
+    ],
+    "description": "Matches rvalue reference types.",
+    "prefix": "rValueReferenceType"
+  },
+  "realFloatingPointType": {
+    "body": [
+      "realFloatingPointType()"
+    ],
+    "description": "Matches any real floating-point type (float, double, long double).",
+    "prefix": "realFloatingPointType"
+  },
+  "recordDecl": {
+    "body": [
+      "recordDecl(${1:RecordDecl})"
+    ],
+    "description": "Matches class, struct, and union declarations.",
+    "prefix": "recordDecl"
+  },
+  "recordType": {
+    "body": [
+      "recordType(${1:RecordType})"
+    ],
+    "description": "Matches record types (e.g. structs, classes).",
+    "prefix": "recordType"
+  },
+  "referenceType": {
+    "body": [
+      "referenceType(${1:ReferenceType})"
+    ],
+    "description": "Matches both lvalue and rvalue reference types.",
+    "prefix": "referenceType"
+  },
+  "referenceTypeLoc": {
+    "body": [
+      "referenceTypeLoc(${1:ReferenceTypeLoc})"
+    ],
+    "description": "Matches reference `TypeLoc`s.",
+    "prefix": "referenceTypeLoc"
+  },
+  "references": {
+    "body": [
+      "references(${1:Decl})"
+    ],
+    "description": "Overloaded to match the referenced type's declaration.",
+    "prefix": "references"
+  },
+  "refersToDeclaration": {
+    "body": [
+      "refersToDeclaration(${1:Decl})"
+    ],
+    "description": "Matches a canonical TemplateArgument that refers to a certain",
+    "prefix": "refersToDeclaration"
+  },
+  "refersToIntegralType": {
+    "body": [
+      "refersToIntegralType(${1:QualType})"
+    ],
+    "description": "Matches a TemplateArgument that refers to an integral type.",
+    "prefix": "refersToIntegralType"
+  },
+  "refersToTemplate": {
+    "body": [
+      "refersToTemplate(${1:TemplateName})"
+    ],
+    "description": "Matches a TemplateArgument that refers to a certain template.",
+    "prefix": "refersToTemplate"
+  },
+  "refersToType": {
+    "body": [
+      "refersToType(${1:QualType})"
+    ],
+    "description": "Matches a TemplateArgument that refers to a certain type.",
+    "prefix": "refersToType"
+  },
+  "requiresZeroInitialization": {
+    "body": [
+      "requiresZeroInitialization()"
+    ],
+    "description": "Matches a constructor call expression which requires",
+    "prefix": "requiresZeroInitialization"
+  },
+  "returnStmt": {
+    "body": [
+      "returnStmt(${1:ReturnStmt})"
+    ],
+    "description": "Matches return statements.",
+    "prefix": "returnStmt"
+  },
+  "returns": {
+    "body": [
+      "returns(${1:QualType})"
+    ],
+    "description": "Matches the return type of a function declaration.",
+    "prefix": "returns"
+  },
+  "set output diag": {
+    "body": [
+      "set output diag"
+    ],
+    "description": "Report only the source location of bound nodes.",
+    "prefix": "setdiag"
+  },
+  "set traversal": {
+    "body": [
+      "set traversal ${1|AsIs,IgnoreUnlessSpelledInSource|}"
+    ],
+    "description": "Change the session traversal kind.",
+    "prefix": "settraversal"
+  },
+  "sizeOfExpr": {
+    "body": [
+      "sizeOfExpr(${1:UnaryExprOrTypeTraitExpr})"
+    ],
+    "description": "Same as unaryExprOrTypeTraitExpr, but only matching",
+    "prefix": "sizeOfExpr"
+  },
+  "specifiesNamespace": {
+    "body": [
+      "specifiesNamespace(${1:NamespaceDecl})"
+    ],
+    "description": "Matches nested name specifiers that specify a namespace matching the",
+    "prefix": "specifiesNamespace"
+  },
+  "specifiesType": {
+    "body": [
+      "specifiesType(${1:QualType})"
+    ],
+    "description": "Matches nested name specifiers that specify a type matching the",
+    "prefix": "specifiesType"
+  },
+  "specifiesTypeLoc": {
+    "body": [
+      "specifiesTypeLoc(${1:TypeLoc})"
+    ],
+    "description": "Matches nested name specifier locs that specify a type matching the",
+    "prefix": "specifiesTypeLoc"
+  },
+  "statementCountIs": {
+    "body": [
+      "statementCountIs(${1:N})"
+    ],
+    "description": "Checks that a compound statement contains a specific number of",
+    "prefix": "statementCountIs"
+  },
+  "staticAssertDecl": {
+    "body": [
+      "staticAssertDecl(${1:StaticAssertDecl})"
+    ],
+    "description": "Matches a C++ static_assert declaration.",
+    "prefix": "staticAssertDecl"
+  },
+  "stmt": {
+    "body": [
+      "stmt(${1:Stmt})"
+    ],
+    "description": "Matches statements.",
+    "prefix": "stmt"
+  },
+  "stmtExpr": {
+    "body": [
+      "stmtExpr(${1:StmtExpr})"
+    ],
+    "description": "Matches statement expression (GNU extension).",
+    "prefix": "stmtExpr"
+  },
+  "stringLiteral": {
+    "body": [
+      "stringLiteral(${1:StringLiteral})"
+    ],
+    "description": "Matches string literals (also matches wide string literals).",
+    "prefix": "stringLiteral"
+  },
+  "substNonTypeTemplateParmExpr": {
+    "body": [
+      "substNonTypeTemplateParmExpr(${1:SubstNonTypeTemplateParmExpr})"
+    ],
+    "description": "Matches substitutions of non-type template parameters.",
+    "prefix": "substNonTypeTemplateParmExpr"
+  },
+  "substTemplateTypeParmType": {
+    "body": [
+      "substTemplateTypeParmType(${1:SubstTemplateTypeParmType})"
+    ],
+    "description": "Matches types that represent the result of substituting a type for a",
+    "prefix": "substTemplateTypeParmType"
+  },
+  "switchCase": {
+    "body": [
+      "switchCase(${1:SwitchCase})"
+    ],
+    "description": "Matches case and default statements inside switch statements.",
+    "prefix": "switchCase"
+  },
+  "switchStmt": {
+    "body": [
+      "switchStmt(${1:SwitchStmt})"
+    ],
+    "description": "Matches switch statements.",
+    "prefix": "switchStmt"
+  },
+  "tagDecl": {
+    "body": [
+      "tagDecl(${1:TagDecl})"
+    ],
+    "description": "Matches tag declarations.",
+    "prefix": "tagDecl"
+  },
+  "tagType": {
+    "body": [
+      "tagType(${1:TagType})"
+    ],
+    "description": "Matches tag types (record and enum types).",
+    "prefix": "tagType"
+  },
+  "templateArgument": {
+    "body": [
+      "templateArgument(${1:TemplateArgument})"
+    ],
+    "description": "Matches template arguments.",
+    "prefix": "templateArgument"
+  },
+  "templateArgumentCountIs": {
+    "body": [
+      "templateArgumentCountIs(${1:N})"
+    ],
+    "description": "Matches if the number of template arguments equals N.",
+    "prefix": "templateArgumentCountIs"
+  },
+  "templateArgumentLoc": {
+    "body": [
+      "templateArgumentLoc(${1:TemplateArgumentLoc})"
+    ],
+    "description": "Matches template arguments (with location info).",
+    "prefix": "templateArgumentLoc"
+  },
+  "templateName": {
+    "body": [
+      "templateName(${1:TemplateName})"
+    ],
+    "description": "Matches template name.",
+    "prefix": "templateName"
+  },
+  "templateSpecializationType": {
+    "body": [
+      "templateSpecializationType(${1:TemplateSpecializationType})"
+    ],
+    "description": "Matches template specialization types.",
+    "prefix": "templateSpecializationType"
+  },
+  "templateSpecializationTypeLoc": {
+    "body": [
+      "templateSpecializationTypeLoc(${1:TemplateSpecializationTypeLoc})"
+    ],
+    "description": "Matches template specialization `TypeLoc`s.",
+    "prefix": "templateSpecializationTypeLoc"
+  },
+  "templateTemplateParmDecl": {
+    "body": [
+      "templateTemplateParmDecl(${1:TemplateTemplateParmDecl})"
+    ],
+    "description": "Matches template template parameter declarations.",
+    "prefix": "templateTemplateParmDecl"
+  },
+  "templateTypeParmDecl": {
+    "body": [
+      "templateTypeParmDecl(${1:TemplateTypeParmDecl})"
+    ],
+    "description": "Matches template type parameter declarations.",
+    "prefix": "templateTypeParmDecl"
+  },
+  "templateTypeParmType": {
+    "body": [
+      "templateTypeParmType(${1:TemplateTypeParmType})"
+    ],
+    "description": "Matches template type parameter types.",
+    "prefix": "templateTypeParmType"
+  },
+  "thisPointerType": {
+    "body": [
+      "thisPointerType(${1:Decl})"
+    ],
+    "description": "Overloaded to match the type's declaration.",
+    "prefix": "thisPointerType"
+  },
+  "throughUsingDecl": {
+    "body": [
+      "throughUsingDecl(${1:UsingShadowDecl})"
+    ],
+    "description": "Matches if a node refers to a declaration through a specific",
+    "prefix": "throughUsingDecl"
+  },
+  "to": {
+    "body": [
+      "to(${1:Decl})"
+    ],
+    "description": "Matches a DeclRefExpr that refers to a declaration that matches the",
+    "prefix": "to"
+  },
+  "translationUnitDecl": {
+    "body": [
+      "translationUnitDecl(${1:TranslationUnitDecl})"
+    ],
+    "description": "Matches the top declaration context.",
+    "prefix": "translationUnitDecl"
+  },
+  "type": {
+    "body": [
+      "type(${1:Type})"
+    ],
+    "description": "Matches Types in the clang AST.",
+    "prefix": "type"
+  },
+  "typeAliasDecl": {
+    "body": [
+      "typeAliasDecl(${1:TypeAliasDecl})"
+    ],
+    "description": "Matches type alias declarations.",
+    "prefix": "typeAliasDecl"
+  },
+  "typeAliasTemplateDecl": {
+    "body": [
+      "typeAliasTemplateDecl(${1:TypeAliasTemplateDecl})"
+    ],
+    "description": "Matches type alias template declarations.",
+    "prefix": "typeAliasTemplateDecl"
+  },
+  "typeLoc": {
+    "body": [
+      "typeLoc(${1:TypeLoc})"
+    ],
+    "description": "Matches TypeLocs in the clang AST.",
+    "prefix": "typeLoc"
+  },
+  "typedefDecl": {
+    "body": [
+      "typedefDecl(${1:TypedefDecl})"
+    ],
+    "description": "Matches typedef declarations.",
+    "prefix": "typedefDecl"
+  },
+  "typedefNameDecl": {
+    "body": [
+      "typedefNameDecl(${1:TypedefNameDecl})"
+    ],
+    "description": "Matches typedef name declarations.",
+    "prefix": "typedefNameDecl"
+  },
+  "typedefType": {
+    "body": [
+      "typedefType(${1:TypedefType})"
+    ],
+    "description": "Matches typedef types.",
+    "prefix": "typedefType"
+  },
+  "unaryExprOrTypeTraitExpr": {
+    "body": [
+      "unaryExprOrTypeTraitExpr(${1:UnaryExprOrTypeTraitExpr})"
+    ],
+    "description": "Matches sizeof (C99), alignof (C++11) and vec_step (OpenCL)",
+    "prefix": "unaryExprOrTypeTraitExpr"
+  },
+  "unaryOperator": {
+    "body": [
+      "unaryOperator(${1:UnaryOperator})"
+    ],
+    "description": "Matches unary operator expressions.",
+    "prefix": "unaryOperator"
+  },
+  "unaryTransformType": {
+    "body": [
+      "unaryTransformType(${1:UnaryTransformType})"
+    ],
+    "description": "Matches types nodes representing unary type transformations.",
+    "prefix": "unaryTransformType"
+  },
+  "unless": {
+    "body": [
+      "unless(${1:anything()})"
+    ],
+    "description": "Matches if the provided matcher does not match.",
+    "prefix": "unless"
+  },
+  "unresolvedLookupExpr": {
+    "body": [
+      "unresolvedLookupExpr(${1:UnresolvedLookupExpr})"
+    ],
+    "description": "Matches reference to a name that can be looked up during parsing",
+    "prefix": "unresolvedLookupExpr"
+  },
+  "unresolvedMemberExpr": {
+    "body": [
+      "unresolvedMemberExpr(${1:UnresolvedMemberExpr})"
+    ],
+    "description": "Matches unresolved member expressions.",
+    "prefix": "unresolvedMemberExpr"
+  },
+  "unresolvedUsingTypenameDecl": {
+    "body": [
+      "unresolvedUsingTypenameDecl(${1:UnresolvedUsingTypenameDecl})"
+    ],
+    "description": "Matches unresolved using value declarations that involve the",
+    "prefix": "unresolvedUsingTypenameDecl"
+  },
+  "unresolvedUsingValueDecl": {
+    "body": [
+      "unresolvedUsingValueDecl(${1:UnresolvedUsingValueDecl})"
+    ],
+    "description": "Matches unresolved using value declarations.",
+    "prefix": "unresolvedUsingValueDecl"
+  },
+  "userDefinedLiteral": {
+    "body": [
+      "userDefinedLiteral(${1:UserDefinedLiteral})"
+    ],
+    "description": "Matches user defined literal operator call.",
+    "prefix": "userDefinedLiteral"
+  },
+  "usesADL": {
+    "body": [
+      "usesADL()"
+    ],
+    "description": "Matches call expressions which were resolved using ADL.",
+    "prefix": "usesADL"
+  },
+  "usingDecl": {
+    "body": [
+      "usingDecl(${1:UsingDecl})"
+    ],
+    "description": "Matches using declarations.",
+    "prefix": "usingDecl"
+  },
+  "usingDirectiveDecl": {
+    "body": [
+      "usingDirectiveDecl(${1:UsingDirectiveDecl})"
+    ],
+    "description": "Matches using namespace declarations.",
+    "prefix": "usingDirectiveDecl"
+  },
+  "usingEnumDecl": {
+    "body": [
+      "usingEnumDecl(${1:UsingEnumDecl})"
+    ],
+    "description": "Matches using-enum declarations.",
+    "prefix": "usingEnumDecl"
+  },
+  "usingShadowDecl": {
+    "body": [
+      "usingShadowDecl(${1:UsingShadowDecl})"
+    ],
+    "description": "Matches shadow declarations introduced into a scope by a",
+    "prefix": "usingShadowDecl"
+  },
+  "usingType": {
+    "body": [
+      "usingType(${1:UsingType})"
+    ],
+    "description": "Matches types specified through a using declaration.",
+    "prefix": "usingType"
+  },
+  "valueDecl": {
+    "body": [
+      "valueDecl(${1:ValueDecl})"
+    ],
+    "description": "Matches any value declaration.",
+    "prefix": "valueDecl"
+  },
+  "varDecl": {
+    "body": [
+      "varDecl(${1:VarDecl})"
+    ],
+    "description": "Matches variable declarations.",
+    "prefix": "varDecl"
+  },
+  "variableArrayType": {
+    "body": [
+      "variableArrayType(${1:VariableArrayType})"
+    ],
+    "description": "Matches C arrays with a specified size that is not an",
+    "prefix": "variableArrayType"
+  },
+  "voidType": {
+    "body": [
+      "voidType()"
+    ],
+    "description": "Matches type void.",
+    "prefix": "voidType"
+  },
+  "whileStmt": {
+    "body": [
+      "whileStmt(${1:WhileStmt})"
+    ],
+    "description": "Matches while statements.",
+    "prefix": "whileStmt"
+  },
+  "withInitializer": {
+    "body": [
+      "withInitializer(${1:Expr})"
+    ],
+    "description": "Matches the initializer expression of a constructor initializer.",
+    "prefix": "withInitializer"
+  }
+}

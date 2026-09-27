@@ -54,7 +54,7 @@ examples + coverage) and fix every failure before finishing. Read
 
 ```
 ast-matchers-lab/
-├── CLAUDE.md                 ← this file
+├── AGENTS.md                 ← this file
 ├── AUTHORING.md              ← doc conventions enforced by the scripts
 ├── README.md                 ← root pointer to docs/
 ├── docs/
