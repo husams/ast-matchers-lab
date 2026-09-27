@@ -58,15 +58,18 @@ tools/language-support/deploy-rhel.sh
 The installer defaults to `~/.local/astmatcher`, enables the build
 repositories, installs dependencies, builds and tests the native and Python
 servers, and verifies a real gRPC query through the installed binaries. On
-Rocky/Alma it enables CRB and EPEL; on RHEL it enables CodeReady Builder and
-installs the Fedora EPEL release package. Package installation needs sudo (or
-root), network access, and a registered RHEL subscription where applicable.
+Rocky/Alma it enables CRB and EPEL. On RHEL it first uses installed packages
+or configured repositories, including RHUI or private mirrors, and enables
+EPEL and CodeReady Builder only if dependencies are missing. If no repository
+can supply them, register RHEL or configure a mirror. Installing missing
+packages needs sudo (or root) and network access.
 If VS Code is present, it also builds and installs the extension and sets its
 user settings. On a headless host it installs only the native and Python
 servers; rerun the same command after installing VS Code to add the extension.
 Use `--prefix DIR`, `--server-only`, or `--skip-tests` to customize that
 behavior. `--prefix` also installs dependencies; use `--skip-deps` when the
 host already has them.
+
 The installer builds against the selected LLVM 21 or newer. Use
 `--llvm /path/to/llvm` for a separate LLVM installation. The checked-in editor
 catalog and lab examples target LLVM 22; on LLVM 21, the installer generates

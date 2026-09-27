@@ -13,6 +13,9 @@ echo "== unit tests"
   python3 -m unittest discover -s tests -q
 )
 
+echo "== installer tests"
+python3 -m unittest discover -s tests -p 'test_deploy_rhel.py' -q
+
 echo "== VS Code selection tests"
 node --test vscode/tests/*.test.js
 

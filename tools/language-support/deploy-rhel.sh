@@ -305,12 +305,27 @@ if [ "$DO_UNINSTALL" = 1 ]; then
   exit 0
 fi
 
+# The dependency stage uses the same interpreter probe as the toolchain check.
+pick_python() {
+  if [ -n "$PYTHON" ]; then
+    "$PYTHON" -c 'import sys; sys.exit(0 if sys.version_info >= (3,10) else 1)' 2>/dev/null || return 1
+    printf '%s\n' "$PYTHON"
+    return
+  fi
+  local p
+  for p in python3.13 python3.12 python3.11 python3.10 python3; do
+    have "$p" || continue
+    "$p" -c 'import sys; sys.exit(0 if sys.version_info >= (3,10) else 1)' 2>/dev/null \
+      && { command -v "$p"; return; }
+  done
+  return 1
+}
+
 # ---------------------------------------------------------------- dependencies
 if [ "$DO_DEPS" = 1 ]; then
   log "installing distro packages"
   SUDO=""; [ "$(id -u)" = 0 ] || SUDO=sudo
   have dnf || die "--install-deps needs dnf (RHEL/Rocky/Alma/Fedora)"
-  [ -z "$SUDO" ] || have sudo || die "sudo is required to install dependencies"
   [ -f /etc/os-release ] || die "cannot identify the Linux distribution"
   repo_enabled() {
     dnf -q repolist --enabled | awk -v wanted="$1" \
@@ -319,7 +334,21 @@ if [ "$DO_DEPS" = 1 ]; then
   # shellcheck disable=SC1091
   . /etc/os-release
   os_major=${VERSION_ID%%.*}
-  case "$ID" in
+  [ -z "$PYTHON" ] || pick_python >/dev/null || die "--python must point to Python 3.10 or newer"
+  pkgs=(cmake make gcc-c++ clang-devel llvm-devel grpc-devel grpc-plugins protobuf-devel protobuf-compiler)
+  if ! pick_python >/dev/null; then
+    if dnf -y list python3.12 >/dev/null 2>&1; then pkgs+=(python3.12)
+    elif dnf -y list python3.11 >/dev/null 2>&1; then pkgs+=(python3.11)
+    elif dnf -y list python3.10 >/dev/null 2>&1; then pkgs+=(python3.10)
+    else pkgs+=(python3.11)
+    fi
+  fi
+  [ "$DO_VSIX" = 1 ] && pkgs+=(nodejs npm)
+  if [ "$ID" = rhel ] && have rpm && rpm -q "${pkgs[@]}" >/dev/null 2>&1; then
+    step "build packages already installed"
+  else
+    [ -z "$SUDO" ] || have sudo || die "sudo is required to install missing dependencies; use --skip-deps if all packages are already installed"
+    case "$ID" in
     rocky|almalinux)
       if ! repo_enabled crb; then
         $SUDO dnf -y install dnf-plugins-core || die "cannot install dnf config-manager"
@@ -330,54 +359,65 @@ if [ "$DO_DEPS" = 1 ]; then
         $SUDO dnf config-manager --set-enabled epel || die "cannot enable EPEL"
       fi
       ;;
-    rhel)
-      crb_repo="codeready-builder-for-rhel-${os_major}-$(uname -m)-rpms"
-      if ! repo_enabled "$crb_repo"; then
-        have subscription-manager || die "RHEL needs subscription-manager and a registered subscription to enable CodeReady Builder"
-        $SUDO subscription-manager repos --enable "$crb_repo" >/dev/null || \
-          die "cannot enable $crb_repo; register this RHEL host with Red Hat first"
-      fi
-      if ! repo_enabled epel; then
-        if ! rpm -q epel-release >/dev/null 2>&1; then
-          $SUDO dnf -y install "https://dl.fedoraproject.org/pub/epel/epel-release-latest-${os_major}.noarch.rpm" || \
-            die "cannot install the Fedora EPEL release package"
-        fi
-        if ! repo_enabled epel; then
-          $SUDO dnf -y install dnf-plugins-core || die "cannot install dnf config-manager"
-          $SUDO dnf config-manager --set-enabled epel || die "cannot enable EPEL"
-        fi
-      fi
-      ;;
+    # RHEL installations can already have the packages through RHUI or a
+    # private mirror, even when subscription-manager is absent or unregistered.
+    rhel) ;;
     fedora) ;;
     *) die "unsupported distribution $ID; use RHEL, Rocky, AlmaLinux, or Fedora";;
-  esac
-  if [ "$DO_VSIX" = 1 ] && ! have node && \
-     $SUDO dnf -y module list nodejs >/dev/null 2>&1; then
-    $SUDO dnf -y module reset nodejs || true
-    $SUDO dnf -y module enable nodejs:20 || warn "nodejs:20 module unavailable; using the default stream"
+    esac
+    if [ "$DO_VSIX" = 1 ] && ! have node && \
+       $SUDO dnf -y module list nodejs >/dev/null 2>&1; then
+      $SUDO dnf -y module reset nodejs || true
+      $SUDO dnf -y module enable nodejs:20 || warn "nodejs:20 module unavailable; using the default stream"
+    fi
+    if [ "$ID" = rhel ]; then
+      enable_epel() {
+        repo_enabled epel && return 0
+        if ! rpm -q epel-release >/dev/null 2>&1; then
+          $SUDO dnf -y install "https://dl.fedoraproject.org/pub/epel/epel-release-latest-${os_major}.noarch.rpm" || \
+            warn "could not install the Fedora EPEL release package"
+        fi
+        if ! repo_enabled epel; then
+          if $SUDO dnf -y install dnf-plugins-core; then
+            $SUDO dnf config-manager --set-enabled epel || warn "could not enable EPEL"
+          fi
+        fi
+      }
+      # Try the host's configured repositories first. Only bootstrap public
+      # repositories when they cannot satisfy the requested packages.
+      if ! $SUDO dnf -y install "${pkgs[@]}"; then
+        enable_epel
+        if ! $SUDO dnf -y install "${pkgs[@]}"; then
+          deps_ready=0
+          if have crb; then
+            if $SUDO crb enable; then
+              enable_epel
+              $SUDO dnf -y install "${pkgs[@]}" && deps_ready=1
+            else
+              warn "could not enable CodeReady Builder through the crb helper"
+            fi
+          fi
+          if [ "$deps_ready" = 0 ]; then
+            crb_repo="codeready-builder-for-rhel-${os_major}-$(uname -m)-rpms"
+            if ! repo_enabled "$crb_repo" && have subscription-manager; then
+              $SUDO subscription-manager repos --enable "$crb_repo" >/dev/null || \
+                warn "could not enable $crb_repo through subscription-manager"
+            fi
+            enable_epel
+            $SUDO dnf -y install "${pkgs[@]}" || die \
+              "dnf cannot install required build packages (including Python 3.11 if needed); configure repositories with clang-devel, llvm-devel, grpc-devel, grpc-plugins and protobuf-devel, or register this RHEL host and enable CodeReady Builder and EPEL; rerun with --skip-deps if all packages are already installed"
+          fi
+        fi
+      fi
+    else
+      $SUDO dnf -y install "${pkgs[@]}" || die \
+        "native build dependencies unavailable; enable CRB/CodeReady Builder and EPEL 9 for protobuf-devel, grpc-devel and grpc-plugins"
+    fi
   fi
-  pkgs=(cmake make gcc-c++ clang-devel llvm-devel grpc-devel grpc-plugins protobuf-devel protobuf-compiler)
-  if $SUDO dnf -y list python3.12 >/dev/null 2>&1; then pkgs+=(python3.12)
-  elif $SUDO dnf -y list python3.11 >/dev/null 2>&1; then pkgs+=(python3.11)
-  fi
-  [ "$DO_VSIX" = 1 ] && pkgs+=(nodejs npm)
-  $SUDO dnf -y install "${pkgs[@]}" || die \
-    "native build dependencies unavailable; enable CRB/CodeReady Builder and EPEL 9 for protobuf-devel, grpc-devel and grpc-plugins"
 fi
 
 # ---------------------------------------------------------------- toolchain
 log "checking the toolchain"
-
-pick_python() {
-  [ -n "$PYTHON" ] && { printf '%s\n' "$PYTHON"; return; }
-  local p
-  for p in python3.13 python3.12 python3.11 python3.10 python3; do
-    have "$p" || continue
-    "$p" -c 'import sys; sys.exit(0 if sys.version_info >= (3,10) else 1)' 2>/dev/null \
-      && { command -v "$p"; return; }
-  done
-  return 1
-}
 PYTHON=$(pick_python) || die "no Python 3.10+ found (dnf install python3.11, or pass --python)"
 step "python       $PYTHON ($("$PYTHON" -c 'import platform;print(platform.python_version())'))"
 
