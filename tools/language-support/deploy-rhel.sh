@@ -110,12 +110,11 @@ find_code() {
   for c in code code-insiders codium vscodium; do
     have "$c" && { command -v "$c"; return; }
   done
-  # Remote-SSH: the server ships its own CLI, newest first.
-  for c in "$HOME"/.vscode-server/cli/servers/*/server/bin/remote-cli/code \
-           "$HOME"/.vscode-server/bin/*/bin/remote-cli/code \
-           "$HOME"/.vscode-server-insiders/bin/*/bin/remote-cli/code; do
-    [ -x "$c" ] && printf '%s\n' "$c"
-  done | tail -1
+  # Remote-SSH: the server's CLI only works inside a VS Code terminal.
+  [ -n "${VSCODE_IPC_HOOK_CLI:-}" ] || return 0
+  ls -td "$HOME"/.vscode-server/cli/servers/*/server/bin/remote-cli/code \
+         "$HOME"/.vscode-server/bin/*/bin/remote-cli/code \
+         "$HOME"/.vscode-server-insiders/bin/*/bin/remote-cli/code 2>/dev/null | head -1
 }
 
 default_settings_files() {
@@ -211,12 +210,17 @@ fi
 
 # ---------------------------------------------------------------- tests
 if [ "$DO_TESTS" = 1 ]; then
-  log "running check.sh"
-  ( cd "$SRC" \
-    && LLVM=$LLVM_PREFIX \
-       ASTMATCHER_PYTHON=$PYTHON \
-       PATH="$(dirname -- "${CLANG_QUERY:-/nonexistent/x}"):$PATH" \
-       sh ./check.sh )
+  # Not check.sh: it hardcodes python3 (3.6/3.9 on RHEL), always needs node,
+  # and its generate.py --check diffs against LLVM 22 headers the distro lacks.
+  log "running tests"
+  if [ "$DO_REGEN" = 1 ]; then
+    ( cd "$SRC" && LLVM=$LLVM_PREFIX "$PYTHON" generate.py --check )
+  fi
+  ( cd "$SRC/astmatcher-lsp" && "$PYTHON" -m unittest discover -s tests -q )
+  if [ "$DO_VSIX" = 1 ] && have node; then
+    ( cd "$SRC" && node --test vscode/tests/*.test.js )
+  fi
+  ( cd "$SRC" && "$PYTHON" corpus_check.py )
 fi
 
 # ---------------------------------------------------------------- build vsix
@@ -303,7 +307,8 @@ fi
 
 if [ "$DO_EXT" = 1 ] && [ -n "$CODE" ] && [ -n "$VSIX" ]; then
   log "installing the extension"
-  "$CODE" --install-extension "$VSIX" --force
+  "$CODE" --install-extension "$VSIX" --force || \
+    warn "extension install failed; run: code --install-extension $VSIX"
 elif [ "$DO_EXT" = 1 ]; then
   [ -n "$VSIX" ] || warn "no vsix to install"
 fi
