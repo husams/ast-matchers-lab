@@ -1,0 +1,4 @@
+match cxxRecordDecl(
+    anyOf(hasName("Pair"),
+    hasName("Lone")), unless(isImplicit()),
+  optionally(has(fieldDecl(hasName("other")).bind("var")))).bind("record")

@@ -1,0 +1,14 @@
+# feature-flags.query — every flag string passed to isEnable(), inline or via a constant.
+# Run:  $LLVM/bin/clang-query -f manifests/queries/feature-flags.query manifests/feature_flags.cpp -- -std=c++23
+# Expected: 4 matches — "MyOption" (x2), "FastPath", "LegacyOption".
+set bind-root false
+set output diag
+match callExpr(
+  callee(functionDecl(hasName("isEnable"))),
+  hasArgument(0,
+    ignoringParenImpCasts(
+      anyOf(
+        stringLiteral().bind("flag"),
+        declRefExpr(to(varDecl(
+          hasInitializer(ignoringParenImpCasts(stringLiteral().bind("flag"))))))
+      ))))
