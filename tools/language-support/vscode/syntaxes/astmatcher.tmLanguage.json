@@ -1,0 +1,178 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "fileTypes": [
+    "query"
+  ],
+  "name": "AST Matcher DSL",
+  "patterns": [
+    {
+      "include": "#comment"
+    },
+    {
+      "include": "#command"
+    },
+    {
+      "include": "#setting"
+    },
+    {
+      "include": "#bind"
+    },
+    {
+      "include": "#matcher-node"
+    },
+    {
+      "include": "#matcher-narrowing"
+    },
+    {
+      "include": "#matcher-traversal"
+    },
+    {
+      "include": "#matcher-unknown"
+    },
+    {
+      "include": "#string"
+    },
+    {
+      "include": "#number"
+    },
+    {
+      "include": "#boolean"
+    },
+    {
+      "include": "#punctuation"
+    }
+  ],
+  "repository": {
+    "bind": {
+      "begin": "\\.\\s*(bind)\\s*\\(",
+      "beginCaptures": {
+        "1": {
+          "name": "support.function.bind.astmatcher"
+        }
+      },
+      "end": "\\)",
+      "patterns": [
+        {
+          "include": "#bind-id"
+        }
+      ]
+    },
+    "bind-id": {
+      "begin": "\"",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.definition.string.begin.astmatcher"
+        }
+      },
+      "end": "\"",
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.definition.string.end.astmatcher"
+        }
+      },
+      "name": "entity.name.tag.bind-id.astmatcher"
+    },
+    "boolean": {
+      "match": "\\b(true|false)\\b",
+      "name": "constant.language.boolean.astmatcher"
+    },
+    "command": {
+      "captures": {
+        "1": {
+          "name": "keyword.control.astmatcher"
+        }
+      },
+      "match": "^\\s*\\b(disable|enable|match|help|quit|let|set|l|m|q)\\b"
+    },
+    "comment": {
+      "match": "#.*$",
+      "name": "comment.line.number-sign.astmatcher"
+    },
+    "matcher-narrowing": {
+      "captures": {
+        "1": {
+          "name": "support.function.matcher.narrowing.astmatcher"
+        }
+      },
+      "match": "\\b(isExplicitTemplateSpecialization|isExplicitObjectMemberFunction|declaresSameEntityAsBoundNode|hasAnyOverloadedOperatorName|isAllowedToContainClauseKind|memberHasSameNameAsBoundNode|hasAutomaticStorageDuration|requiresZeroInitialization|templateArgumentLocCountIs|hasOverloadedOperatorName|isExpansionInFileMatching|isExpansionInSystemHeader|isInTemplateInstantiation|hasExternalFormalLinkage|hasStaticStorageDuration|hasThreadStorageDuration|isCopyAssignmentOperator|isInstantiationDependent|isMoveAssignmentOperator|hasDynamicExceptionSpec|isDelegatingConstructor|isInheritingConstructor|isTemplateInstantiation|templateArgumentCountIs|isInAnonymousNamespace|isDirectlyDerivedFrom|isExpansionInMainFile|isStandaloneDirective|realFloatingPointType|argumentCountAtLeast|isAssignmentOperator|isComparisonOperator|isDefaultConstructor|isListInitialization|isStaticStorageClass|equalsIntegralValue|isExceptionVariable|isExpandedFromMacro|isMemberInitializer|isSameOrDerivedFrom|isVolatileQualified|nullPointerConstant|hasAnyOperatorName|hasDefaultArgument|hasKeywordSelector|hasLocalQualifiers|isFirstPrivateKind|isVirtualAsWritten|designatorCountIs|hasTrailingReturn|isBaseInitializer|isCopyConstructor|isInstanceMessage|isMoveConstructor|isUnsignedInteger|hasDependentName|hasGlobalStorage|hasUnarySelector|isConstQualified|isInStdNamespace|isInstanceMethod|isValueDependent|parameterCountIs|statementCountIs|argumentCountIs|equalsBoundNode|hasLocalStorage|hasNullSelector|hasOperatorName|isSignedInteger|isTypeDependent|matchesSelector|numSelectorArgs|hasAnySelector|isAnyCharacter|isClassMessage|isInstantiated|isUserProvided|hasDefinition|hasMemberName|isClassMethod|isDerivedFrom|isInitCapture|isPrivateKind|isStaticLocal|capturesThis|isAnyPointer|isAtPosition|isBinaryFold|isDefinition|isSharedKind|booleanType|declCountIs|hasBitWidth|hasCastKind|hasSelector|isAnonymous|isConsteval|isConstexpr|isConstinit|isDefaulted|isProtected|isRightFold|isUnaryFold|matchesName|equalsNode|hasAnyName|isBitField|isCatchAll|isExplicit|isImplicit|isIntegral|isLeftFold|isNoReturn|isNoneKind|isOverride|isVariadic|isDeleted|isExternC|isInteger|isNoThrow|isPrivate|isVirtual|isWritten|anything|asString|isInline|isLambda|isPublic|isScoped|isStruct|mapAnyOf|voidType|hasAttr|hasName|hasSize|isArray|isArrow|isClass|isConst|isFinal|isUnion|usesADL|equals|isEnum|isMain|isPure|isWeak|ofKind|unless|allOf|anyOf)\\b(?=\\s*\\()"
+    },
+    "matcher-node": {
+      "captures": {
+        "1": {
+          "name": "support.class.matcher.node.astmatcher"
+        }
+      },
+      "match": "\\b(classTemplatePartialSpecializationDecl|deducedTemplateSpecializationType|classTemplateSpecializationDecl|templateSpecializationTypeLoc|substNonTypeTemplateParmExpr|cxxDependentScopeMemberExpr|dependentSizedExtVectorType|unresolvedUsingTypenameDecl|cxxRewrittenBinaryOperator|cxxUnresolvedConstructExpr|templateSpecializationType|binaryConditionalOperator|cxxStdInitializerListExpr|dependentScopeDeclRefExpr|substTemplateTypeParmType|materializeTemporaryExpr|ompTargetUpdateDirective|templateTemplateParmDecl|unaryExprOrTypeTraitExpr|unresolvedUsingValueDecl|dependentSizedArrayType|nonTypeTemplateParmDecl|cxxReinterpretCastExpr|cxxTemporaryObjectExpr|nestedNameSpecifierLoc|objcImplementationDecl|ompExecutableDirective|cxxDeductionGuideDecl|cxxFunctionalCastExpr|cxxNullPtrLiteralExpr|implicitValueInitExpr|injectedClassNameType|objcObjectPointerType|typeAliasTemplateDecl|cxxBindTemporaryExpr|dependentCoawaitExpr|functionTemplateDecl|genericSelectionExpr|objcCategoryImplDecl|requiresExprBodyDecl|templateTypeParmDecl|templateTypeParmType|unresolvedLookupExpr|unresolvedMemberExpr|autoreleasePoolStmt|compoundLiteralExpr|conditionalOperator|cxxOperatorCallExpr|incompleteArrayType|lValueReferenceType|nestedNameSpecifier|rValueReferenceType|templateArgumentLoc|translationUnitDecl|arrayInitIndexExpr|arraySubscriptExpr|cudaKernelCallExpr|cxxConstructorDecl|cxxCtorInitializer|cxxDynamicCastExpr|designatedInitExpr|macroQualifiedType|namespaceAliasDecl|unaryTransformType|userDefinedLiteral|usingDirectiveDecl|arrayInitLoopExpr|classTemplateDecl|constantArrayType|convertVectorExpr|coroutineBodyStmt|cxxConversionDecl|cxxDefaultArgExpr|cxxDestructorDecl|cxxMemberCallExpr|cxxStaticCastExpr|decompositionDecl|dependentNameType|fixedPointLiteral|functionProtoType|indirectFieldDecl|memberPointerType|objcInterfaceDecl|objcStringLiteral|ompSplitDirective|variableArrayType|blockPointerType|characterLiteral|cxxBaseSpecifier|cxxConstCastExpr|cxxConstructExpr|cxxNamedCastExpr|enumConstantDecl|explicitCastExpr|exprWithCleanups|fileScopeAsmDecl|imaginaryLiteral|implicitCastExpr|objcCategoryDecl|objcPropertyDecl|objcProtocolDecl|ompDefaultClause|qualifiedTypeLoc|referenceTypeLoc|staticAssertDecl|templateArgument|cxxForRangeStmt|cxxNoexceptExpr|functionTypeLoc|linkageSpecDecl|objcFinallyStmt|objcIvarRefExpr|objcMessageExpr|ompCountsClause|opaqueValueExpr|typedefNameDecl|usingShadowDecl|accessSpecDecl|binaryOperator|cStyleCastExpr|cxxBoolLiteral|declaratorDecl|integerLiteral|objcMethodDecl|pointerTypeLoc|predefinedExpr|addrLabelExpr|cxxDeleteExpr|cxxMethodDecl|cxxRecordDecl|lambdaCapture|namespaceDecl|objcCatchStmt|objcThrowStmt|ompFromClause|parenListExpr|referenceType|stringLiteral|typeAliasDecl|unaryOperator|usingEnumDecl|arrayTypeLoc|compoundStmt|constantExpr|continueStmt|coreturnStmt|cxxCatchStmt|cxxThrowExpr|decltypeType|floatLiteral|functionDecl|functionType|initListExpr|objcIvarDecl|requiresExpr|templateName|bindingDecl|builtinType|coawaitExpr|complexType|conceptDecl|coyieldExpr|cxxFoldExpr|cxxThisExpr|decayedType|declRefExpr|defaultStmt|gnuNullExpr|objcTryStmt|ompToClause|parmVarDecl|pointerType|typedefDecl|typedefType|atomicExpr|atomicType|chooseExpr|cxxNewExpr|cxxTryStmt|exportDecl|friendDecl|lambdaExpr|memberExpr|recordDecl|recordType|returnStmt|switchCase|switchStmt|arrayType|blockDecl|blockExpr|breakStmt|fieldDecl|labelDecl|labelStmt|namedDecl|parenExpr|parenType|usingDecl|usingType|valueDecl|whileStmt|autoType|callExpr|caseStmt|castExpr|declStmt|enumDecl|enumType|gotoStmt|nullStmt|qualType|stmtExpr|asmStmt|forStmt|tagDecl|tagType|typeLoc|varDecl|doStmt|ifStmt|attr|decl|expr|stmt|type)\\b(?=\\s*\\()"
+    },
+    "matcher-traversal": {
+      "captures": {
+        "1": {
+          "name": "support.function.matcher.traversal.astmatcher"
+        }
+      },
+      "match": "\\b(ignoringElidableConstructorCall|forEachConstructorInitializer|hasConditionVariableStatement|forEachArgumentWithParamType|hasAnyConstructorInitializer|hasUnqualifiedDesugaredType|hasImplicitDestinationType|hasAnyTemplateArgumentLoc|forEachArgumentWithParam|onImplicitObjectArgument|forEachTemplateArgument|hasAnyTemplateArgument|hasSpecializedTemplate|hasTemplateArgumentLoc|hasAnyUsingShadowDecl|hasInClassInitializer|ignoringParenImpCasts|forEachLambdaCapture|hasExplicitSpecifier|refersToIntegralType|containsDeclaration|hasObjectExpression|hasSourceExpression|hasTemplateArgument|refersToDeclaration|hasAnyPlacementArg|hasAnySubstatement|hasDestinationType|hasFalseExpression|hasReplacementType|hasStructuredBlock|ignoringParenCasts|specifiesNamespace|forEachDescendant|forEachOverridden|forEachSwitchCase|hasAnyDeclaration|hasArgumentOfType|hasTrueExpression|hasUnderlyingDecl|hasUnderlyingType|hasUnqualifiedLoc|forDecomposition|hasCanonicalType|hasEitherOperand|hasInitStatement|hasReturnTypeLoc|hasSyntacticForm|ignoringImpCasts|ignoringImplicit|refersToTemplate|specifiesTypeLoc|throughUsingDecl|binaryOperation|hasAnyParameter|hasCaseConstant|hasLoopVariable|hasPlacementArg|hasReceiverType|hasUnaryOperand|thisPointerType|withInitializer|hasAnyArgument|hasDecayedType|hasDeclContext|hasDeclaration|hasDeducedType|hasElementType|hasInitializer|hasReferentLoc|hasReturnValue|ignoringParens|hasAnyBinding|hasAnyCapture|hasDescendant|hasDirectBase|hasPointeeLoc|hasSingleDecl|hasTargetDecl|specifiesType|hasAnyClause|hasArraySize|hasCondition|hasIncrement|hasParameter|hasQualifier|hasRangeInit|hasValueType|refersToType|alignOfExpr|capturesVar|forCallable|forFunction|hasAncestor|hasArgument|hasFoldInit|hasLoopInit|hasOperands|hasReceiver|hasSizeExpr|hasAnyBase|hasAnyBody|hasBinding|hasPattern|hasTypeLoc|invocation|optionally|references|sizeOfExpr|hasMethod|hasParent|hasPrefix|innerType|forField|hasIndex|pointsTo|traverse|findAll|forEach|hasBase|hasBody|hasElse|hasInit|hasThen|hasType|ofClass|pointee|returns|callee|eachOf|hasLHS|hasRHS|isExpr|member|has|loc|on|to)\\b(?=\\s*\\()"
+    },
+    "matcher-unknown": {
+      "captures": {
+        "1": {
+          "name": "entity.name.function.astmatcher"
+        }
+      },
+      "match": "\\b([A-Za-z_]\\w*)\\b(?=\\s*\\()"
+    },
+    "number": {
+      "match": "\\b\\d+(\\.\\d+)?\\b",
+      "name": "constant.numeric.astmatcher"
+    },
+    "punctuation": {
+      "patterns": [
+        {
+          "match": "[()]",
+          "name": "meta.brace.round.astmatcher"
+        },
+        {
+          "match": ",",
+          "name": "punctuation.separator.comma.astmatcher"
+        }
+      ]
+    },
+    "setting": {
+      "patterns": [
+        {
+          "match": "\\b(enable-profile|print-matcher|bind-root|traversal|output)\\b",
+          "name": "variable.parameter.setting.astmatcher"
+        },
+        {
+          "match": "\\b(IgnoreUnlessSpelledInSource|detailed-ast|print|AsIs|diag|dump)\\b",
+          "name": "support.constant.astmatcher"
+        }
+      ]
+    },
+    "string": {
+      "begin": "\"",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.definition.string.begin.astmatcher"
+        }
+      },
+      "end": "\"",
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.definition.string.end.astmatcher"
+        }
+      },
+      "name": "string.quoted.double.astmatcher",
+      "patterns": [
+        {
+          "match": "\\\\.",
+          "name": "constant.character.escape.astmatcher"
+        },
+        {
+          "match": "\\b(attr::AvailableOnlyInDefaultEvalMethod|attr::ExcludeFromExplicitInstantiation|attr::DisableSanitizerInstrumentation|attr::OpenCLGlobalDeviceAddressSpace|attr::SwiftImportPropertyAsAccessors|CK_FloatingComplexToIntegralComplex|CK_IntegralComplexToFloatingComplex|attr::AnyX86NoCallerSavedRegisters|attr::CUDADeviceBuiltinSurfaceType|attr::CUDADeviceBuiltinTextureType|attr::OpenCLGlobalHostAddressSpace|attr::CoroOnlyDestroyWhenComplete|attr::HLSLGroupSharedAddressSpace|attr::OpenCLIntelReqdSubGroupSize|attr::VTablePointerAuthentication|CK_BlockPointerToObjCPointerCast|CK_CopyAndAutoreleaseBlockObject|OMPC_cancellation_construct_type|attr::NoSpeculativeLoadHardening|attr::OSReturnsRetainedOnNonZero|attr::OpenCLConstantAddressSpace|CK_AnyPointerToBlockPointerCast|attr::CoroAwaitElidableArgument|attr::ObjCDesignatedInitializer|attr::ObjCInertUnsafeUnretained|attr::ObjCSubclassingRestricted|attr::OpenCLGenericAddressSpace|attr::OpenCLPrivateAddressSpace|attr::ArmMveStrictPolymorphism|attr::CoroDisableLifetimeBound|attr::ObjCExplicitProtocolImpl|attr::ObjCRequiresPropertyDefs|attr::OpenCLGlobalAddressSpace|attr::PragmaClangRodataSection|attr::SpeculativeLoadHardening|CK_BaseToDerivedMemberPointer|CK_DerivedToBaseMemberPointer|OMPC_atomic_default_mem_order|UETT_PtrAuthTypeDiscriminator|attr::AMDGPUFlatWorkGroupSize|attr::BPFPreserveStaticOffset|attr::OSReturnsRetainedOnZero|attr::ObjCReturnsInnerPointer|attr::OpenCLLocalAddressSpace|attr::PragmaClangRelroSection|attr::SwiftImportAsNonGeneric|attr::WebAssemblyImportModule|attr::X86ForceAlignArgPointer|CK_CPointerToObjCPointerCast|UETT_OpenMPRequiredSimdAlign|attr::AMDGPUMaxNumWorkGroups|attr::ArmStreamingCompatible|attr::BPFPreserveAccessIndex|attr::NoThreadSafetyAnalysis|attr::ObjCExternallyRetained|attr::ObjCNonRuntimeProtocol|attr::PatchableFunctionEntry|attr::PragmaClangDataSection|attr::PragmaClangTextSection|attr::SwiftVersionedAddition|CK_ARCReclaimReturnedObject|CK_FloatingComplexToBoolean|CK_IntegralComplexToBoolean|CK_ReinterpretMemberPointer|attr::ArcWeakrefUnavailable|attr::CFICanonicalJumpTable|attr::HLSLVkExtBuiltinInput|attr::NSReturnsAutoreleased|attr::PragmaClangBSSSection|attr::StrictGuardStackCheck|attr::SwiftVersionedRemoval|attr::WebAssemblyExportName|attr::WebAssemblyImportName|CK_BooleanToSignedIntegral|OMPC_unified_shared_memory|attr::CFReturnsNotRetained|attr::DLLExportStaticLocal|attr::DLLImportStaticLocal|attr::ExternalSourceSymbol|attr::FunctionReturnThunks|attr::HLSLUnparsedSemantic|attr::NSReturnsNotRetained|attr::NoInstrumentFunction|attr::NoTrivialAutoVarInit|attr::OMPDeclareTargetDecl|attr::OMPThreadPrivateDecl|attr::OSReturnsNotRetained|attr::ObjCIndependentClass|attr::SYCLKernelEntryPoint|attr::TryAcquireCapability|CK_AddressSpaceConversion|CK_FunctionToPointerDecay|CK_HLSLAggregateSplatCast|CK_MemberPointerToBoolean|CK_UncheckedDerivedToBase|OMPC_no_openmp_constructs|attr::ArgumentWithTypeTag|attr::ArmLocallyStreaming|attr::ConsumableSetOnRead|attr::HLSLAppliedSemantic|attr::HLSLControlFlowHint|attr::HLSLResourceBinding|attr::LTOVisibilityPublic|attr::LoaderUninitialized|attr::OMPGroupPrivateDecl|attr::ObjCPreciseLifetime|attr::OpenACCRoutineAnnot|attr::ReentrantCapability|attr::SwiftBridgedTypedef|attr::SwiftIndirectResult|attr::TypeNullUnspecified|CK_ConstructorConversion|CK_FloatingComplexToReal|CK_FloatingRealToComplex|CK_IntegralComplexToReal|CK_IntegralRealToComplex|CK_LValueToRValueBitCast|CK_UserDefinedConversion|OMPC_ompx_dyn_cgroup_mem|attr::ARMInterruptSaveFP|attr::CFIUncheckedCallee|attr::ClspvLibclcBuiltin|attr::ConsumableAutoCast|attr::HLSLParsedSemantic|attr::HLSLVkPushConstant|attr::IBOutletCollection|attr::OMPDeclareSimdDecl|attr::ObjCRuntimeVisible|attr::OpenACCRoutineDecl|attr::RequiresCapability|attr::TypeNullableResult|attr::TypeTagForDatatype|attr::WebAssemblyFuncref|CK_ARCExtendBlockObject|CK_FixedPointToFloating|CK_FixedPointToIntegral|CK_FloatingToFixedPoint|CK_HLSLMatrixTruncation|CK_HLSLVectorTruncation|CK_IntegralToFixedPoint|CK_ObjCObjectLValueCast|OMPC_dynamic_allocators|OMPC_no_openmp_routines|attr::AcquireCapability|attr::CFAuditedTransfer|attr::CFReturnsRetained|attr::CFUnknownTransfer|attr::CUDAInvalidTarget|attr::CarriesDependency|attr::CoroAwaitElidable|attr::CoroLifetimeBound|attr::DiagnoseAsBuiltin|attr::EnumExtensibility|attr::HLSLContainedType|attr::HLSLParamModifier|attr::HLSLResourceClass|attr::LifetimeCaptureBy|attr::MaxFieldAlignment|attr::NSReturnsRetained|attr::NoProfileFunction|attr::NoRandomizeLayout|attr::NoSpecializations|attr::OMPDeclareVariant|attr::OSReturnsRetained|attr::ObjCBridgeMutable|attr::ObjCBridgeRelated|attr::ObjCDirectMembers|attr::ObjCRequiresSuper|attr::ReadOnlyPlacement|attr::ReleaseCapability|attr::ReqdWorkGroupSize|attr::SwiftAsyncContext|attr::UnsafeBufferUsage|attr::WorkGroupSizeHint|CK_ArrayToPointerDecay|CK_FixedPointToBoolean|CK_FloatingComplexCast|CK_HLSLElementwiseCast|CK_IntegralComplexCast|CK_NullToMemberPointer|CK_ZeroToOCLOpaqueType|attr::AArch64VectorPcs|attr::AMDGPUWavesPerEU|attr::AnalyzerNoReturn|attr::AssertCapability|attr::CUDAGridConstant|attr::CUDALaunchBounds|attr::DisableTailCalls|attr::HLSLVkConstantId|attr::InferredNoReturn|attr::MIGServerRoutine|attr::NoStackProtector|attr::OMPCaptureNoInit|attr::OMPReferencedVar|attr::ObjCMethodFamily|attr::ObjCNonLazyClass|attr::OpenCLUnrollHint|attr::SYCLSpecialClass|attr::SwiftErrorResult|attr::SwiftNullability|attr::SwiftObjCMembers|attr::TransparentUnion|attr::WarnUnusedResult|attr::ZeroCallUsedRegs|CK_FloatingToIntegral|CK_IntegralToFloating|OMPC_dyn_groupprivate|UETT_PreferredAlignOf|attr::AnyX86Interrupt|attr::AnyX86NoCfCheck|attr::ArmBuiltinAlias|attr::CUDAClusterDims|attr::CountedByOrNull|attr::DLLExportOnDecl|attr::HybridPatchable|attr::InternalLinkage|attr::MSP430Interrupt|attr::NoUniqueAddress|attr::OMPAllocateDecl|attr::ObjCRuntimeName|attr::RandomizeLayout|attr::ReturnTypestate|attr::StandaloneDebug|attr::SwiftAsyncError|CK_AtomicToNonAtomic|CK_FloatingToBoolean|CK_IntegralToBoolean|CK_IntegralToPointer|CK_NonAtomicToAtomic|CK_PointerToIntegral|OMPC_device_safesync|OMPC_has_device_addr|OMPC_reverse_offload|OMPC_unified_address|OMPC_use_device_addr|OMPC_uses_allocators|attr::AcquiredBefore|attr::CapturedRecord|attr::CoroReturnType|attr::EnforceTCBLeaf|attr::HLSLNumThreads|attr::HLSLPackOffset|attr::HLSLVkLocation|attr::MinVectorWidth|attr::NSConsumesSelf|attr::OMPCaptureKind|attr::OSConsumesThis|attr::ParamTypestate|attr::PassObjectSize|attr::RISCVInterrupt|attr::ReturnsNonNull|attr::ScopedLockable|attr::SwiftAsyncCall|attr::SwiftAsyncName|attr::TypeVisibility|attr::XRayInstrument|CK_ARCConsumeObject|CK_ARCProduceObject|CK_BuiltinFnToFnPtr|CK_PointerToBoolean|OMPC_no_parallelism|OMPC_ompx_attribute|OMPC_task_reduction|OMPC_use_device_ptr|UETT_VectorElements|attr::AArch64SVEPcs|attr::AMDGPUNumSGPR|attr::AMDGPUNumVGPR|attr::AcquireHandle|attr::AcquiredAfter|attr::AlwaysDestroy|attr::AssumeAligned|attr::CUDANoCluster|attr::CXX11NoReturn|attr::ExtVectorType|attr::FormatMatches|attr::HLSLIsCounter|attr::HLSLRawBuffer|attr::HLSLVkBinding|attr::LayoutVersion|attr::LifetimeBound|attr::LocksExcluded|attr::M68kInterrupt|attr::MSInheritance|attr::MipsInterrupt|attr::MipsShortCall|attr::ModularFormat|attr::NSErrorDomain|attr::NonAllocating|attr::NotTailCalled|attr::ObjCClassStub|attr::ObjCException|attr::ObjCOwnership|attr::ObjCRootClass|attr::PreferredName|attr::PreferredType|attr::RISCVVectorCC|attr::Reinitializes|attr::ReleaseHandle|attr::RootSignature|attr::SizedByOrNull|attr::TargetVersion|attr::TestTypestate|attr::Uninitialized|attr::UsingIfExists|CK_HLSLArrayRValue|CK_IntToOCLSampler|OMPC_dist_schedule|OMPC_init_complete|OMPC_is_device_ptr|OMPC_threadprivate|attr::ARMInterrupt|attr::AVRInterrupt|attr::AddressSpace|attr::AlignNatural|attr::AlwaysInline|attr::AnnotateType|attr::ArmPreserves|attr::ArmStreaming|attr::Availability|attr::BuiltinAlias|attr::CUDAConstant|attr::CallableWhen|attr::DeviceKernel|attr::ExplicitInit|attr::HLSLLoopHint|attr::HLSLWaveSize|attr::InitPriority|attr::IntelOclBicc|attr::LockReturned|attr::MipsLongCall|attr::NoConvergent|attr::NoSplitStack|attr::ObjCNSObject|attr::OpenCLAccess|attr::OptimizeNone|attr::Overloadable|attr::PreserveMost|attr::PreserveNone|attr::PtGuardedVar|attr::ReturnsTwice|attr::SYCLExternal|attr::SetTypestate|attr::SwiftContext|attr::SwiftNewType|attr::SwiftPrivate|attr::TargetClones|attr::TypeNullable|CK_FixedPointCast|CK_LValueToRValue|OMPC_firstprivate|OMPC_groupprivate|OMPC_in_reduction|OMPC_memory_order|OMPC_thread_limit|attr::AlignMac68k|attr::ArmAgnostic|attr::BPFFastCall|attr::C11NoReturn|attr::CPUDispatch|attr::CPUSpecific|attr::CmseNSEntry|attr::Constructor|attr::CoroWrapper|attr::FallThrough|attr::MSAllocator|attr::MSConstexpr|attr::NoDuplicate|attr::NoMicroMips|attr::NonBlocking|attr::ObjCBoxable|attr::PointerAuth|attr::PreserveAll|attr::PtGuardedBy|attr::SwiftBridge|attr::TypeNonNull|attr::Unavailable|attr::VecTypeHint|attr::XRayLogArgs|CK_BaseToDerived|CK_DerivedToBase|CK_LValueBitCast|CK_NullToPointer|OMPC_adjust_args|OMPC_append_args|OMPC_copyprivate|OMPC_device_type|OMPC_graph_reset|OMPC_initializer|OMPC_lastprivate|OMPC_nontemporal|OMPC_notinbranch|OMPC_num_threads|OMPC_permutation|OMPC_transparent|attr::AlignValue|attr::AllocAlign|attr::Allocating|attr::Artificial|attr::BTFDeclTag|attr::BTFTypeTag|attr::CFConsumed|attr::CUDADevice|attr::CUDAGlobal|attr::CUDAShared|attr::CalledOnce|attr::Capability|attr::CmseNSCall|attr::Consumable|attr::Convergent|attr::Deprecated|attr::Destructor|attr::DiagnoseIf|attr::EmptyBases|attr::EnforceTCB|attr::GuardedVar|attr::HIPManaged|attr::HLSLShader|attr::MSNoVTable|attr::MSVtorDisp|attr::MallocSpan|attr::MaybeUndef|attr::NSConsumed|attr::NoSanitize|attr::OSConsumed|attr::ObjCBridge|attr::ObjCDirect|attr::ObjCKindOf|attr::RISCVVLSCC|attr::SYCLKernel|attr::SwiftAsync|attr::SwiftError|attr::TrivialABI|attr::VectorCall|attr::Visibility|attr::WarnUnused|attr::WeakImport|CK_FloatingCast|CK_IntegralCast|OMPC_defaultmap|OMPC_novariants|OMPC_replayable|UETT_DataSizeOf|attr::ARMSaveFP|attr::AVRSignal|attr::AllocSize|attr::CXXAssume|attr::CodeAlign|attr::CodeModel|attr::ConstInit|attr::CountedBy|attr::DLLExport|attr::DLLImport|attr::FormatArg|attr::GCCStruct|attr::GNUInline|attr::GuardedBy|attr::MicroMips|attr::NoBuiltin|attr::NoDestroy|attr::NoUwtable|attr::NonString|attr::OMPAssume|attr::Ownership|attr::SelectAny|attr::SwiftAttr|attr::SwiftCall|attr::SwiftName|attr::SwiftType|attr::UseHandle|attr::VecReturn|CK_VectorSplat|OMPC_allocator|OMPC_collector|OMPC_exclusive|OMPC_grainsize|OMPC_inclusive|OMPC_induction|OMPC_looprange|OMPC_mergeable|OMPC_no_openmp|OMPC_nocontext|OMPC_num_tasks|OMPC_num_teams|OMPC_ompx_bare|OMPC_otherwise|OMPC_proc_bind|OMPC_reduction|OMPC_self_maps|OMPC_threadset|attr::Annotate|attr::ArmInOut|attr::AsmLabel|attr::Blocking|attr::CUDAHost|attr::Callback|attr::EnableIf|attr::FastCall|attr::FlagEnum|attr::IBAction|attr::IBOutlet|attr::LoopHint|attr::MSStruct|attr::MayAlias|attr::MustTail|attr::NoCommon|attr::NoEscape|attr::NoInline|attr::NoMips16|attr::NoReturn|attr::Override|attr::Restrict|attr::Sentinel|attr::StrictFP|attr::Suppress|attr::TLSModel|attr::ThisCall|attr::Unlikely|CK_MatrixCast|OMPC_affinity|OMPC_allocate|OMPC_collapse|OMPC_combiner|OMPC_contains|OMPC_doacross|OMPC_graph_id|OMPC_inbranch|OMPC_indirect|OMPC_inductor|OMPC_memscope|OMPC_priority|OMPC_safesync|OMPC_schedule|OMPC_severity|attr::Aligned|attr::Builtin|attr::CFGuard|attr::CFISalt|attr::Cleanup|attr::CodeSeg|attr::Flatten|attr::HLSLROV|attr::InitSeg|attr::M68kRTD|attr::MinSize|attr::NoAlias|attr::NoDebug|attr::NoDeref|attr::NoMerge|attr::NoThrow|attr::NonNull|attr::Pointer|attr::RegCall|attr::Section|attr::SizedBy|attr::StdCall|attr::SysVABI|attr::WeakRef|CK_Dependent|OMPC_acq_rel|OMPC_acquire|OMPC_aligned|OMPC_capture|OMPC_compare|OMPC_default|OMPC_destroy|OMPC_interop|OMPC_message|OMPC_nogroup|OMPC_ordered|OMPC_partial|OMPC_private|OMPC_relaxed|OMPC_release|OMPC_safelen|OMPC_seq_cst|OMPC_simdlen|OMPC_threads|OMPC_uniform|OMPC_unknown|UETT_AlignOf|UETT_CountOf|UETT_VecStep|attr::AbiTag|attr::ArmNew|attr::ArmOut|attr::Atomic|attr::Blocks|attr::Common|attr::Format|attr::Likely|attr::Mips16|attr::ObjCGC|attr::Packed|attr::Pascal|attr::Retain|attr::Target|attr::Thread|attr::Unused|OMPC_absent|OMPC_copyin|OMPC_counts|OMPC_depend|OMPC_depobj|OMPC_detach|OMPC_device|OMPC_filter|OMPC_linear|OMPC_nowait|OMPC_shared|OMPC_untied|OMPC_update|UETT_SizeOf|attr::Alias|attr::ArmIn|attr::CDecl|attr::Const|attr::Error|attr::Final|attr::IFunc|attr::MSABI|attr::Naked|attr::Owner|attr::Ptr32|attr::Ptr64|CK_BitCast|CK_Dynamic|CK_ToUnion|OMPC_align|OMPC_apply|OMPC_enter|OMPC_final|OMPC_flush|OMPC_holds|OMPC_local|OMPC_match|OMPC_order|OMPC_sizes|OMPC_write|attr::Cold|attr::Leaf|attr::Mode|attr::Pure|attr::SPtr|attr::UPtr|attr::Used|attr::Uuid|attr::Weak|CK_ToVoid|OMPC_bind|OMPC_fail|OMPC_from|OMPC_full|OMPC_hint|OMPC_init|OMPC_link|OMPC_read|OMPC_simd|OMPC_weak|OMPC_when|attr::Hot|attr::Pcs|OMPC_map|OMPC_use|CK_NoOp|OMPC_at|OMPC_if|OMPC_to)\\b",
+          "name": "constant.language.enum.astmatcher"
+        }
+      ]
+    }
+  },
+  "scopeName": "source.astmatcher"
+}

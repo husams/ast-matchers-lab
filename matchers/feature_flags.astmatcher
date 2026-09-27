@@ -1,0 +1,11 @@
+set bind-root false
+set output diag
+match callExpr(
+  callee(functionDecl(hasName("isEnable"))),
+  hasArgument(0,
+    ignoringParenImpCasts(
+      anyOf(
+        stringLiteral().bind("flag"),
+        declRefExpr(to(varDecl(
+          hasInitializer(ignoringParenImpCasts(stringLiteral().bind("flag"))))))
+      ))))

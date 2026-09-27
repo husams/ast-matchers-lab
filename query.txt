@@ -1,0 +1,8 @@
+match cxxRecordDecl(
+        hasName("Deep"),
+    f   orEachDescendant(
+                cxxRecordDecl(
+                    isDefinition()
+                )
+            )
+        )

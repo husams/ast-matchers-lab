@@ -1,0 +1,3 @@
+match cxxRecordDecl(hasName("Pair"),
+  eachOf(has(fieldDecl(hasName("first")).bind("v")),
+         has(fieldDecl(hasName("second")).bind("v")))).bind("d")

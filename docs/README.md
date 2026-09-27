@@ -119,6 +119,19 @@ Everything below is explained again where it bites; this is the short list.
 - Comfortable reading C++; some idea of what an AST is (Part 1 recaps).
 - Homebrew LLVM installed (`brew install llvm`).
 
+## Editor support (optional)
+
+`tools/language-support/` adds highlighting and type-aware autocomplete for the
+matcher DSL itself, generated from the same `scripts/catalog.json` this lab is
+built on — VS Code extension, an editor-agnostic language server, and a Vim
+syntax file. It also type-checks a `.query` file without running it:
+
+```bash
+tools/language-support/astmatcher-lsp/bin/astmatcher-lsp --check manifests/queries/*.query
+```
+
+See [`tools/language-support/README.md`](../tools/language-support/README.md).
+
 ## Conventions
 
 - ```` ```clang-query ```` block — commands to type at the clang-query prompt, shown without the prompt so the block pastes as-is; an indented line continues the command above it
