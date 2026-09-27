@@ -8,6 +8,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
@@ -161,17 +162,42 @@ class TestBackendTargets(unittest.TestCase):
                 messages.append(json.loads(body[:length]))
                 raw = body[length:]
             self.assertEqual([m.get("method", "response") for m in messages],
-                             ["astmatcher/queryProgress"] * 3 + ["response"])
+                             ["astmatcher/queryProgress"] * 7 + ["response"])
             progress = [m["params"] for m in messages[:-1]]
-            self.assertEqual([m["kind"] for m in progress], ["start", "file", "file"])
-            self.assertEqual([m["runId"] for m in progress], ["stream-17"] * 3)
-            self.assertEqual([m["completedFiles"] for m in progress[1:]], [1, 2])
-            self.assertEqual([Path(m["file"]).name for m in progress[1:]],
-                             ["a.cpp", "b.cpp"])
-            self.assertEqual([m["queries"][0]["count"] for m in progress[1:]], [1, 1])
+            self.assertEqual([m["kind"] for m in progress],
+                             ["start", "file-start", "heartbeat", "file",
+                              "file-start", "heartbeat", "file"])
+            # Native heartbeat events can also arrive during either file.
+            self.assertEqual([m["runId"] for m in progress], ["stream-17"] * 7)
+            files = [m for m in progress if m["kind"] != "start"]
+            self.assertEqual([m["completedFiles"] for m in files], [0, 0, 1, 1, 1, 2])
+            self.assertEqual([Path(m["file"]).name for m in files],
+                             ["a.cpp", "a.cpp", "a.cpp", "b.cpp", "b.cpp", "b.cpp"])
+            completed = [m for m in progress if m["kind"] == "file"]
+            self.assertEqual([m["queries"][0]["count"] for m in completed], [1, 1])
             final = messages[-1]["result"]
             self.assertTrue(final["ok"], final["errors"])
             self.assertEqual(sum(q["count"] for q in final["queries"]), 2)
+
+    def test_run_errors_are_logged_with_the_translation_unit_path(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary) / "slow.cpp"
+            source.write_text("int value;\n")
+            uri = source.with_suffix(".query").as_uri()
+            server = Server(stdin=io.BytesIO(), stdout=io.BytesIO())
+            server.documents[uri] = TextDocument(uri, "match varDecl()")
+            server._request_id = 19
+            timed_out = {"ok": False, "sample": str(source), "errors": [{
+                "message": "native matcher timed out after 120s", "file": str(source)}]}
+            with patch("astmatcher_lsp.server.run_query", return_value=timed_out):
+                with self.assertLogs("astmatcher-lsp", level="ERROR") as captured:
+                    server.on_astmatcher_runQuery({
+                        "textDocument": {"uri": uri}, "sample": str(source),
+                        "runId": "timeout-log-19"})
+                    server._worker.join(timeout=5)
+            self.assertFalse(server._worker.is_alive())
+            self.assertIn(str(source), "\n".join(captured.output))
+            self.assertIn("timed out after 120s", "\n".join(captured.output))
 
 
 if __name__ == "__main__":

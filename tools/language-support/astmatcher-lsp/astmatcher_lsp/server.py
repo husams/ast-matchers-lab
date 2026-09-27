@@ -5,8 +5,9 @@ completion (+resolve), hover, signature help, diagnostics on change, document
 symbols, go-to-definition for `let` names, and semantic tokens.
 
 One custom request, `astmatcher/runQuery`, runs the document through the
-native matcher server and answers with the JSON described in run.py. For requests with a
-runId it also sends `astmatcher/queryProgress` notifications as files complete.
+native matcher server and answers with the JSON described in run.py. For
+requests with a runId it streams source-file starts, native elapsed-time
+heartbeats, per-file results, and the final response on the same connection.
 It runs on a worker thread so completion keeps working during the scan.
 """
 
@@ -324,9 +325,15 @@ class Server:
                         timeout=float(params.get("timeout") or 120),
                         on_start=self._started,
                         on_progress=progress if isinstance(run_id, str) and run_id else None)
+                    for error in result.get("errors", []):
+                        log.error("runQuery error file=%s runId=%s: %s",
+                                  error.get("file") or params.get("sample", "<unknown>"),
+                                  run_id or "<none>", error.get("message", "unknown error"))
                     self._respond(request_id, result)
                 except Exception:
-                    log.error("runQuery failed\n%s", traceback.format_exc())
+                    log.error("runQuery failed file=%s runId=%s\n%s",
+                              params.get("sample", "<unknown>"), run_id or "<none>",
+                              traceback.format_exc())
                     self._respond(request_id, error={"code": -32603,
                                                      "message": traceback.format_exc()})
                 finally:

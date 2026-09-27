@@ -33,12 +33,16 @@ class FakeClient:
     binary = sys.executable
     compiler_path = sys.executable
 
-    def __init__(self, reply: dict) -> None:
+    def __init__(self, reply: dict, progress_event: dict | None = None) -> None:
         self.reply = reply
+        self.progress_event = progress_event
         self.requests: list[dict] = []
 
-    def run(self, request: dict, *, cwd: str, timeout: float, on_start=None):
+    def run(self, request: dict, *, cwd: str, timeout: float, on_start=None,
+            on_progress=None):
         self.requests.append(request)
+        if self.progress_event and on_progress:
+            on_progress(self.progress_event)
         return self.reply, [self.binary, "query", "--socket", "/tmp/fake/s"], 0, ""
 
 
@@ -56,6 +60,22 @@ def reply_for(source: Path) -> dict:
 
 
 class TestNativeBridge(unittest.TestCase):
+    def test_progress_includes_current_file_and_elapsed_time(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary) / "sample.cpp"
+            source.write_text("int value;\n")
+            client = FakeClient(reply_for(source), {"elapsedMs": 725})
+            events = []
+            result = run_query("match varDecl()", str(source), client=client,
+                               on_progress=events.append)
+            self.assertTrue(result["ok"], result)
+            self.assertEqual([event["kind"] for event in events],
+                             ["start", "file-start", "heartbeat", "file"])
+            self.assertEqual(events[1]["file"], str(source))
+            self.assertEqual(events[2]["file"], str(source))
+            self.assertEqual(events[2]["fileDurationMs"], 725)
+            self.assertEqual(events[-1]["completedFiles"], 1)
+
     def test_server_exits_when_lsp_parent_is_terminated(self):
         try:
             binary = native_binary_path()
@@ -333,29 +353,27 @@ class TestNativeBridge(unittest.TestCase):
             self.assertEqual(len(client.requests[0]["commands"]), 1)
 
     def test_deadline_reaches_cli_and_python_waits_for_status(self):
-        client = NativeClient("/tmp/astmatcher-native")
-        process = Mock(returncode=0)
-        process.communicate.return_value = ("{}", "")
-        with patch.object(client, "_ensure_server", return_value="/tmp/am-test/s"):
-            with patch("astmatcher_lsp.native_client.subprocess.Popen",
-                       return_value=process) as spawn:
-                client.run({}, cwd="/tmp", timeout=0.25)
-        self.assertEqual(spawn.call_args.args[0][-2:], ["--timeout-ms", "250"])
-        process.communicate.assert_called_once_with(json.dumps({}), timeout=1.25)
+        with tempfile.TemporaryDirectory() as temporary:
+            cli = Path(temporary) / "native-cli"
+            cli.write_text("#!/usr/bin/env python3\nprint('{}')\n")
+            cli.chmod(0o700)
+            client = NativeClient(str(cli))
+            with patch.object(client, "_ensure_server", return_value="/tmp/am-test/s"):
+                reply, command, _, _ = client.run({}, cwd=temporary, timeout=0.25)
+            self.assertEqual(reply, {})
+            self.assertEqual(command[-3:], ["--timeout-ms", "250", "--progress"])
 
     def test_client_timeout_stops_owned_server(self):
-        client = NativeClient("/tmp/astmatcher-native")
-        process = Mock()
-        process.communicate.side_effect = [
-            subprocess.TimeoutExpired("query", 0.25), ("", "")]
-        with patch.object(client, "_ensure_server", return_value="/tmp/am-test/s"):
-            with patch.object(client, "close") as close:
-                with patch("astmatcher_lsp.native_client.subprocess.Popen",
-                           return_value=process):
+        with tempfile.TemporaryDirectory() as temporary:
+            cli = Path(temporary) / "native-cli"
+            cli.write_text("#!/usr/bin/env python3\nimport time\ntime.sleep(3)\n")
+            cli.chmod(0o700)
+            client = NativeClient(str(cli))
+            with patch.object(client, "_ensure_server", return_value="/tmp/am-test/s"):
+                with patch.object(client, "close") as close:
                     with self.assertRaisesRegex(NativeClientError, "timed out"):
-                        client.run({}, cwd="/tmp", timeout=0.25)
-        process.kill.assert_called_once()
-        close.assert_called_once()
+                        client.run({}, cwd=temporary, timeout=0.25)
+            close.assert_called_once()
 
     def test_cancel_active_rpc_restarts_owned_server(self):
         class RunningProcess:

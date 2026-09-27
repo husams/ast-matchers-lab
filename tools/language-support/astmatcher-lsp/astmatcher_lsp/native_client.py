@@ -10,6 +10,7 @@ import atexit
 import json
 import math
 import os
+import selectors
 import shutil
 import subprocess
 import tempfile
@@ -142,42 +143,88 @@ class NativeClient:
                 raise
 
     def run(self, request: dict, *, cwd: str, timeout: float,
-            on_start: Callable[[subprocess.Popen], None] | None = None
+            on_start: Callable[[subprocess.Popen], None] | None = None,
+            on_progress: Callable[[dict], None] | None = None
             ) -> tuple[dict, list[str], int, str]:
         if not math.isfinite(timeout) or not 0 < timeout <= 3600:
             raise NativeClientError("native matcher timeout must be between 0 and 3600 seconds")
         socket_path = self._ensure_server()
         timeout_ms = max(1, math.ceil(timeout * 1000))
         command = [self.binary, "query", "--socket", socket_path,
-                   "--timeout-ms", str(timeout_ms)]
+                   "--timeout-ms", str(timeout_ms), "--progress"]
+        stderr_file = tempfile.TemporaryFile(mode="w+t", encoding="utf-8")
         try:
-            proc = subprocess.Popen(
-                command, cwd=cwd, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace")
+            proc = subprocess.Popen(command, cwd=cwd, stdin=subprocess.PIPE,
+                                    stdout=subprocess.PIPE, stderr=stderr_file)
         except OSError as exc:
+            stderr_file.close()
             raise NativeClientError(f"cannot start native matcher client: {exc}") from exc
         if on_start:
             on_start(proc)
+        pending = bytearray()
+        reply = None
+        selector = selectors.DefaultSelector()
+        assert proc.stdout is not None and proc.stdin is not None
+        selector.register(proc.stdout, selectors.EVENT_READ)
         try:
-            stdout, stderr = proc.communicate(json.dumps(request), timeout=timeout + 1.0)
-        except subprocess.TimeoutExpired as exc:
+            proc.stdin.write(json.dumps(request).encode("utf-8"))
+            proc.stdin.close()
+            deadline = time.monotonic() + timeout + 1.0
+            while selector.get_map():
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TimeoutError
+                for key, _ in selector.select(min(remaining, 0.25)):
+                    chunk = os.read(key.fileobj.fileno(), 65536)
+                    if not chunk:
+                        selector.unregister(key.fileobj)
+                        continue
+                    pending.extend(chunk)
+                    while b"\n" in pending:
+                        line, _, rest = pending.partition(b"\n")
+                        pending[:] = rest
+                        if not line:
+                            continue
+                        item = json.loads(line)
+                        if isinstance(item, dict) and isinstance(item.get("progress"), dict):
+                            if on_progress:
+                                on_progress(item["progress"])
+                        else:
+                            reply = item
+                if proc.poll() is not None and not selector.get_map():
+                    break
+            if pending.strip():
+                reply = json.loads(pending)
+            return_code = proc.wait(timeout=max(0.1, deadline - time.monotonic()))
+        except (TimeoutError, subprocess.TimeoutExpired) as exc:
             proc.kill()
-            proc.communicate()
+            proc.wait()
+            proc.stdout.close()
+            stderr_file.close()
             self.close()
             raise NativeClientError(f"native matcher timed out after {timeout:g}s") from exc
-        if proc.returncode:
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            proc.kill()
+            proc.wait()
+            proc.stdout.close()
+            stderr_file.close()
+            raise NativeClientError(f"native matcher returned invalid progress data: {exc}") from exc
+        finally:
+            selector.close()
+            if proc.stdout and not proc.stdout.closed:
+                proc.stdout.close()
+        stderr_file.seek(0)
+        stderr = stderr_file.read()
+        stderr_file.close()
+        if return_code:
             if "deadline" in stderr.lower() or "timed out" in stderr.lower():
                 self.close()
                 raise NativeClientError(f"native matcher timed out after {timeout:g}s")
             raise NativeClientError(
-                f"native matcher client exited with code {proc.returncode}: {stderr.strip()[:2000]}")
-        try:
-            reply = json.loads(stdout)
-        except json.JSONDecodeError as exc:
-            raise NativeClientError("native matcher returned invalid JSON") from exc
+                f"native matcher client exited with code {return_code}: {stderr.strip()[:2000]}")
         if not isinstance(reply, dict):
             raise NativeClientError("native matcher returned a non-object response")
-        return reply, command, proc.returncode, stderr
+        return reply, command, return_code, stderr
 
     def _stop_locked(self) -> None:
         server = self._server

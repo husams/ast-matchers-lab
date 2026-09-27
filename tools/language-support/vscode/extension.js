@@ -21,6 +21,7 @@ let samples;
 let store;
 let matchesView;
 let statusItem;
+let runStatusItem;
 let queryDiagnostics;
 let lastQueryDoc;             // the .query document commands act on from the panel
 let targets;
@@ -88,6 +89,17 @@ async function startServer(context) {
     if (!activeRunId || progress.runId !== activeRunId) return;
     if (progress.kind === "start") store.startStreaming(progress);
     else if (progress.kind === "file") store.appendStreamingFile(progress);
+    if (progress.kind === "file-start" || progress.kind === "heartbeat" ||
+        progress.kind === "file") {
+      const file = progress.file ? path.basename(progress.file) : "preparing";
+      const elapsed = Math.floor((progress.durationMs || 0) / 1000);
+      const time = `${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, "0")}`;
+      const done = progress.completedFiles || 0;
+      const total = progress.totalFiles || 0;
+      runStatusItem.text = `$(sync~spin) AST Matcher ${done}/${total} · ${file} · ${time}`;
+      runStatusItem.tooltip = progress.file || "Preparing source files";
+      runStatusItem.show();
+    }
   }));
 }
 
@@ -365,6 +377,8 @@ async function runQuery(arg) {
     ? "all workspace folders" : path.basename(target.path);
   const runId = crypto.randomUUID();
   activeRunId = runId;
+  runStatusItem.text = "$(sync~spin) AST Matcher · preparing";
+  runStatusItem.show();
   store.setRunning({ sample: runningLabel, scope: target.scope,
                      targetPath: target.path });
   matchesView.show();
@@ -377,12 +391,14 @@ async function runQuery(arg) {
   } catch (err) {
     if (serial !== runSerial) return;
     activeRunId = undefined;
+    runStatusItem.hide();
     store.set(undefined);
     vscode.window.showErrorMessage(`astmatcher: run failed: ${err.message || err}`);
     return;
   }
   if (serial !== runSerial) return;
   activeRunId = undefined;
+  runStatusItem.hide();
   store.set(result);
   queryDiagnostics.set(document.uri, result.errors.filter((e) => e.range).map((e) => {
     const r = e.range;
@@ -393,6 +409,13 @@ async function runQuery(arg) {
     return diag;
   }));
   const total = result.queries.reduce((n, q) => n + q.count, 0);
+  if (!result.ok && result.errors.length) {
+    const error = result.errors[0];
+    const failedFile = error.file || result.sample;
+    vscode.window.setStatusBarMessage(
+      `$(error) ${path.basename(failedFile)} · ${error.message}`, 10000);
+    return;
+  }
   vscode.window.setStatusBarMessage(
     `$(search) ${total} match${total === 1 ? "" : "es"} in ${path.basename(result.sample)}`, 5000);
 }
@@ -594,6 +617,9 @@ async function activate(context) {
                                                  vscode.StatusBarAlignment.Right, 100);
   statusItem.name = "AST Matcher Sample";
   statusItem.command = "astmatcher.selectSample";
+  runStatusItem = vscode.window.createStatusBarItem("astmatcher.runProgress",
+                                                     vscode.StatusBarAlignment.Left, 100);
+  runStatusItem.name = "AST Matcher Query Progress";
   const highlighter = new Highlighter(store);
   const tree = new BindingsTree(store);
 
@@ -604,7 +630,7 @@ async function activate(context) {
   track(vscode.window.activeTextEditor);
 
   context.subscriptions.push(
-    queryDiagnostics, statusItem, highlighter,
+    queryDiagnostics, statusItem, runStatusItem, highlighter,
     vscode.window.registerWebviewViewProvider("astmatcher.matches", matchesView,
                                               { webviewOptions: { retainContextWhenHidden: true } }),
     vscode.window.createTreeView("astmatcher.bindings", { treeDataProvider: tree,
