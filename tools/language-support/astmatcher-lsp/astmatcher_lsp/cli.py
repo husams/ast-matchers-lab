@@ -74,7 +74,7 @@ def inspect(path: str, spec: str, what: str, data_dir: str | None) -> int:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
         prog="astmatcher-lsp",
-        description="Language support for the Clang AST Matcher DSL (clang-query).")
+        description="Language support for the Clang AST Matcher DSL.")
     ap.add_argument("--version", action="version", version=f"astmatcher-lsp {__version__}")
     ap.add_argument("--stdio", action="store_true",
                     help="run as an LSP server over stdin/stdout (default with no files)")
@@ -88,10 +88,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--signature", metavar="FILE", help="print signature help at --at")
     ap.add_argument("--data", metavar="DIR", help="override the generated data directory")
     ap.add_argument("--run", metavar="FILE",
-                    help="run FILE through clang-query against --sample and print JSON; "
+                    help="run FILE through the native matcher server against --sample and print JSON; "
                          "compiler flags go after `--`")
     ap.add_argument("--sample", metavar="SOURCE", help="with --run: the translation unit")
-    ap.add_argument("--clang-query", metavar="PATH", help="with --run: clang-query binary")
+    ap.add_argument("--native-server", metavar="PATH",
+                    help="with --run: path to astmatcher-native (or set ASTMATCHER_NATIVE)")
     ap.add_argument("--target-scope", choices=("file", "directory", "workspace"),
                     default="file", help="with --run: target scope")
     ap.add_argument("--target-path", metavar="PATH", help="with --run: file/directory path")
@@ -103,7 +104,7 @@ def main(argv: list[str] | None = None) -> int:
                     help="with --run: compile_commands.json, a build directory, "
                          "or 'auto' to find the nearest one")
     ap.add_argument("--traversal", choices=("AsIs", "IgnoreUnlessSpelledInSource"),
-                    help="with --run: clang-query traversal mode")
+                    help="with --run: AST traversal mode")
     ap.add_argument("--cache", action="store_true", help="with --run: enable result cache")
     ap.add_argument("--cache-location", metavar="DIR", help="with --run: cache directory")
     argv = list(sys.argv[1:] if argv is None else argv)
@@ -120,7 +121,7 @@ def main(argv: list[str] | None = None) -> int:
         target = {"scope": args.target_scope,
                   "path": args.target_path or args.sample,
                   "roots": args.root}
-        result = run_query(text, args.sample, flags, clang_query=args.clang_query,
+        result = run_query(text, args.sample, flags, native_server=args.native_server,
                            target=target, exclusions=args.exclude,
                            compile_commands=args.compile_commands, traversal=args.traversal,
                            cache={"enabled": args.cache, "location": args.cache_location})

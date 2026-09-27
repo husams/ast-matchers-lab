@@ -8,6 +8,7 @@ behaviour; each is noted where it is not obvious.
 
 from __future__ import annotations
 
+from dataclasses import replace
 import io
 import json
 import sys
@@ -24,15 +25,21 @@ from astmatcher_lsp.features import (completions, context_at, hover,  # noqa: E4
                                     semantic_tokens, signature_help)
 from astmatcher_lsp.lexer import LineIndex, tokenize                # noqa: E402
 from astmatcher_lsp.parser import bound_ids, calls_at, parse        # noqa: E402
-from astmatcher_lsp.run import (OutputParser, attach_query_ranges,     # noqa: E402
-                                build_script, clang_query_path, group_bindings,
-                                parse_dump_header, run_query)
+from astmatcher_lsp.native_client import (NativeClientError, native_binary_path)  # noqa: E402
+from astmatcher_lsp.run import group_bindings, native_commands, run_query  # noqa: E402
 from astmatcher_lsp.server import Server                            # noqa: E402
 from astmatcher_lsp.targets import (compile_flags,                   # noqa: E402
                                     find_compile_database)
 
 CAT = load()
 LAB = HERE.parent.parent.parent.parent
+
+
+def native_available() -> bool:
+    try:
+        return Path(native_binary_path()).is_file()
+    except NativeClientError:
+        return False
 
 
 def codes(src: str) -> list[str]:
@@ -199,6 +206,22 @@ class TestDiagnostics(unittest.TestCase):
         self.assertEqual(diags[0].severity, WARNING)
         self.assertEqual(diags[0].code, "not-registered")
 
+    def test_linked_clang_capability_filters_completion_and_reports_error(self):
+        unavailable = replace(CAT.matchers["arrayTypeLoc"],
+                              native_available=False, native_llvm_major=21)
+        cat = replace(CAT, matchers={**CAT.matchers,
+                                     "arrayTypeLoc": unavailable})
+        query = parse("match arrayTypeLoc()")
+        diags = analyze(cat, query)[0]
+        self.assertEqual(diags[0].severity, ERROR)
+        self.assertEqual(diags[0].code, "unavailable-matcher")
+        self.assertIn("linked Clang 21", diags[0].message)
+        names = {item["label"] for item in completions(cat, parse("match "), 6)}
+        self.assertNotIn("arrayTypeLoc", names)
+        self.assertIn("functionDecl", names)
+        markdown = hover(cat, query, 9)["contents"]["value"]
+        self.assertIn("linked Clang 21", markdown)
+
     def test_unterminated_string(self):
         self.assertIn("unterminated-string", codes('match functionDecl(hasName("x'))
 
@@ -319,104 +342,45 @@ class TestSemanticTokens(unittest.TestCase):
             self.assertEqual(kinds[lit], "literal", lit)
 
 
-PAIR_OUTPUT = """
-  Matcher: cxxRecordDecl(hasName("Pair"),
-              has(fieldDecl().bind("v")))
-  ==================================
-
-
-Match #1:
-
-/src/p.cpp:2:1: note: "root" binds here
-    2 | struct Pair { int first; };
-      | ^~~~~~~~~~~~~~~~~~~~~~~~~~
-Binding for "root":
-CXXRecordDecl 0x1 </src/p.cpp:2:1, col:26> col:8 struct Pair definition
-`-FieldDecl 0x2 <col:15, col:19> col:19 first 'int'
-
-/src/p.cpp:2:15: note: "v" binds here
-    2 | struct Pair { int first; };
-      |               ^~~~~~~~~
-Binding for "v":
-FieldDecl 0x2 </src/p.cpp:2:15, col:19> col:19 first 'int'
-
-Binding for "t":
-BuiltinType 0x3 'int'
-
-1 match.
-1:2: Error parsing argument 1 for matcher varDecl.
-1:10: Matcher not found: hasNamex
-"""
-
-
 class TestRun(unittest.TestCase):
-    """Parsing clang-query 22's text output into the runQuery JSON."""
+    def test_native_commands_preserve_expression_and_settings(self):
+        text = ('# sample: a.cpp\nset output print\n'
+                'let chosen integerLiteral(equals(42))\n'
+                'set traversal IgnoreUnlessSpelledInSource\n'
+                'set bind-root false\n'
+                'match varDecl(hasInitializer(chosen)).bind("v")\n')
+        commands, originals, error = native_commands(parse(text))
+        self.assertIsNone(error)
+        self.assertEqual([c["kind"] for c in commands],
+                         ["LET", "SET_TRAVERSAL", "SET_BIND_ROOT", "MATCH"])
+        self.assertEqual(commands[0]["name"], "chosen")
+        self.assertEqual(commands[0]["expression"], "integerLiteral(equals(42))")
+        self.assertEqual(commands[-1]["expression"],
+                         'varDecl(hasInitializer(chosen)).bind("v")')
+        self.assertEqual([c.name for c in originals], ["let", "set", "set", "match"])
 
-    def test_dump_header_ranges(self):
-        info = parse_dump_header(
-            "CXXRecordDecl 0x9 </a/b.cpp:47:1, line:49:2> col:8 struct Pair definition")
-        self.assertEqual(info["begin"], ("/a/b.cpp", 47, 1))
-        self.assertEqual(info["end"], ("/a/b.cpp", 49, 2))
-        self.assertEqual(info["summary"], "struct Pair definition")
-        info = parse_dump_header("IntegerLiteral 0x9 </a/b.cpp:39:7> 'int' 42")
-        self.assertEqual(info["end"], ("/a/b.cpp", 39, 7))
-        self.assertEqual(info["summary"], "'int' 42")
-        info = parse_dump_header("BuiltinType 0x9 'int'")
-        self.assertIsNone(info["begin"])
-        self.assertEqual(info["summary"], "'int'")
+    def test_incomplete_native_setting_is_sent_for_diagnostics(self):
+        commands, _, error = native_commands(parse("set traversal\nset bind-root\n"))
+        self.assertIsNone(error)
+        self.assertEqual(commands, [{"kind": "SET_TRAVERSAL", "value": ""},
+                                    {"kind": "SET_BIND_ROOT", "value": ""}])
 
-    def test_output_is_parsed_and_mapped_back_to_the_script(self):
-        parser = OutputParser()
-        for line in PAIR_OUTPUT.splitlines():
-            parser.feed(line)
-        state = parser.result()
-        (query,) = state.queries
-        self.assertEqual(query["count"], 1)
-        self.assertIn("has(fieldDecl", query["matcher"])
-        root, v, t = query["matches"][0]["bindings"]
-        self.assertEqual((root["id"], root["kind"], root["location"]),
-                         ("root", "CXXRecordDecl", "p.cpp:2:1"))
-        self.assertEqual(root["range"]["start"], {"line": 1, "character": 0})
-        self.assertEqual(root["range"]["end"]["line"], 1)
-        self.assertEqual((v["id"], v["summary"]), ("v", "first 'int'"))
-        self.assertIsNone(t["range"])                    # types have no location
-
-        script = ('match cxxRecordDecl(hasName("Pair"),\n'
-                  '              has(fieldDecl().bind("v")))\nlet v varDecl(hasNamex())\n')
-        attach_query_ranges(state, parse(script))
-        self.assertEqual(query["range"]["start"], {"line": 0, "character": 0})
-        # clang-query counts a failing `let` from just after its name
-        self.assertEqual([e["range"]["start"] for e in state.errors],
-                         [{"line": 2, "character": 6}, {"line": 2, "character": 14}])
-
-    def test_type_names_are_not_ranges(self):
-        info = parse_dump_header("TemplateSpecializationType 0x7 'vector<int>' sugar")
-        self.assertEqual((info["node"], info["begin"]), ("0x7", None))
-
-    @unittest.skipUnless(Path(clang_query_path()).is_file(), "clang-query not installed")
+    @unittest.skipUnless(native_available(), "native matcher server not built")
     def test_same_node_in_two_matches_is_one_binding(self):
         query = ('match cxxRecordDecl(hasName("Pair"),\n'
                  '  eachOf(has(fieldDecl(hasName("first")).bind("v")),\n'
                  '         has(fieldDecl(hasName("second")).bind("v")))).bind("d")\n')
         result = run_query(query, str(LAB / "manifests" / "trav_decls.cpp"), ["-std=c++23"])
+        self.assertTrue(result["ok"], result)
         self.assertEqual(result["queries"][0]["count"], 2)
-        b = result["bindings"]
-        self.assertEqual(list(b), ["root", "d", "v"])
-        self.assertEqual(len(b["d"]), 1)                     # one record ...
-        self.assertEqual([m["index"] for m in b["d"][0]["matches"]], [1, 2])   # ... twice
-        self.assertEqual([n["text"] for n in b["v"]], ["int first", "int second"])
-        self.assertEqual([[m["index"] for m in n["matches"]] for n in b["v"]], [[1], [2]])
-        self.assertEqual(b, group_bindings(result["queries"]))
+        bindings = result["bindings"]
+        self.assertEqual(list(bindings), ["root", "d", "v"])
+        self.assertEqual(len(bindings["d"]), 1)
+        self.assertEqual([m["index"] for m in bindings["d"][0]["matches"]], [1, 2])
+        self.assertEqual([n["text"] for n in bindings["v"]], ["int first", "int second"])
+        self.assertEqual(bindings, group_bindings(result["queries"]))
 
-    def test_output_settings_in_the_script_are_blanked(self):
-        text = "set output print\nenable output dump\nset bind-root false\nmatch decl()\n"
-        script = build_script(text)
-        body = script.split("\n", 3)[3]
-        self.assertEqual(len(body), len(text))
-        self.assertNotIn("print", body)
-        self.assertIn("set bind-root false", body)
-
-    @unittest.skipUnless(Path(clang_query_path()).is_file(), "clang-query not installed")
+    @unittest.skipUnless(native_available(), "native matcher server not built")
     def test_real_run(self):
         result = run_query('match integerLiteral(equals(42))\n',
                            str(LAB / "manifests" / "narrow_types.cpp"), ["-std=c++23"])

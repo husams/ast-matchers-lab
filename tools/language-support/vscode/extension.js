@@ -2,7 +2,7 @@
 //
 // The grammar and snippets work on their own; this file adds the language
 // server (completion, hover, signature help, diagnostics, semantic tokens) and
-// running the open .query file through clang-query: the server runs it
+// running the open .query file through the native matcher server: the LSP bridges it
 // (`astmatcher/runQuery`) and the matches land in the "AST Matches" panel, the
 // "AST Match Bindings" tree and as highlights in the sample file.
 
@@ -92,10 +92,6 @@ async function startServer(context) {
 }
 
 function clangQuery() {
-  const configured = config().get("clangQueryPath");
-  if (configured) {
-    return configured;
-  }
   if (process.env.LLVM) {
     const candidate = path.join(process.env.LLVM, "bin", "clang-query");
     if (fs.existsSync(candidate)) {
@@ -288,11 +284,12 @@ function rootsUri() {
 }
 
 function createRunRequest(document, sample, target) {
+  const nativeServerPath = config().get("nativeServerPath");
   return {
     textDocument: { uri: document.uri.toString() },
     sample: sample.absolute,
     flags: sample.flags,
-    clangQuery: clangQuery(),
+    nativeServerPath: nativeServerPath ? resolveWorkspace(nativeServerPath) : "",
     cwd: sample.cwd,
     target,
     exclusions: targets.exclusions(),
@@ -349,15 +346,10 @@ async function runQuery(arg) {
     return;
   }
   if (!client || !client.isRunning()) {
-    const settings = getRunSettings();
-    const needsServer = settings.scope !== "file" || settings.compileCommands ||
-      settings.traversal !== "AsIs" || settings.exclusions.length || settings.cacheEnabled;
-    if (needsServer) {
-      vscode.window.showWarningMessage(
-        "astmatcher: directory/workspace runs and configured run options require the language server.");
-      return;
-    }
-    return runQueryInTerminal();
+    vscode.window.showWarningMessage(
+      "astmatcher: Run Query requires the language server and astmatcher-native. " +
+      "Set astmatcher.server.path and astmatcher.nativeServerPath.");
+    return;
   }
   let sample = samples.resolve(document);
   const target = targets.resolve(sample.absolute);
@@ -379,7 +371,7 @@ async function runQuery(arg) {
   let result;
   try {
     result = await vscode.window.withProgress(
-      { location: vscode.ProgressLocation.Window, title: "clang-query" },
+      { location: vscode.ProgressLocation.Window, title: "AST Matcher" },
       () => client.sendRequest("astmatcher/runQuery",
         { ...createRunRequest(document, sample, target), runId }));
   } catch (err) {
@@ -397,7 +389,7 @@ async function runQuery(arg) {
     const diag = new vscode.Diagnostic(
       new vscode.Range(r.start.line, r.start.character, r.end.line, r.end.character),
       e.message, vscode.DiagnosticSeverity.Error);
-    diag.source = "clang-query";
+    diag.source = "astmatcher-native";
     return diag;
   }));
   const total = result.queries.reduce((n, q) => n + q.count, 0);
@@ -581,7 +573,7 @@ function updateStatus() {
   const exists = fs.existsSync(target.absolute);
   statusItem.text = `$(search) ${runTarget.scope}: ${path.basename(runTarget.path)}${exists ? "" : " $(warning)"}`;
   statusItem.tooltip = new vscode.MarkdownString(
-    `**clang-query sample** (${target.origin})\n\n\`${target.absolute}\`\n\n` +
+    `**AST matcher sample** (${target.origin})\n\n\`${target.absolute}\`\n\n` +
     `**run scope:** ${runTarget.scope}\n\n\`${runTarget.path}\`\n\n` +
     `flags: \`${target.flags.join(" ") || "(none)"}\`\n\nClick to choose another file.`);
   statusItem.show();
@@ -597,7 +589,7 @@ async function activate(context) {
   targets = new RunTarget();
   store = new ResultStore();
   matchesView = new MatchesView(context, store, { reveal: (sel) => reveal(store, sel) });
-  queryDiagnostics = vscode.languages.createDiagnosticCollection("clang-query");
+  queryDiagnostics = vscode.languages.createDiagnosticCollection("astmatcher-native");
   statusItem = vscode.window.createStatusBarItem("astmatcher.sample",
                                                  vscode.StatusBarAlignment.Right, 100);
   statusItem.name = "AST Matcher Sample";

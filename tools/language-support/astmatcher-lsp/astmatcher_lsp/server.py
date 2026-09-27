@@ -4,8 +4,8 @@ Implements the requests an editor needs for this language and nothing else:
 completion (+resolve), hover, signature help, diagnostics on change, document
 symbols, go-to-definition for `let` names, and semantic tokens.
 
-One custom request, `astmatcher/runQuery`, runs the document through
-clang-query and answers with the JSON described in run.py. For requests with a
+One custom request, `astmatcher/runQuery`, runs the document through the
+native matcher server and answers with the JSON described in run.py. For requests with a
 runId it also sends `astmatcher/queryProgress` notifications as files complete.
 It runs on a worker thread so completion keeps working during the scan.
 """
@@ -29,6 +29,7 @@ from .features import (SEMANTIC_TOKEN_MODIFIERS, SEMANTIC_TOKEN_TYPES, completio
                        definition, document_symbols, hover, resolve, semantic_tokens,
                        signature_help)
 from .lexer import LineIndex
+from .native_client import close_global
 from .parser import Document, parse
 from .run import run_query
 
@@ -132,39 +133,42 @@ class Server:
 
     # -- loop --------------------------------------------------------------
     def run(self) -> int:
-        while True:
-            try:
-                message = self._read()
-            except Exception:
-                log.exception("failed to read a message")
-                return 1
-            if message is None:
-                return 0
-            method = message.get("method", "")
-            request_id = message.get("id")
-            params = message.get("params") or {}
-            try:
-                handler = getattr(self, "on_" + method.replace("/", "_").replace("$", "dollar"),
-                                  None)
-                if handler is None:
+        try:
+            while True:
+                try:
+                    message = self._read()
+                except Exception:
+                    log.exception("failed to read a message")
+                    return 1
+                if message is None:
+                    return 0
+                method = message.get("method", "")
+                request_id = message.get("id")
+                params = message.get("params") or {}
+                try:
+                    handler = getattr(self, "on_" + method.replace("/", "_").replace("$", "dollar"),
+                                      None)
+                    if handler is None:
+                        if request_id is not None:
+                            self._respond(request_id, error={"code": -32601,
+                                                             "message": f"unhandled: {method}"})
+                        continue
+                    self._request_id = request_id
+                    result = handler(params)
+                    if result is DEFERRED:
+                        continue
                     if request_id is not None:
-                        self._respond(request_id, error={"code": -32601,
-                                                         "message": f"unhandled: {method}"})
-                    continue
-                self._request_id = request_id
-                result = handler(params)
-                if result is DEFERRED:
-                    continue
-                if request_id is not None:
-                    self._respond(request_id, result)
-                if method == "exit":
-                    return 0 if self.shutdown_requested else 1
-            except Exception:
-                log.error("error handling %s\n%s", method, traceback.format_exc())
-                if request_id is not None:
-                    self._respond(request_id, error={"code": -32603,
-                                                     "message": traceback.format_exc()})
-        return 0
+                        self._respond(request_id, result)
+                    if method == "exit":
+                        return 0 if self.shutdown_requested else 1
+                except Exception:
+                    log.error("error handling %s\n%s", method, traceback.format_exc())
+                    if request_id is not None:
+                        self._respond(request_id, error={"code": -32603,
+                                                         "message": traceback.format_exc()})
+        finally:
+            self._cancel_run()
+            close_global()
 
     # -- lifecycle ---------------------------------------------------------
     def on_initialize(self, params: dict) -> dict:
@@ -283,10 +287,10 @@ class Server:
             return {"data": []}
         return {"data": semantic_tokens(self.catalog, doc.doc, doc.index)}
 
-    # -- clang-query ---------------------------------------------------------
+    # -- native query -------------------------------------------------------
     def on_astmatcher_runQuery(self, params: dict):
         """Params: textDocument.uri, sample, flags?, target?, exclusions?,
-        compileCommands?, traversal?, cache?, clangQuery?, cwd?, timeout?.
+        compileCommands?, traversal?, cache?, nativeServerPath?, cwd?, timeout?.
 
         Uses the editor's current text, saved or not.  A new run cancels the
         one still going.
@@ -309,7 +313,7 @@ class Server:
 
                     result = run_query(
                         text, params["sample"], params.get("flags") or [],
-                        clang_query=params.get("clangQuery") or None,
+                        native_server=params.get("nativeServerPath") or None,
                         cwd=params.get("cwd") or None,
                         target=params.get("target"),
                         exclusions=params.get("exclusions") or [],
@@ -341,6 +345,9 @@ class Server:
         proc = self._proc
         if proc is not None and proc.poll() is None:
             proc.kill()
+            # A synchronous Clang run may keep the gRPC server's mutex after
+            # its client disappears. This server belongs only to this LSP.
+            close_global()
 
     def on_textDocument_diagnostic(self, params: dict) -> dict:
         doc = self._document(params)

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import io
-import shutil
 import sys
 import tempfile
 import unittest
@@ -13,23 +12,18 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 
-from astmatcher_lsp.run import parse_dump_header, run_query  # noqa: E402
+from astmatcher_lsp.native_client import NativeClientError, native_binary_path  # noqa: E402
+from astmatcher_lsp.run import run_query  # noqa: E402
 from astmatcher_lsp.server import DEFERRED, Server, TextDocument  # noqa: E402
 
 
 class TestBackendTargets(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        if not shutil.which("clang-query") and not Path("/opt/homebrew/opt/llvm/bin/clang-query").exists():
-            raise unittest.SkipTest("clang-query is unavailable")
-
-    def test_semantic_kind_uses_declaration_tag(self):
-        self.assertEqual(parse_dump_header(
-            "CXXRecordDecl 0x123 </tmp/a.cpp:1:1, col:14> col:8 union U definition"
-        )["semanticKind"], "union")
-        self.assertEqual(parse_dump_header("CXXMethodDecl 0x123 col:3 f 'void ()'")["semanticKind"],
-                         "method")
-        self.assertEqual(parse_dump_header("IntegerLiteral 0x123 <col:3> 'int' 2")["semanticKind"], "")
+        try:
+            native_binary_path()
+        except NativeClientError as exc:
+            raise unittest.SkipTest(str(exc)) from exc
 
     def test_directory_target_respects_gitignore_and_exclusions(self):
         with tempfile.TemporaryDirectory() as temporary:

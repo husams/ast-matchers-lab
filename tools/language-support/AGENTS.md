@@ -7,11 +7,12 @@ teaches that DSL, and it is built from the lab's own data: `scripts/catalog.json
 from the Homebrew LLVM 22 headers. It is optional for the lab and
 self-contained: nothing in `docs/`, `manifests/` or `scripts/` depends on it.
 
-Three front ends share one source of truth and one language server:
+Three editor front ends share one source of truth; a native C++ service runs queries:
 
 | Part | What it is | Runtime |
 |------|------------|---------|
-| `astmatcher-lsp/` | LSP server, batch checker (`--check`), query runner (`--run`) | Python 3.10+, stdlib only |
+| `astmatcher-lsp/` | LSP server, batch checker (`--check`), native query bridge (`--run`) | Python 3.10+, stdlib only |
+| `native/` | Clang matcher engine and gRPC server over a Unix socket | CMake, Clang/LLVM, Protobuf, gRPC |
 | `vscode/` | VS Code extension: grammar, snippets, LSP client, matches panel, bindings outline | VS Code 1.82+, `vscode-languageclient` |
 | `vim/` | syntax, ftdetect, ftplugin, autoload (`:AstMatcherCheck`, omnifunc), dictionary | Vim 8 / Neovim |
 
@@ -33,10 +34,11 @@ tools/language-support/
 │   │   ├── parser.py       ← error-tolerant tree (half-typed input must parse)
 │   │   ├── analyze.py      ← overload resolution + diagnostics worded like clang-query
 │   │   ├── features.py     ← completion, hover, signature help, semantic tokens
-│   │   ├── run.py          ← runs clang-query, parses its text output into JSON
+│   │   ├── run.py          ← discovers sources, calls native bridge, builds LSP result JSON
 │   │   ├── server.py       ← JSON-RPC loop; `astmatcher/runQuery` on a worker thread
 │   │   └── cli.py          ← --stdio / --check / --complete / --hover / --signature / --run
 │   └── tests/test_language.py
+├── native/                ← C++ matcher engine, protobuf schema, gRPC server and CLI bridge
 ├── vscode/
 │   ├── extension.js        ← activation, commands, LSP client, runQuery wiring
 │   ├── sample.js           ← which source file a query runs against (per-file pick)
@@ -63,22 +65,17 @@ extension colours them via `configurationDefaults`, with matching TextMate
 rules for when the server is off.
 
 **Running queries** (`run.py`, request `astmatcher/runQuery`, CLI `--run`).
-clang-query has no machine-readable output, so the script is run with a
-preamble — `set print-matcher true`, `set output dump`, `enable output diag` —
-and the user's own output settings are blanked (same length, offsets kept).
-The parser reads the text:
-
-- `Matcher: …` header → one entry per executed `match`, in order;
-- `"id" binds here` note + the dump line after `Binding for "id":` → kind,
-  AST address, source range (`<begin, end>`; end widened to the end of the last
-  token), summary;
-- `N:M: message` after the last header → error in the first command that did
-  not run (clang-query `-f` stops at the first error). Positions are relative to
-  the expression of a `match`, and to the text after the name of a `let`.
+The Python process keeps LSP, query text, source discovery, compilation database
+and cache behavior. It starts `astmatcher-native` on a private Unix socket and
+sends structured requests through the native CLI's gRPC bridge. The native
+service uses Clang's matcher parser and AST directly and returns protobuf JSON
+with queries, bindings, diagnostics and source ranges. `run.py` maps this
+reply to the established LSP result JSON. No query execution parses
+`clang-query` output or falls back to launching `clang-query`.
 
 The result has two views of the same data: `queries` (clang-query's
 match-by-match order) and `bindings` (`{id: [node…]}`, each AST node once with
-the matches that bound it — nodes are identified by AST **address**, so the
+the matches that bound it — nodes have opaque native IDs, so the
 outer `.bind("d")` of an `eachOf(...)` is one node found by several matches).
 Full schema: module docstring of `run.py` and `astmatcher-lsp/README.md`.
 
@@ -102,6 +99,8 @@ python3 -m unittest discover -s tools/language-support/astmatcher-lsp/tests
 tools/language-support/astmatcher-lsp/bin/astmatcher-lsp --check manifests/queries/*.query
 tools/language-support/astmatcher-lsp/bin/astmatcher-lsp \
     --run manifests/queries/use-nullptr.query --sample manifests/capstone.cpp -- -std=c++23
+cmake -S tools/language-support/native -B tools/language-support/native/build
+cmake --build tools/language-support/native/build --parallel
 ```
 
 Rules:
@@ -114,15 +113,15 @@ Rules:
   every ```` ```clang-query ```` block in `docs/` and every `manifests/**/*.query`;
   those are verified against clang-query 22, so any *error* there is a server
   bug. Warnings are allowed.
-- **Match clang-query, don't guess.** When changing analysis or `run.py`,
-  confirm the behaviour with the real binary
-  (`$(brew --prefix llvm)/bin/clang-query`) and add a test that says so.
-  `test_real_run` / `test_same_node_in_two_matches_is_one_binding` run it when
-  it is installed and are skipped otherwise.
+- **Match the DSL, don't guess.** When changing analysis or native execution,
+  compare behavior with the real `clang-query` binary and test the native
+  server's structured response; `clang-query` is a reference tool for the lab,
+  not a runtime dependency of Run Query.
 - **Server stays stdlib-only** Python 3.10+; no pip dependencies.
-- **The `runQuery` JSON is a contract** between `run.py` and
+- **The `runQuery` JSON is a contract** between the Python bridge and
   `vscode/results.js` / `media/matches.js`; change both sides together and
-  update the schema in `run.py` and `astmatcher-lsp/README.md`.
+  update the schema in `astmatcher-lsp/README.md`. The native wire contract is
+  `native/proto/astmatcher.proto`.
 - **Webview**: theme colours only via `var(--vscode-…)`; scripts load with a
   nonce under a strict CSP; no inline handlers.
 - Commands that run on a query file from a panel use the last active query
@@ -143,6 +142,10 @@ The server is installed as a copy, not a link, so re-sync it after changing
 `astmatcher_lsp/`:
 
 ```sh
+cmake -S tools/language-support/native -B tools/language-support/native/build \
+  -DCMAKE_PREFIX_PATH="$(brew --prefix llvm);$(brew --prefix grpc);$(brew --prefix protobuf)"
+cmake --build tools/language-support/native/build --target astmatcher-native --parallel
+install -m 0755 tools/language-support/native/build/astmatcher-native ~/.local/bin/astmatcher-native
 rsync -a --delete --exclude __pycache__ \
   tools/language-support/astmatcher-lsp/astmatcher_lsp ~/.local/share/astmatcher-lsp/
 cp tools/language-support/data/*.json ~/.local/share/astmatcher-lsp/data/
@@ -150,16 +153,22 @@ cp tools/language-support/data/*.json ~/.local/share/astmatcher-lsp/data/
 
 `~/.local/bin/astmatcher-lsp` is a wrapper that sets `PYTHONPATH` and
 `ASTMATCHER_DATA` to `~/.local/share/astmatcher-lsp`. VS Code user settings
-point at it: `astmatcher.server.path`, `astmatcher.clangQueryPath`
-(`/opt/homebrew/opt/llvm/bin/clang-query`), `astmatcher.sample`,
-`astmatcher.flags`. After changing server code, tell the user to reload the
+point at it: `astmatcher.server.path`, `astmatcher.nativeServerPath`,
+`astmatcher.sample`, `astmatcher.flags`. The wrapper should also set
+`ASTMATCHER_NATIVE` to the installed `astmatcher-native` executable. After
+changing server code, tell the user to reload the
 window (or run *AST Matcher: Restart Language Server*).
+
+For RHEL/Rocky/Alma 9, run `tools/language-support/deploy-rhel.sh` with no
+options. It installs the native and Python servers under
+`~/.local/astmatcher`, installs dependencies, and adds the VS Code extension
+when VS Code is present. See `README.md` for prerequisites and overrides.
 
 ## Known limits
 
 - 14 reference matchers are not registered in clang-query 22 (listed in the lab
   `AGENTS.md`); the analyzer warns on them instead of erroring.
-- Binding ranges come from the AST dump, so macro-expanded nodes point at the
-  expansion; types (`qualType().bind(...)`) have no source range.
+- Native bindings use Clang source locations; locationless types
+  (`qualType().bind(...)`) have no source range.
 - Positions use Python string indices; characters outside the BMP in a query
   file can shift LSP columns.

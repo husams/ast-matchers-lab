@@ -1,7 +1,8 @@
 # astmatcher-lsp
 
-A language server for the Clang AST Matcher DSL. Pure standard-library
-Python 3.10+ — no pip install, no virtualenv.
+A language server for the Clang AST Matcher DSL. The Python 3.10+ process
+uses only the standard library; query execution requires the separately built
+`astmatcher-native` C++ executable.
 
 ```sh
 bin/astmatcher-lsp --stdio                       # speak LSP over stdin/stdout
@@ -16,7 +17,10 @@ bin/astmatcher-lsp --run my.query --sample src --target-scope directory \
 ```
 
 `ASTMATCHER_PYTHON` picks the interpreter, `ASTMATCHER_DATA` (or `--data`)
-points at a different generated `data/` directory.
+points at a different generated `data/` directory, and `ASTMATCHER_NATIVE`
+selects the native binary when it is not in an installed sibling directory,
+the in-tree `native/build/`, or `PATH`. Build that binary with CMake as shown
+in [`../README.md`](../README.md).
 
 ## LSP surface
 
@@ -29,12 +33,13 @@ points at a different generated `data/` directory.
 | `textDocument/documentSymbol` | one entry per `match`, `let`, `set` |
 | `textDocument/definition` | jumps to a `let` definition |
 | `textDocument/semanticTokens/full` | custom `nodeMatcher` / `narrowingMatcher` / `traversalMatcher` / `literal` types, `let` names, bound ids |
-| `astmatcher/runQuery` (custom) | runs the document through clang-query, answers with the matches as JSON (below) |
+| `astmatcher/runQuery` (custom) | runs the document through the native matcher server, answers with the matches as JSON (below) |
 
 ### `astmatcher/runQuery`
 
-Params: `{textDocument: {uri}, sample, flags?, target?, exclusions?, compileCommands?, traversal?, cache?, clangQuery?, cwd?, timeout?, runId?}`.
-The document's current text (saved or not) is run with `clang-query -f` against
+Params: `{textDocument: {uri}, sample, flags?, target?, exclusions?, compileCommands?, traversal?, cache?, nativeServerPath?, cwd?, timeout?, runId?}`.
+The document's current text (saved or not) is run through a native C++ gRPC
+server on a private Unix socket against
 the selected file, directory, or workspace roots; a new request kills a run
 still in progress. `target` is `{scope: "file"|"directory"|"workspace",
 path, roots?}`. Directory/workspace discovery applies `.gitignore` files and
@@ -64,7 +69,7 @@ result for clients that do not consume progress notifications.
 ```jsonc
 {
   "ok": true, "sample": "/abs/manifests/decls.cpp", "flags": ["-std=c++23"],
-  "command": ["…/clang-query", "-f", "…", "…", "--", "-std=c++23"],
+  "command": ["…/astmatcher-native", "query", "--socket", "…"],
   "exitCode": 0, "durationMs": 212, "truncated": false, "stderr": "",
   "errors": [{"message": "Matcher not found: hasNamex", "range": {…}}],  // range in the query file
   "queries": [{                                 // one per `match`, in order
@@ -73,22 +78,26 @@ result for clients that do not consume progress notifications.
       "id": "root", "kind": "CXXRecordDecl", "summary": "struct Pair definition",
       "text": "struct Pair { int first; }", "location": "decls.cpp:47:1",
       "file": "/abs/…/decls.cpp", "uri": "file:///abs/…/decls.cpp",
-      "node": "0x9692a0b90",                                          // AST address
+      "node": "node-1",                                               // opaque within this response
       "range": {"start": {"line": 46, "character": 0}, "end": {…}}   // null for types
     }]}]
   }],
   "bindings": {                                  // same data by bind id, each node once
-    "root": [{"node": "0x9692a0b90", "kind": "CXXRecordDecl", …,
+    "root": [{"node": "node-1", "kind": "CXXRecordDecl", …,
               "matches": [{"query": 0, "match": 0, "binding": 0, "index": 1}]}]
   }
 }
 ```
 
-clang-query has no machine-readable output, so `run.py` prepends
-`set print-matcher true`, `set output dump`, `enable output diag`, blanks the
-script's own output settings (keeping offsets), and parses the text: the
-"binds here" note and the AST dump's `<begin, end>` give each binding's range,
-widened to the end of the last token.
+The native wire contract is [`../native/proto/astmatcher.proto`](../native/proto/astmatcher.proto):
+`MatcherService.Run` accepts a source path, compiler flags, traversal mode and
+parsed `match`/`let` commands, and returns `RunReply` with structured queries,
+bindings, diagnostics, `stderr` and truncation state. `astmatcher-native query`
+reads protobuf JSON on stdin and writes the reply as JSON while forwarding it
+over the Unix socket to the gRPC server. `run.py` converts that reply into the
+editor schema above, including file URIs and query source ranges; it does not
+parse human-readable `clang-query` output. Missing native dependencies fail
+the run with an error rather than silently running `clang-query`.
 
 ## Wiring it up by hand
 
@@ -136,7 +145,7 @@ language-servers = ["astmatcher"]
 | `parser.py` | error-tolerant tree (a half-typed document must still parse) |
 | `analyze.py` | overload resolution and the diagnostics, worded like clang-query's |
 | `features.py` | what the cursor is inside, and the LSP payloads |
-| `run.py` | runs clang-query and parses its output into the `runQuery` JSON |
+| `run.py` | source discovery and native query bridge; adapts the native reply to `runQuery` JSON |
 | `server.py` | JSON-RPC loop |
 | `cli.py` | `--stdio` / `--check` / `--complete` / `--hover` / `--signature` / `--run` |
 
