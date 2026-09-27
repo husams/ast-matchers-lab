@@ -5,8 +5,9 @@ completion (+resolve), hover, signature help, diagnostics on change, document
 symbols, go-to-definition for `let` names, and semantic tokens.
 
 One custom request, `astmatcher/runQuery`, runs the document through
-clang-query and answers with the JSON described in run.py.  It runs on a worker
-thread so completion keeps working while clang-query parses the sample.
+clang-query and answers with the JSON described in run.py. For requests with a
+runId it also sends `astmatcher/queryProgress` notifications as files complete.
+It runs on a worker thread so completion keeps working during the scan.
 """
 
 from __future__ import annotations
@@ -90,6 +91,7 @@ class Server:
         self._run_lock = threading.Lock()
         self._proc: subprocess.Popen | None = None
         self._worker: threading.Thread | None = None
+        self._cancel_event: threading.Event | None = None
 
     # -- transport ---------------------------------------------------------
     def _read(self) -> dict | None:
@@ -283,7 +285,8 @@ class Server:
 
     # -- clang-query ---------------------------------------------------------
     def on_astmatcher_runQuery(self, params: dict):
-        """Params: textDocument.uri, sample, flags?, clangQuery?, cwd?, timeout?.
+        """Params: textDocument.uri, sample, flags?, target?, exclusions?,
+        compileCommands?, traversal?, cache?, clangQuery?, cwd?, timeout?.
 
         Uses the editor's current text, saved or not.  A new run cancels the
         one still going.
@@ -292,17 +295,31 @@ class Server:
         doc = self.documents.get(uri)
         text = doc.text if doc else Path(_uri_path(uri)).read_text(encoding="utf-8")
         request_id = self._request_id
+        run_id = params.get("runId")
         self._cancel_run()
+        cancel_event = threading.Event()
+        self._cancel_event = cancel_event
 
         def work() -> None:
             with self._run_lock:
                 try:
+                    def progress(event: dict) -> None:
+                        if not cancel_event.is_set():
+                            self._notify("astmatcher/queryProgress", {"runId": run_id, **event})
+
                     result = run_query(
                         text, params["sample"], params.get("flags") or [],
                         clang_query=params.get("clangQuery") or None,
                         cwd=params.get("cwd") or None,
+                        target=params.get("target"),
+                        exclusions=params.get("exclusions") or [],
+                        compile_commands=params.get("compileCommands") or None,
+                        traversal=params.get("traversal"),
+                        cache=params.get("cache") or None,
+                        cancelled=cancel_event,
                         timeout=float(params.get("timeout") or 120),
-                        on_start=self._started)
+                        on_start=self._started,
+                        on_progress=progress if isinstance(run_id, str) and run_id else None)
                     self._respond(request_id, result)
                 except Exception:
                     log.error("runQuery failed\n%s", traceback.format_exc())
@@ -319,6 +336,8 @@ class Server:
         self._proc = proc
 
     def _cancel_run(self) -> None:
+        if self._cancel_event is not None:
+            self._cancel_event.set()
         proc = self._proc
         if proc is not None and proc.poll() is None:
             proc.kill()

@@ -11,8 +11,8 @@ from dataclasses import dataclass
 from .analyze import Analyzer, analyze
 from .catalog import SAME_NODE_COMBINATORS, Catalog, Matcher
 from .lexer import COMMENT, DOT, EOF, IDENT, NUMBER, STRING, Token
-from .parser import (BOOLEANS, Call, Command, Document, calls_at, command_at,
-                     token_at)
+from .parser import (BOOLEANS, Call, Command, Document, Literal, calls_at,
+                     command_at, token_at)
 
 # LSP CompletionItemKind
 K_TEXT, K_METHOD, K_FUNCTION, K_FIELD, K_VARIABLE, K_CLASS = 1, 2, 3, 5, 6, 7
@@ -22,6 +22,10 @@ K_CONSTANT, K_ENUM_MEMBER = 21, 20
 SEMANTIC_TOKEN_TYPES = [
     "keyword", "comment", "string", "number", "class", "function", "method",
     "variable", "property", "enumMember",
+    # Custom types, one per matcher kind plus one for every literal, so an editor
+    # can colour them apart; the VS Code extension declares their super types
+    # (class/function/method/string) for themes that know only the standard set.
+    "nodeMatcher", "narrowingMatcher", "traversalMatcher", "literal",
 ]
 SEMANTIC_TOKEN_MODIFIERS = ["defaultLibrary", "definition", "deprecated"]
 _TYPE_INDEX = {name: i for i, name in enumerate(SEMANTIC_TOKEN_TYPES)}
@@ -594,10 +598,8 @@ def semantic_tokens(cat: Catalog, doc: Document, index) -> list[int]:
     for tok in doc.tokens:
         if tok.kind == COMMENT:
             add(tok.start, tok.end, "comment")
-        elif tok.kind == STRING:
-            add(tok.start, tok.end, "string")
-        elif tok.kind == NUMBER:
-            add(tok.start, tok.end, "number")
+        elif tok.kind in (STRING, NUMBER):
+            add(tok.start, tok.end, "literal")
 
     for cmd in doc.commands:
         add(cmd.keyword.start, cmd.keyword.end, "keyword")
@@ -624,8 +626,8 @@ def _token_calls(cat: Catalog, expr, let_names, add) -> None:
     if isinstance(expr, Call):
         matcher = cat.get(expr.name)
         if matcher is not None:
-            type_ = {"node": "class", "narrowing": "function",
-                     "traversal": "method"}[matcher.kind]
+            type_ = {"node": "nodeMatcher", "narrowing": "narrowingMatcher",
+                     "traversal": "traversalMatcher"}[matcher.kind]
             mods = _MOD_INDEX["defaultLibrary"]
             if not matcher.in_clang_query:
                 mods |= _MOD_INDEX["deprecated"]
@@ -633,13 +635,15 @@ def _token_calls(cat: Catalog, expr, let_names, add) -> None:
         elif expr.name in let_names:
             add(expr.name_token.start, expr.name_token.end, "variable")
         elif expr.name in BOOLEANS:
-            add(expr.name_token.start, expr.name_token.end, "keyword")
+            add(expr.name_token.start, expr.name_token.end, "literal")
         for bind in expr.binds:
             add(bind.name_token.start, bind.name_token.end, "property")
             for arg in bind.args:
                 _token_calls(cat, arg, let_names, add)
         for arg in expr.args:
             _token_calls(cat, arg, let_names, add)
+    elif isinstance(expr, Literal) and expr.token.kind == IDENT:
+        add(expr.start, expr.end, "literal")          # true / false
 
 
 # ---------------------------------------------------------------- ranges

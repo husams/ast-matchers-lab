@@ -76,6 +76,12 @@ class Samples {
     this.changed.fire(document.uri);
   }
 
+  /** Change the target while retaining flags configured for this query. */
+  async setTarget(document, sample) {
+    const current = this.resolve(document);
+    return this.set(document, sample, current.flags);
+  }
+
   /** Quick pick: open C/C++ editors first, then workspace sources, then Browse…. */
   async pick(document) {
     const current = this.resolve(document);

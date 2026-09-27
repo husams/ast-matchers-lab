@@ -92,6 +92,19 @@ def main(argv: list[str] | None = None) -> int:
                          "compiler flags go after `--`")
     ap.add_argument("--sample", metavar="SOURCE", help="with --run: the translation unit")
     ap.add_argument("--clang-query", metavar="PATH", help="with --run: clang-query binary")
+    ap.add_argument("--target-scope", choices=("file", "directory", "workspace"),
+                    default="file", help="with --run: target scope")
+    ap.add_argument("--target-path", metavar="PATH", help="with --run: file/directory path")
+    ap.add_argument("--root", action="append", default=[],
+                    help="with --run: workspace root; may be repeated")
+    ap.add_argument("--exclude", action="append", default=[],
+                    help="with --run: exclude glob; may be repeated")
+    ap.add_argument("--compile-commands", metavar="PATH",
+                    help="with --run: compile_commands.json")
+    ap.add_argument("--traversal", choices=("AsIs", "IgnoreUnlessSpelledInSource"),
+                    help="with --run: clang-query traversal mode")
+    ap.add_argument("--cache", action="store_true", help="with --run: enable result cache")
+    ap.add_argument("--cache-location", metavar="DIR", help="with --run: cache directory")
     argv = list(sys.argv[1:] if argv is None else argv)
     flags: list[str] = []
     if "--" in argv:
@@ -103,7 +116,13 @@ def main(argv: list[str] | None = None) -> int:
         if not args.sample:
             ap.error("--run needs --sample SOURCE")
         text = sys.stdin.read() if args.run == "-" else Path(args.run).read_text()
-        result = run_query(text, args.sample, flags, clang_query=args.clang_query)
+        target = {"scope": args.target_scope,
+                  "path": args.target_path or args.sample,
+                  "roots": args.root}
+        result = run_query(text, args.sample, flags, clang_query=args.clang_query,
+                           target=target, exclusions=args.exclude,
+                           compile_commands=args.compile_commands, traversal=args.traversal,
+                           cache={"enabled": args.cache, "location": args.cache_location})
         json.dump(result, sys.stdout, indent=2)
         print()
         return 0 if result["ok"] else 1

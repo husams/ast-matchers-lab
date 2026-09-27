@@ -2,7 +2,7 @@
   "name": "astmatcher-dsl",
   "displayName": "AST Matcher DSL (clang-query)",
   "description": "Syntax highlighting, completion, hover and diagnostics for Clang AST matcher scripts (.query).",
-  "version": "1.5.4",
+  "version": "1.6.0",
   "publisher": "ast-matchers-lab",
   "license": "MIT",
   "private": true,
@@ -64,6 +64,14 @@
         "category": "AST Matcher",
         "icon": "$(play)"
       },
+      { "command": "astmatcher.runFile", "title": "Run on File", "category": "AST Matcher", "icon": "$(file-code)" },
+      { "command": "astmatcher.runDirectory", "title": "Run on Directory", "category": "AST Matcher", "icon": "$(folder)" },
+      { "command": "astmatcher.runWorkspace", "title": "Run on Workspace", "category": "AST Matcher", "icon": "$(root-folder)" },
+      { "command": "astmatcher.selectTarget", "title": "Select Run Target…", "category": "AST Matcher", "icon": "$(target)" },
+      { "command": "astmatcher.openSettings", "title": "Run Settings…", "category": "AST Matcher", "icon": "$(gear)" },
+      { "command": "astmatcher.createAndRunQuery", "title": "New Query and Run", "category": "AST Matcher", "icon": "$(new-file)" },
+      { "command": "astmatcher.getRunSettings", "title": "Get Run Settings", "category": "AST Matcher" },
+      { "command": "astmatcher.saveRunSettings", "title": "Save Run Settings", "category": "AST Matcher" },
       {
         "command": "astmatcher.runQueryInTerminal",
         "title": "Run Query in Terminal",
@@ -84,7 +92,7 @@
       },
       {
         "command": "astmatcher.runQueryOnFile",
-        "title": "Run Query on This File…",
+        "title": "Run Query on This Target…",
         "category": "AST Matcher",
         "icon": "$(search)"
       },
@@ -153,6 +161,11 @@
         }
       ],
       "view/title": [
+        { "command": "astmatcher.runFile", "when": "view == astmatcher.matches", "group": "navigation@0" },
+        { "command": "astmatcher.runDirectory", "when": "view == astmatcher.matches", "group": "navigation@0" },
+        { "command": "astmatcher.runWorkspace", "when": "view == astmatcher.matches", "group": "navigation@0" },
+        { "command": "astmatcher.selectTarget", "when": "view == astmatcher.matches", "group": "navigation@0" },
+        { "command": "astmatcher.openSettings", "when": "view == astmatcher.matches", "group": "navigation@0" },
         {
           "command": "astmatcher.runQuery",
           "when": "view == astmatcher.bindings || view == astmatcher.matches",
@@ -179,10 +192,10 @@
           "group": "navigation@4"
         }
       ],
-      "explorer/context": [
-        {
-          "submenu": "astmatcher.source",
-          "when": "resourceLangId =~ /^(c|cpp|objective-c|objective-cpp|cuda-cpp)$/",
+    "explorer/context": [
+      {
+        "submenu": "astmatcher.source",
+        "when": "(resourceLangId =~ /^(c|cpp|objective-c|objective-cpp|cuda-cpp)$/) || explorerResourceIsFolder",
           "group": "navigation@9"
         }
       ],
@@ -194,6 +207,14 @@
         }
       ],
       "commandPalette": [
+        {
+          "command": "astmatcher.getRunSettings",
+          "when": "false"
+        },
+        {
+          "command": "astmatcher.saveRunSettings",
+          "when": "false"
+        },
         {
           "command": "astmatcher.revealBinding",
           "when": "false"
@@ -221,7 +242,7 @@
           "group": "1_run@1"
         },
         {
-          "command": "astmatcher.newQueryForFile",
+          "command": "astmatcher.createAndRunQuery",
           "group": "1_run@2"
         },
         {
@@ -282,6 +303,50 @@
           ],
           "description": "Compiler flags passed after `--` to clang-query."
         },
+        "astmatcher.scope": {
+          "type": "string",
+          "enum": ["file", "directory", "workspace"],
+          "default": "file",
+          "description": "Source scope searched by Run Query."
+        },
+        "astmatcher.targetPath": {
+          "type": "string",
+          "default": "",
+          "description": "Absolute file or directory path selected for the current run scope."
+        },
+        "astmatcher.compileCommands": {
+          "type": "string",
+          "default": "",
+          "description": "Path to compile_commands.json used to obtain compiler arguments."
+        },
+        "astmatcher.traversal": {
+          "type": "string",
+          "enum": ["AsIs", "IgnoreUnlessSpelledInSource"],
+          "default": "AsIs",
+          "description": "clang-query AST traversal mode."
+        },
+        "astmatcher.exclusions": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "Glob patterns excluded from directory and workspace runs."
+        },
+        "astmatcher.visibleColumns": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["match", "kind", "semanticKind", "summary", "text", "location"] },
+          "default": ["match", "kind", "semanticKind", "summary", "text", "location"],
+          "description": "Columns shown in AST Matches."
+        },
+        "astmatcher.cacheEnabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable cached results for source runs."
+        },
+        "astmatcher.cacheLocation": {
+          "type": "string",
+          "default": "",
+          "description": "Cache directory. Empty uses the extension global storage directory."
+        },
         "astmatcher.queriesDirectory": {
           "type": "string",
           "default": "matchers",
@@ -289,14 +354,109 @@
         }
       }
     },
+    "semanticTokenTypes": [
+      {
+        "id": "nodeMatcher",
+        "superType": "class",
+        "description": "A node matcher: cxxRecordDecl, callExpr, …"
+      },
+      {
+        "id": "narrowingMatcher",
+        "superType": "function",
+        "description": "A narrowing matcher (predicate): hasName, isPublic, …"
+      },
+      {
+        "id": "traversalMatcher",
+        "superType": "method",
+        "description": "A traversal matcher: has, forEach, hasDescendant, …"
+      },
+      {
+        "id": "literal",
+        "superType": "string",
+        "description": "A string, number or boolean literal."
+      }
+    ],
+    "semanticTokenScopes": [
+      {
+        "language": "astmatcher",
+        "scopes": {
+          "nodeMatcher": [
+            "support.class.matcher.node.astmatcher"
+          ],
+          "narrowingMatcher": [
+            "support.function.matcher.narrowing.astmatcher"
+          ],
+          "traversalMatcher": [
+            "support.function.matcher.traversal.astmatcher"
+          ],
+          "literal": [
+            "constant.other.literal.astmatcher"
+          ]
+        }
+      }
+    ],
     "configurationDefaults": {
       "[astmatcher]": {
+        "editor.semanticHighlighting.enabled": true,
         "editor.snippetSuggestions": "none",
         "editor.quickSuggestions": {
           "other": "on",
           "comments": "off",
           "strings": "off"
         }
+      },
+      "editor.semanticTokenColorCustomizations": {
+        "rules": {
+          "nodeMatcher": {
+            "foreground": "#1FA38F",
+            "bold": true
+          },
+          "narrowingMatcher": {
+            "foreground": "#B267E6"
+          },
+          "traversalMatcher": {
+            "foreground": "#E07B2A",
+            "italic": true
+          },
+          "literal": {
+            "foreground": "#5FA83A"
+          }
+        }
+      },
+      "editor.tokenColorCustomizations": {
+        "textMateRules": [
+          {
+            "scope": "support.class.matcher.node.astmatcher",
+            "settings": {
+              "foreground": "#1FA38F",
+              "fontStyle": "bold"
+            }
+          },
+          {
+            "scope": "support.function.matcher.narrowing.astmatcher",
+            "settings": {
+              "foreground": "#B267E6"
+            }
+          },
+          {
+            "scope": "support.function.matcher.traversal.astmatcher",
+            "settings": {
+              "foreground": "#E07B2A",
+              "fontStyle": "italic"
+            }
+          },
+          {
+            "scope": [
+              "string.quoted.double.astmatcher",
+              "constant.numeric.astmatcher",
+              "constant.language.boolean.astmatcher",
+              "constant.other.literal.astmatcher"
+            ],
+            "settings": {
+              "foreground": "#5FA83A"
+            }
+          }
+        ]
       }
     },
     "viewsContainers": {

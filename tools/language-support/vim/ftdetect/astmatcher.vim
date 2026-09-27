@@ -19,3 +19,4 @@ function! s:AstMatcherProbe(default) abort
 endfunction
 au BufRead,BufNewFile *.query call s:AstMatcherProbe(1)
 au BufRead,BufNewFile *.cq,*.clang-query call s:AstMatcherProbe(0)
+au BufRead,BufNewFile *.astmatcher setfiletype astmatcher

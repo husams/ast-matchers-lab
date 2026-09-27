@@ -8,11 +8,14 @@ const test = require("node:test");
 test("activation starts the language client for saved and untitled matcher documents", async () => {
   let clientOptions;
   let started = false;
+  const registered = new Map();
+  const stored = {};
 
   class LanguageClient {
     constructor(_id, _name, _serverOptions, options) { clientOptions = options; }
     async start() { started = true; }
     async stop() {}
+    onNotification() { return disposable; }
   }
 
   class EventEmitter {
@@ -26,12 +29,19 @@ test("activation starts the language client for saved and untitled matcher docum
     StatusBarAlignment: { Right: 1 },
     workspace: {
       workspaceFolders: [{ uri: { fsPath: path.resolve(__dirname, "../../../../") } }],
-      getConfiguration: () => ({ get: (key) => ({
+      getConfiguration: () => ({
+        get: (key) => stored[key] ?? ({
         "server.enabled": true,
         "server.path": path.resolve(__dirname, "../../astmatcher-lsp/bin/astmatcher-lsp"),
         "server.python": "python3",
-      })[key] }),
+        "flags": ["-std=c++23"], "traversal": "AsIs", "exclusions": [],
+        "visibleColumns": ["match", "kind", "semanticKind", "summary", "text", "location"],
+        "cacheEnabled": false, "cacheLocation": "", "compileCommands": "", "scope": "file",
+      })[key],
+        update: async (key, value) => { stored[key] = value; },
+      }),
       getWorkspaceFolder: () => undefined,
+      findFiles: async () => [{ fsPath: __filename }],
       onDidChangeTextDocument: () => disposable,
       onDidChangeConfiguration: () => disposable,
     },
@@ -45,13 +55,17 @@ test("activation starts the language client for saved and untitled matcher docum
     languages: {
       createDiagnosticCollection: () => ({ ...disposable, delete() {}, set() {}, clear() {} }),
     },
-    commands: { registerCommand: () => disposable },
+    ConfigurationTarget: { Workspace: 2 },
+    commands: { registerCommand: (name, callback) => { registered.set(name, callback); return disposable; } },
     MarkdownString: class MarkdownString {},
+    RelativePattern: class RelativePattern { constructor(base, pattern) { this.base = base; this.pattern = pattern; } },
+    Uri: { file: (fsPath) => ({ fsPath, toString: () => `file://${fsPath}` }) },
   };
 
   const sample = {
     Samples: class Samples {
       constructor() { this.onDidChange = () => disposable; }
+      defaultFlags() { return ["-DVALUE=a b", "-Iinclude path"]; }
     },
     SOURCE_EXTS: new Set(),
   };
@@ -77,7 +91,8 @@ test("activation starts the language client for saved and untitled matcher docum
     const extensionPath = require.resolve("../extension");
     delete require.cache[extensionPath];
     const extension = require("../extension");
-    await extension.activate({ subscriptions: [], workspaceState: {} });
+    await extension.activate({ subscriptions: [], workspaceState: {},
+      globalStorageUri: { fsPath: "/extension/storage" } });
 
     const selector = clientOptions.documentSelector;
     const matches = (scheme, language) => selector.some((entry) =>
@@ -87,6 +102,53 @@ test("activation starts the language client for saved and untitled matcher docum
     assert.equal(matches("file", "cpp"), false);
     assert.equal(matches("untitled", "plaintext"), false);
     assert.equal(started, true);
+    for (const command of [
+      "astmatcher.runFile", "astmatcher.runDirectory", "astmatcher.runWorkspace",
+      "astmatcher.selectTarget", "astmatcher.getRunSettings", "astmatcher.saveRunSettings",
+      "astmatcher.openSettings", "astmatcher.createAndRunQuery",
+    ]) assert.equal(registered.has(command), true, `missing command ${command}`);
+    const settings = await registered.get("astmatcher.getRunSettings")();
+    assert.deepEqual(Object.keys(settings).sort(), [
+      "cacheEnabled", "cacheLocation", "compileCommands", "exclusions", "flags",
+      "scope", "targetPath", "traversal", "visibleColumns",
+    ].sort());
+    assert.equal(settings.scope, "file");
+    await assert.rejects(registered.get("astmatcher.saveRunSettings")({
+      compileCommands: "compile_commands.json", traversal: "invalid",
+    }));
+    assert.equal(stored.compileCommands, undefined, "invalid updates do not partially save settings");
+    await registered.get("astmatcher.saveRunSettings")({
+      flags: ["-DVALUE=a b", "-Iinclude path"], compileCommands: "/external/compile_commands.json",
+      traversal: "IgnoreUnlessSpelledInSource", exclusions: ["build/**"], cacheEnabled: true,
+      cacheLocation: "/external/ast-cache",
+    });
+    const pickedSample = await extension.resolveSampleForTarget(
+      { absolute: "/external/query/missing-sample.cpp", cwd: "/external/query",
+        flags: ["-DVALUE=a b", "-Iinclude path"], origin: "settings" },
+      { scope: "directory", path: path.dirname(__filename) },
+    );
+    const request = extension.createRunRequest(
+      { uri: { toString: () => "file:///external/query.astmatcher" } },
+      pickedSample,
+      { scope: "directory", path: path.dirname(__filename), roots: ["/workspace/root-a", "/workspace/root-b"] },
+    );
+    assert.equal(request.sample, __filename, "external queries fall back to a real TU in the selected directory");
+    assert.deepEqual(request.target.roots, ["/workspace/root-a", "/workspace/root-b"]);
+    assert.deepEqual(request.flags, ["-DVALUE=a b", "-Iinclude path"]);
+    assert.deepEqual(request.exclusions, ["build/**"]);
+    assert.equal(request.compileCommands, "/external/compile_commands.json");
+    assert.equal(request.traversal, "IgnoreUnlessSpelledInSource");
+    assert.deepEqual(request.cache, { enabled: true, location: "/external/ast-cache" });
+    const workspaceRoot = vscode.workspace.workspaceFolders[0].uri.fsPath;
+    await registered.get("astmatcher.saveRunSettings")({ scope: "workspace", targetPath: __filename });
+    const workspaceSettings = await registered.get("astmatcher.getRunSettings")();
+    assert.equal(workspaceSettings.scope, "workspace");
+    assert.equal(workspaceSettings.targetPath, "", "workspace scope represents all roots without a single target path");
+    await registered.get("astmatcher.saveRunSettings")({
+      scope: "file", targetPath: path.relative(workspaceRoot, __filename),
+    });
+    assert.equal((await registered.get("astmatcher.getRunSettings")()).targetPath, __filename,
+      "a selected file replaces a stale path and relative paths resolve from the workspace root");
     await extension.deactivate();
   } finally {
     Module._load = originalLoad;

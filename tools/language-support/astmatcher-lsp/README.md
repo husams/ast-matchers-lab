@@ -11,6 +11,8 @@ bin/astmatcher-lsp --complete my.query --at 4:22 # what belongs at line 4, colum
 bin/astmatcher-lsp --hover my.query --at 4:22
 bin/astmatcher-lsp --signature my.query --at 4:22
 bin/astmatcher-lsp --run my.query --sample manifests/decls.cpp -- -std=c++23   # matches as JSON
+bin/astmatcher-lsp --run my.query --sample src --target-scope directory \
+  --compile-commands build/compile_commands.json --traversal AsIs --cache -- -std=c++23
 ```
 
 `ASTMATCHER_PYTHON` picks the interpreter, `ASTMATCHER_DATA` (or `--data`)
@@ -23,17 +25,37 @@ points at a different generated `data/` directory.
 | `textDocument/completion` (+ `completionItem/resolve`) | type-filtered; documentation is attached on resolve to keep the list small |
 | `textDocument/hover` | every overload, the reference docs, the lab part |
 | `textDocument/signatureHelp` | tracks the active overload and argument |
-| `textDocument/publishDiagnostics` | on open/change/save; also `textDocument/diagnostic` (pull) |
+| `textDocument/publishDiagnostics` | on open/change/save |
 | `textDocument/documentSymbol` | one entry per `match`, `let`, `set` |
 | `textDocument/definition` | jumps to a `let` definition |
-| `textDocument/semanticTokens/full` | node vs narrowing vs traversal matchers, `let` names, bound ids |
+| `textDocument/semanticTokens/full` | custom `nodeMatcher` / `narrowingMatcher` / `traversalMatcher` / `literal` types, `let` names, bound ids |
 | `astmatcher/runQuery` (custom) | runs the document through clang-query, answers with the matches as JSON (below) |
 
 ### `astmatcher/runQuery`
 
-Params: `{textDocument: {uri}, sample, flags?, clangQuery?, cwd?, timeout?}`.
+Params: `{textDocument: {uri}, sample, flags?, target?, exclusions?, compileCommands?, traversal?, cache?, clangQuery?, cwd?, timeout?, runId?}`.
 The document's current text (saved or not) is run with `clang-query -f` against
-`sample`; a new request kills a run still in progress. The answer:
+the selected file, directory, or workspace roots; a new request kills a run
+still in progress. `target` is `{scope: "file"|"directory"|"workspace",
+path, roots?}`. Directory/workspace discovery applies `.gitignore` files and
+the `exclusions` glob list. `compileCommands` accepts a compilation database
+file or build directory; its per-source flags are used, with `flags` appended
+as explicit overrides. `traversal` accepts `AsIs` or
+`IgnoreUnlessSpelledInSource`. `cache` is `{enabled, location?}` and is off by
+default; when enabled, entries are keyed by query/tool/flags and the Clang
+dependency list, so included-header changes invalidate them. A TU is skipped
+from caching when dependency discovery fails. The answer includes `files`,
+normalized `target`, cache hit/miss metadata, and `translationUnit` for each
+result. `semanticKind` identifies declaration meaning (for example `struct`,
+`union`, `function`, or `method`) and is empty for non-declarations.
+
+When `runId` is supplied, the server also sends `astmatcher/queryProgress`
+notifications on the same LSP connection: one `kind: "start"` event with
+`totalFiles`, then a `kind: "file"` event after each source file finishes.
+Each file event carries that file's queries, bindings, errors, cache delta,
+and `completedFiles`. Notifications include `runId` so clients can discard
+events from a cancelled or replaced run. The final response remains the full
+result for clients that do not consume progress notifications.
 
 ```jsonc
 {

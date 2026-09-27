@@ -300,6 +300,22 @@ class TestSemanticTokens(unittest.TestCase):
         self.assertEqual(data[:5], [0, 0, 3, 1, 0])          # comment on line 0
         self.assertEqual(data[5:7], [1, 0])                  # `match` on line 1
 
+    def test_each_matcher_kind_and_every_literal_has_its_own_type(self):
+        from astmatcher_lsp.features import SEMANTIC_TOKEN_TYPES as TYPES
+        text = 'match cxxRecordDecl(has(fieldDecl(hasName("a"), isBitField(), true, 3)))'
+        data = semantic_tokens(CAT, parse(text), LineIndex(text))
+        kinds, char = {}, 0
+        for i in range(0, len(data), 5):
+            char += data[i + 1]
+            kinds[text[char:char + data[i + 2]]] = TYPES[data[i + 3]]
+        self.assertEqual(kinds["cxxRecordDecl"], "nodeMatcher")
+        self.assertEqual(kinds["fieldDecl"], "nodeMatcher")
+        self.assertEqual(kinds["hasName"], "narrowingMatcher")
+        self.assertEqual(kinds["has"], "traversalMatcher")
+        for lit in ('"a"', "true", "3"):
+            self.assertEqual(kinds[lit], "literal", lit)
+
+
 PAIR_OUTPUT = """
   Matcher: cxxRecordDecl(hasName("Pair"),
               has(fieldDecl().bind("v")))

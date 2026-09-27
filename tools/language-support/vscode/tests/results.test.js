@@ -82,7 +82,7 @@ Module._load = function (request, parent, isMain) {
   if (request === "vscode") return vscode;
   return originalLoad.call(this, request, parent, isMain);
 };
-const { BindingsTree, Highlighter, reveal } = require("../results");
+const { ResultStore, BindingsTree, Highlighter, reveal, formatLocation } = require("../results");
 Module._load = originalLoad;
 
 const file = "/workspace/pair.cpp";
@@ -167,4 +167,54 @@ test("Explorer group and node items dispatch group and single-node selectors", (
     b: first, matches: ["1"], sels: [{ q: 0, m: 0, b: 1 }],
   } });
   assert.deepEqual(row.command.arguments, [{ q: 0, m: 0, b: 1 }]);
+});
+
+test("Explorer groups bindings under themed source-file parents with scoped selection", () => {
+  const store = createStore();
+  store.groups = () => [{ id: "v", nodes: [{ b: first, matches: ["1"],
+    sels: [{ q: 0, m: 0, b: 1 }] }] }];
+  store.result = { sample: file, files: [file, "/workspace/second.cpp"], errors: [] };
+  const tree = new BindingsTree(store);
+  const files = tree.getChildren();
+  assert.deepEqual(files.map((entry) => entry.file), [file, "/workspace/second.cpp"]);
+  const fileItem = tree.getTreeItem(files[0]);
+  assert.equal(fileItem.label, "pair.cpp");
+  assert.equal(fileItem.description, file);
+  assert.equal(fileItem.iconPath.id, "file");
+  assert.equal(fileItem.iconPath.color.id, "symbolIcon-fileForeground");
+
+  const bind = tree.getChildren(files[0]).find((entry) => entry.group.id === "v");
+  const bindItem = tree.getTreeItem(bind);
+  assert.deepEqual(bindItem.command.arguments, [{ id: "v", file }]);
+  const child = tree.getChildren(bind)[0];
+  const nodeItem = tree.getTreeItem(child);
+  assert.deepEqual(nodeItem.command.arguments, [{ q: 0, m: 0, b: 1, file }]);
+  assert.match(nodeItem.description, /16:14$/);
+  assert.equal(formatLocation({ range: loc(12, 18) }), "16:13");
+  assert.equal(formatLocation({}), "");
+});
+
+test("streamed file batches appear before completion with globally correct selectors", () => {
+  const store = new ResultStore();
+  store.setRunning({ sample: "workspace", scope: "workspace" });
+  store.startStreaming({ sample: "/workspace", flags: ["-std=c++23"],
+    target: { scope: "workspace", path: "/workspace" }, totalFiles: 2,
+    cache: { enabled: true, location: "/tmp/cache" } });
+  for (let i = 0; i < 2; i++) {
+    const path = `/workspace/${i}.cpp`;
+    const b = { id: "v", node: `0x${i + 1}`, kind: "VarDecl", file: path,
+      translationUnit: path, range: loc(i, i + 1) };
+    store.appendStreamingFile({ kind: "file", file: path, completedFiles: i + 1,
+      totalFiles: 2, queries: [{ matcher: "varDecl()", translationUnit: path,
+        count: 1, matches: [{ index: 1, bindings: [b] }] }],
+      bindings: { v: [{ ...b, matches: [{ query: 0, match: 0, binding: 0, index: 1 }] }] },
+      errors: [], stderr: "", cache: { hits: i, misses: 1 - i }, durationMs: i + 1 });
+    assert.equal(store.result.files.length, i + 1);
+    assert.equal(store.running.completedFiles, i + 1);
+  }
+  assert.equal(store.groups()[0].nodes.length, 2);
+  assert.deepEqual(store.groups()[0].nodes.map((n) => n.sels[0].q), [0, 1]);
+  assert.equal(store.binding({ q: 1, m: 0, b: 0 }).file, "/workspace/1.cpp");
+  assert.deepEqual([store.result.cache.hits, store.result.cache.misses], [1, 1]);
+  assert.equal(new BindingsTree(store).getChildren().length, 2);
 });

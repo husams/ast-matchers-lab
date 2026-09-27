@@ -94,6 +94,8 @@ regenerated whenever that file changes and after a brew LLVM major bump:
 `python3 tools/language-support/generate.py && tools/language-support/check.sh`.
 Do not hand-edit `data/`, `vscode/syntaxes/`, `vscode/snippets/` or
 `vim/syntax/` — they carry a "GENERATED" header.
+How the tooling works and how to change, test and install it:
+`tools/language-support/AGENTS.md`.
 
 ## Environment
 

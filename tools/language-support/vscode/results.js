@@ -52,8 +52,44 @@ class ResultStore {
   }
 
   setRunning(info) {
+    this.result = undefined;
     this.running = info;
+    this.selected = undefined;
     this.emitter.fire("running");
+  }
+
+  startStreaming(progress) {
+    this.result = {
+      ok: false, sample: progress.sample, flags: progress.flags || [],
+      target: progress.target, queries: [], bindings: {}, files: [], errors: [],
+      stderr: "", durationMs: 0, truncated: false,
+      cache: { enabled: !!progress.cache?.enabled, hits: 0, misses: 0,
+               location: progress.cache?.location || null },
+    };
+    this.running = { ...this.running, completedFiles: 0,
+                     totalFiles: progress.totalFiles };
+    this.emitter.fire("result");
+  }
+
+  appendStreamingFile(progress) {
+    const result = this.result;
+    if (!result || !this.running || result.files.includes(progress.file)) return;
+    const offset = result.queries.length;
+    result.queries.push(...(progress.queries || []));
+    for (const [id, nodes] of Object.entries(progress.bindings || {})) {
+      const existing = result.bindings[id] ||= [];
+      for (const node of nodes) existing.push({ ...node,
+        matches: node.matches.map((m) => ({ ...m, query: m.query + offset })) });
+    }
+    result.files.push(progress.file);
+    result.errors.push(...(progress.errors || []));
+    result.stderr += progress.stderr || "";
+    result.cache.hits += progress.cache?.hits || 0;
+    result.cache.misses += progress.cache?.misses || 0;
+    result.durationMs = progress.durationMs || result.durationMs;
+    this.running = { ...this.running, completedFiles: progress.completedFiles,
+                     totalFiles: progress.totalFiles, currentFile: progress.file };
+    this.emitter.fire("result");
   }
 
   toggleRoot() {
@@ -85,6 +121,10 @@ class ResultStore {
 
 function toRange(r) {
   return new vscode.Range(r.start.line, r.start.character, r.end.line, r.end.character);
+}
+
+function formatLocation(b) {
+  return b && b.range ? `${b.range.start.line + 1}:${b.range.start.character + 1}` : "";
 }
 
 // ------------------------------------------------------------------ highlight
@@ -120,7 +160,7 @@ class Highlighter {
     const label = (b) => ({ after: { contentText: `‹${b.id}›` } });
     const sel = this.store.selected;
     const nodes = sel && sel.id
-      ? (this.store.groups().find((g) => g.id === sel.id) || { nodes: [] }).nodes.map((n) => n.b)
+      ? nodesForBinding(this.store, sel)
       : [sel && this.store.binding(sel)].filter(Boolean);
     for (const b of uniqueLocatedNodes(nodes)) {
       if (!b.range || b.file !== file) continue;
@@ -150,11 +190,17 @@ function uniqueLocatedNodes(nodes) {
   });
 }
 
+function nodesForBinding(store, sel) {
+  const group = store.groups().find((g) => g.id === sel.id);
+  return (group ? group.nodes : []).filter((n) => !sel.file || n.b.file === sel.file)
+    .map((n) => n.b);
+}
+
 /** Open the selected node or binding group and select its exact source range(s). */
 async function reveal(store, sel) {
   const group = sel && sel.id;
   const nodes = group
-    ? (store.groups().find((g) => g.id === sel.id) || { nodes: [] }).nodes.map((n) => n.b)
+    ? nodesForBinding(store, sel)
     : [store.binding(sel)].filter(Boolean);
   if (!nodes.length) return;
   store.select(sel);
@@ -187,7 +233,7 @@ async function reveal(store, sel) {
 
 // ------------------------------------------------------------------ tree
 
-/** Outline: bind id -> the distinct nodes it bound. */
+/** Outline: source file -> binding id -> distinct AST nodes. */
 class BindingsTree {
   constructor(store) {
     this.store = store;
@@ -200,11 +246,27 @@ class BindingsTree {
     const result = this.store.result;
     if (!result) return [];
     if (!node) {
-      const errs = result.errors.map((e, i) => ({ type: "error", error: e, i }));
-      return [...errs, ...this.store.groups().map((g) => ({ type: "bind", group: g }))];
+      const errs = (result.errors || []).map((e, i) => ({ type: "error", error: e, i }));
+      const byFile = new Map();
+      for (const g of this.store.groups()) for (const n of g.nodes) {
+        const file = n.b.file || result.sample || "(unknown source)";
+        if (!byFile.has(file)) byFile.set(file, new Map());
+        const groups = byFile.get(file);
+        if (!groups.has(g.id)) groups.set(g.id, { id: g.id, nodes: [] });
+        groups.get(g.id).nodes.push(n);
+      }
+      for (const file of result.files || []) {
+        const filePath = typeof file === "string" ? file : file.path;
+        if (filePath && !byFile.has(filePath)) byFile.set(filePath, new Map());
+      }
+      return [...errs, ...[...byFile].sort(([a], [b]) => a.localeCompare(b))
+        .map(([file, groups]) => ({ type: "file", file, groups: [...groups.values()] }))];
     }
+    if (node.type === "file") return node.groups.map((group) => ({
+      type: "bind", group, file: node.file,
+    }));
     if (node.type === "bind") {
-      return node.group.nodes.map((n) => ({ type: "node", node: n }));
+      return node.group.nodes.map((n) => ({ type: "node", node: n, file: node.file }));
     }
     return [];
   }
@@ -216,26 +278,37 @@ class BindingsTree {
       item.iconPath = new vscode.ThemeIcon("error", new vscode.ThemeColor("errorForeground"));
       return item;
     }
+    if (node.type === "file") {
+      const name = require("path").basename(node.file);
+      const item = new vscode.TreeItem(name, C.Expanded);
+      item.id = `file:${node.file}`;
+      item.description = node.file;
+      item.tooltip = node.file;
+      item.iconPath = new vscode.ThemeIcon("file", new vscode.ThemeColor("symbolIcon-fileForeground"));
+      return item;
+    }
     if (node.type === "bind") {
       const n = node.group.nodes.length;
       const item = new vscode.TreeItem(node.group.id, C.Expanded);
-      item.id = `bind:${node.group.id}`;
+      item.id = `bind:${node.file || ""}:${node.group.id}`;
       item.description = `${n} node${n === 1 ? "" : "s"}`;
       item.iconPath = new vscode.ThemeIcon(node.group.id === "root" ? "symbol-class"
                                                                      : "symbol-field");
       item.command = { command: "astmatcher.revealBinding", title: "Select binding",
-                       arguments: [{ id: node.group.id }] };
+                       arguments: [{ id: node.group.id, ...(node.file ? { file: node.file } : {}) }] };
       return item;
     }
     const { b, matches, sels } = node.node;
     const item = new vscode.TreeItem(`${b.kind}${b.summary ? " " + b.summary : ""}`, C.None);
-    item.description = `#${matches.join(", #")}` + (b.location ? ` · ${b.location}` : "");
+    const location = formatLocation(b);
+    item.description = `#${matches.join(", #")}` + (location ? ` · ${location}` : "");
     item.tooltip = new vscode.MarkdownString()
       .appendMarkdown(`**${b.id}** — \`${b.kind}\` — match #${matches.join(", #")}\n\n`)
       .appendCodeblock(b.text || b.summary || "", "cpp")
-      .appendMarkdown(b.location ? `\n${b.location}` : "\n_no source location_");
+      .appendMarkdown(location ? `\n${location}` : "\n_no source location_");
     item.iconPath = new vscode.ThemeIcon("symbol-misc");
-    item.command = { command: "astmatcher.revealBinding", title: "Reveal", arguments: [sels[0]] };
+    item.command = { command: "astmatcher.revealBinding", title: "Reveal",
+      arguments: [{ ...sels[0], ...(node.file ? { file: node.file } : {}) }] };
     return item;
   }
 }
@@ -248,6 +321,9 @@ class MatchesView {
     this.store = store;
     this.handlers = handlers;
     this.view = undefined;
+    this.pendingMode = "results";
+    this.lastProgressPostAt = 0;
+    this.pendingProgressTimer = undefined;
     store.onDidChange((why) => this.post(why));
   }
 
@@ -258,21 +334,89 @@ class MatchesView {
     view.webview.onDidReceiveMessage((msg) => {
       if (msg.type === "reveal") this.handlers.reveal(msg.sel);
       else if (msg.type === "command") vscode.commands.executeCommand(msg.command);
+      else if (msg.type === "settings-open") this.showSettings();
+      else if (msg.type === "settings-load") this.loadSettings();
+      else if (msg.type === "settings-save") this.saveSettings(msg.values);
+      else if (msg.type === "target-select") {
+        vscode.commands.executeCommand("astmatcher.selectTarget").then((settings) => {
+          if (settings && this.view) this.view.webview.postMessage({ type: "target-selected", settings });
+        });
+      }
+      else if (msg.type === "settings-cancel") {
+        this.pendingMode = "results";
+        this.post("result");
+      }
       else if (msg.type === "open") vscode.window.showTextDocument(vscode.Uri.file(msg.file));
-      else if (msg.type === "ready") this.post("result");
+      else if (msg.type === "ready") {
+        if (this.pendingMode === "settings") this.loadSettings();
+        else {
+          this.post("result");
+          vscode.commands.executeCommand("astmatcher.getRunSettings").then((settings) => {
+            if (this.view) this.view.webview.postMessage({ type: "settings-data", settings });
+          });
+        }
+      }
     });
-    view.onDidChangeVisibility(() => { if (view.visible) this.post("result"); });
+    view.onDidChangeVisibility(() => {
+      if (view.visible && this.pendingMode !== "settings") this.post("result");
+    });
   }
 
   /** Bring the panel up without taking focus from the editor. */
   show() {
+    this.pendingMode = "results";
     if (this.view) this.view.show(true);
     else vscode.commands.executeCommand("astmatcher.matches.focus")
       .then(() => vscode.commands.executeCommand("workbench.action.focusActiveEditorGroup"));
   }
 
+  showSettings() {
+    this.pendingMode = "settings";
+    if (this.view) {
+      this.view.show(true);
+      this.loadSettings();
+    } else vscode.commands.executeCommand("astmatcher.matches.focus")
+      .then(() => { if (this.view) this.loadSettings(); });
+  }
+
+  async loadSettings() {
+    this.pendingMode = "settings";
+    try {
+      const settings = await vscode.commands.executeCommand("astmatcher.getRunSettings");
+      if (this.view) this.view.webview.postMessage({ type: "settings", settings });
+    } catch (error) {
+      if (this.view) this.view.webview.postMessage({ type: "settings-error",
+        message: error.message || String(error) });
+    }
+  }
+
+  async saveSettings(values) {
+    try {
+      const settings = await vscode.commands.executeCommand("astmatcher.saveRunSettings", values);
+      this.pendingMode = "results";
+      if (this.view) this.view.webview.postMessage({ type: "settings-saved", settings });
+    } catch (error) {
+      if (this.view) this.view.webview.postMessage({ type: "settings-error",
+        message: error.message || String(error) });
+    }
+  }
+
   post(why) {
     if (!this.view) return;
+    if (why === "result" && this.store.running) {
+      const elapsed = Date.now() - this.lastProgressPostAt;
+      if (elapsed < 100) {
+        if (!this.pendingProgressTimer) this.pendingProgressTimer = setTimeout(() => {
+          this.pendingProgressTimer = undefined;
+          this.post("result");
+        }, 100 - elapsed);
+        return;
+      }
+      this.lastProgressPostAt = Date.now();
+    } else if (this.pendingProgressTimer) {
+      clearTimeout(this.pendingProgressTimer);
+      this.pendingProgressTimer = undefined;
+    }
     this.view.webview.postMessage({
       type: why === "selection" ? "selection" : "state",
       result: this.store.result, running: this.store.running, selected: this.store.selected,
@@ -298,20 +442,66 @@ class MatchesView {
 </head>
 <body>
 <header id="bar">
-  <span id="summary">Run a query with ⌘↵ to see its matches here.</span>
-  <span class="spacer"></span>
-  <input id="filter" type="search" placeholder="Filter" aria-label="Filter matches">
-  <label class="toggle" title="Also list clang-query's implicit root binding">
-    <input id="show-root" type="checkbox"> Show root</label>
-  <button id="sample" title="Choose the file the query runs against">Sample…</button>
-  <button id="rerun" title="Run the query again">Run</button>
+  <div id="results-toolbar">
+    <span id="summary">Run a query with ⌘↵ to see its matches here.</span>
+    <span class="spacer"></span>
+    <input id="filter" type="search" placeholder="Filter" aria-label="Filter matches">
+    <label class="toggle" title="Also list clang-query's implicit root binding">
+      <input id="show-root" type="checkbox"> Show root</label>
+    <button id="sample" title="Choose the file the query runs against">Sample…</button>
+    <button id="settings" title="Run scope, compiler, results and cache settings">Settings</button>
+    <div class="scope-menu" role="group" aria-label="Run scope">
+      <button id="run-file" title="Run against one source file">File</button>
+      <button id="run-directory" title="Run against a directory">Directory</button>
+      <button id="run-workspace" title="Run against the workspace">Workspace</button>
+    </div>
+    <button id="rerun" title="Run the query again">Run</button>
+  </div>
+  <div id="settings-toolbar" hidden>
+    <strong>Run settings</strong><span class="spacer"></span>
+    <button id="settings-cancel">Back</button>
+    <button id="settings-save">Save settings</button>
+  </div>
 </header>
+<main id="results-screen">
 <section id="errors" hidden></section>
+<div id="cache-info" role="status" hidden></div>
+<div id="no-results" role="status" hidden>No matching bindings were found for this run.</div>
 <table id="table" hidden>
   <thead><tr id="head"></tr></thead>
   <tbody id="rows"></tbody>
 </table>
 <pre id="stderr" hidden></pre>
+</main>
+<main id="settings-screen" hidden>
+  <form id="settings-form">
+    <fieldset><legend>Run scope</legend>
+      <label>Scope <select name="scope" id="scope">
+        <option value="file">File</option><option value="directory">Directory</option>
+        <option value="workspace">Workspace</option></select></label>
+      <label>Target path <span class="path-control"><input id="target-path" name="targetPath" type="text">
+        <button type="button" id="select-target">Browse…</button></span></label>
+    </fieldset>
+    <fieldset><legend>Compiler</legend>
+      <label>Compiler flags <span class="hint">Enter one compiler argument per line.</span>
+        <textarea name="flags" id="flags" rows="3" spellcheck="false"></textarea></label>
+      <label>compile_commands.json <input name="compileCommands" id="compile-commands" type="text"></label>
+      <label>Traversal <select name="traversal" id="traversal">
+        <option value="AsIs">AsIs</option>
+        <option value="IgnoreUnlessSpelledInSource">IgnoreUnlessSpelledInSource</option>
+      </select></label>
+      <label>Excluded paths <span class="hint">One glob per line.</span>
+        <textarea name="exclusions" id="exclusions" rows="3" spellcheck="false"
+          placeholder="One glob per line"></textarea></label>
+    </fieldset>
+    <fieldset><legend>Results</legend><div id="columns" role="group" aria-label="Visible result columns"></div></fieldset>
+    <fieldset><legend>Cache</legend>
+      <label><input name="cacheEnabled" id="cache-enabled" type="checkbox"> Enable result cache</label>
+      <label>Cache location <input name="cacheLocation" id="cache-location" type="text"></label>
+    </fieldset>
+    <div id="settings-error" role="alert" hidden></div>
+  </form>
+</main>
 <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;
@@ -319,4 +509,4 @@ class MatchesView {
 }
 
 module.exports = { ResultStore, Highlighter, BindingsTree, MatchesView, reveal, toRange,
-                   groupByBind };
+                   groupByBind, formatLocation };
