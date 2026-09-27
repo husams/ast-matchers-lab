@@ -2,10 +2,15 @@
   "name": "astmatcher-dsl",
   "displayName": "AST Matcher DSL (clang-query)",
   "description": "Syntax highlighting, completion, hover and diagnostics for Clang AST matcher scripts (.query).",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "publisher": "ast-matchers-lab",
   "license": "MIT",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/husams/ast-matchers-lab.git",
+    "directory": "tools/language-support/vscode"
+  },
   "engines": {
     "vscode": "^1.82.0"
   },
@@ -276,17 +281,17 @@
         "astmatcher.server.path": {
           "type": "string",
           "default": "",
-          "description": "Path to the astmatcher-lsp launcher. Empty: look for tools/language-support/astmatcher-lsp/bin/astmatcher-lsp in the workspace, then on PATH."
+          "description": "Path to the astmatcher-lsp launcher. Empty: look for tools/language-support/astmatcher-lsp/bin/astmatcher-lsp in the workspace."
         },
         "astmatcher.server.python": {
           "type": "string",
           "default": "python3",
           "description": "Python 3.10+ interpreter used to run the server."
         },
-        "astmatcher.clangQueryPath": {
+        "astmatcher.nativeServerPath": {
           "type": "string",
           "default": "",
-          "description": "Path to clang-query. Empty: $LLVM/bin/clang-query, else clang-query on PATH."
+          "description": "Path to the astmatcher-native executable used for Run Query. Empty: the Python bridge finds a bundled or in-tree binary, then checks PATH."
         },
         "astmatcher.sample": {
           "type": "string",
@@ -301,7 +306,7 @@
           "default": [
             "-std=c++23"
           ],
-          "description": "Compiler flags passed after `--` to clang-query."
+          "description": "Compiler flags passed to the native Clang matcher server."
         },
         "astmatcher.scope": {
           "type": "string",
@@ -323,7 +328,7 @@
           "type": "string",
           "enum": ["AsIs", "IgnoreUnlessSpelledInSource"],
           "default": "AsIs",
-          "description": "clang-query AST traversal mode."
+          "description": "AST matcher traversal mode."
         },
         "astmatcher.exclusions": {
           "type": "array",

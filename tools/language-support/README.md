@@ -1,14 +1,15 @@
 # Language support for the AST Matcher DSL
 
 Syntax highlighting and autocomplete for the matcher language you type into
-`clang-query` — the same DSL this lab teaches. Three front ends over one
-source of truth:
+`clang-query` — the same DSL this lab teaches. Three editor front ends share
+the generated matcher catalog, and native C++ executes queries:
 
 | Target | What you get | Needs |
 |--------|--------------|-------|
 | [`vscode/`](vscode/) | grammar, snippets, and the full language server | VS Code 1.82+, `npm install` |
 | [`astmatcher-lsp/`](astmatcher-lsp/) | editor-agnostic LSP server + batch checker | Python 3.10+, nothing else |
 | [`vim/`](vim/) | syntax file, ftdetect/ftplugin, dictionary completion | Vim 8 or Neovim |
+| [`native/`](native/) | Clang matcher engine and gRPC server on a Unix socket | CMake, Clang/LLVM development files, Protobuf, gRPC |
 
 Everything is generated from `scripts/catalog.json` (all 726 AST Matcher
 Reference rows) plus the real clang class hierarchies read out of the Homebrew
@@ -28,10 +29,52 @@ tools/language-support/astmatcher-lsp/bin/astmatcher-lsp --check manifests/queri
 echo 'set runtimepath+=~/workspace/qemu-vms/ast-matchers-lab/tools/language-support/vim' \
   >> ~/.vimrc
 
-# 3. VS Code
+# 3. build the native query server on macOS with Homebrew
+brew install llvm grpc protobuf
+cmake -S tools/language-support/native -B tools/language-support/native/build \
+  -DCMAKE_PREFIX_PATH="$(brew --prefix llvm);$(brew --prefix grpc);$(brew --prefix protobuf)"
+cmake --build tools/language-support/native/build --parallel
+
+# 4. VS Code
 cd tools/language-support/vscode && npm install && npx @vscode/vsce package
-code --install-extension astmatcher-dsl-1.0.0.vsix
+code --install-extension astmatcher-dsl-1.8.0.vsix
 ```
+
+`astmatcher-lsp --run` and VS Code **Run Query** send each translation unit to
+`astmatcher-native`. The Python language server remains standard-library-only:
+it starts the native server on a private Unix socket, sends a protobuf JSON
+request to the native CLI bridge, and maps the structured gRPC reply into the
+existing results panel. Set `astmatcher.nativeServerPath` or
+`ASTMATCHER_NATIVE` when the native binary is outside the in-tree build,
+installed sibling directory, or `PATH`. A missing native binary is an error;
+query execution never silently switches to `clang-query`.
+
+On RHEL/Rocky/Alma 9, run the installer from the repository with no options:
+
+```sh
+tools/language-support/deploy-rhel.sh
+```
+
+The installer defaults to `~/.local/astmatcher`, enables the build
+repositories, installs dependencies, builds and tests the native and Python
+servers, and verifies a real gRPC query through the installed binaries. On
+Rocky/Alma it enables CRB and EPEL; on RHEL it enables CodeReady Builder and
+installs the Fedora EPEL release package. Package installation needs sudo (or
+root), network access, and a registered RHEL subscription where applicable.
+If VS Code is present, it also builds and installs the extension and sets its
+user settings. On a headless host it installs only the native and Python
+servers; rerun the same command after installing VS Code to add the extension.
+Use `--prefix DIR`, `--server-only`, or `--skip-tests` to customize that
+behavior. `--prefix` also installs dependencies; use `--skip-deps` when the
+host already has them.
+The installer builds against the selected LLVM 21 or newer. Use
+`--llvm /path/to/llvm` for a separate LLVM installation. The checked-in editor
+catalog and lab examples target LLVM 22; on LLVM 21, the installer generates
+data from local headers and filters suggestions against the linked Clang
+registry in a build directory, preserving the checked-in LLVM 22 files. It
+also replaces generated snippets and syntax in the installed VSIX. Pass
+`--vsix /path/to/astmatcher-dsl.vsix` to install a prebuilt extension on a VS
+Code host without Node.js.
 
 ## What the editor knows
 
@@ -80,6 +123,7 @@ tools/language-support/
 │   ├── hierarchy.json     536 AST classes -> base class
 │   └── enums.json         cast kinds, attributes, operators, settings
 ├── astmatcher-lsp/        the language server (stdlib-only Python)
+├── native/                C++ Clang matcher engine and Unix socket gRPC server
 ├── vscode/                extension: grammar, snippets, LSP client, run command
 └── vim/                   syntax, ftdetect, ftplugin, autoload, dictionary
 ```
@@ -94,7 +138,7 @@ the generator after a `brew` LLVM major bump or any edit to
 ```sh
 export LLVM=$(brew --prefix llvm)
 python3 tools/language-support/generate.py     # rewrites data/, the grammar, the vim syntax
-tools/language-support/check.sh                # 46 tests + 997 verified examples
+tools/language-support/check.sh                # unit tests + verified examples
 ```
 
 `generate.py --check` regenerates into a temp directory and diffs, for CI.

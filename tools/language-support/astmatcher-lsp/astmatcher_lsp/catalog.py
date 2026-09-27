@@ -86,6 +86,8 @@ class Matcher:
     top_level: bool = False
     value_set: str | None = None
     bound_id_arg: bool = False
+    native_available: bool | None = None
+    native_llvm_major: int | None = None
 
     @property
     def is_node_matcher(self) -> bool:
@@ -190,7 +192,9 @@ class Catalog:
 
     def suggest(self, word: str, limit: int = 3) -> list[str]:
         import difflib
-        return difflib.get_close_matches(word, list(self.matchers), n=limit, cutoff=0.7)
+        available = [name for name, matcher in self.matchers.items()
+                     if matcher.native_available is not False]
+        return difflib.get_close_matches(word, available, n=limit, cutoff=0.7)
 
 
 @lru_cache(maxsize=4)
@@ -215,6 +219,8 @@ def load(directory: str | None = None) -> Catalog:
             doc=entry["doc"],
             value_set=entry.get("value_set"),
             bound_id_arg=entry.get("bound_id_arg", False),
+            native_available=entry.get("native_available"),
+            native_llvm_major=matchers_raw.get("native_llvm_major"),
             overloads=[Overload(**{k: o[k] for k in (
                 "ret", "node", "section", "params", "variadic",
                 "min_args", "max_args", "signature", "doc")})

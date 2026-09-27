@@ -5,11 +5,17 @@ Highlighting, completion, hover, signature help and diagnostics for
 
 ## Install
 
+From the repository root on macOS with Homebrew:
+
 ```sh
+brew install llvm grpc protobuf
+cmake -S tools/language-support/native -B tools/language-support/native/build \
+  -DCMAKE_PREFIX_PATH="$(brew --prefix llvm);$(brew --prefix grpc);$(brew --prefix protobuf)"
+cmake --build tools/language-support/native/build --target astmatcher-native --parallel
 cd tools/language-support/vscode
 npm install
 npx @vscode/vsce package
-code --install-extension astmatcher-dsl-1.6.0.vsix
+code --install-extension astmatcher-dsl-1.8.0.vsix
 ```
 
 For development instead: open this folder in VS Code and press <kbd>F5</kbd>.
@@ -19,6 +25,12 @@ The extension finds the language server at
 workspace. Set `astmatcher.server.path` if the lab lives elsewhere; with no
 server the grammar and snippets still work (`astmatcher.server.enabled: false`
 if you want only those).
+**Run Query** also needs `astmatcher-native`, built from
+[`../native/`](../native/) with CMake. Set `astmatcher.nativeServerPath` to
+its executable when it is outside the installed tree or `PATH`. The Python
+language server starts it over a private Unix socket and bridges its structured
+gRPC reply into the result panel. A missing native executable is reported as a
+run error.
 
 Completion and syntax diagnostics also work before saving: select **AST Matcher
 DSL** as the language of a new untitled editor. Matcher choices follow the
@@ -46,12 +58,12 @@ Override them in your settings:
 ## Running queries
 
 <kbd>⌘↵</kbd> (<kbd>Ctrl↵</kbd>) runs the open `.query` file — unsaved edits
-included — through clang-query via the language server, and shows the result in
+included — through the native Clang matcher server, and shows the result in
 three places:
 
 Both result views group nodes by source file, then by binding id, listing each
-AST node once with the matches that bound it. The server tells nodes apart by
-their AST address, so in
+AST node once with the matches that bound it. The server assigns an opaque ID
+to each bound AST node, so in
 
 ```
 match cxxRecordDecl(hasName("Pair"),
@@ -70,7 +82,7 @@ match cxxRecordDecl(hasName("Pair"),
       #2      FieldDecl      FieldDecl      int second
 ```
 
-clang-query's implicit `root`
+The implicit `root`
 binding is hidden unless a match binds nothing else; *Show root* (checkbox in the
 panel, eye icon in the view title bars) brings it back.
 
@@ -86,8 +98,8 @@ panel, eye icon in the view title bars) brings it back.
 - **Source files**: selecting a node or binding opens its source file and
   highlights its matched regions; enclosing nodes and other bindings are not included.
 
-clang-query errors (e.g. `Matcher not found`) are shown in the panel and as
-`clang-query` diagnostics on the offending token in the query file.
+Matcher parse errors (e.g. `Matcher not found`) are shown in the panel and as
+`astmatcher-native` diagnostics on the offending token in the query file.
 
 ### Choosing the file a query searches
 
@@ -133,7 +145,7 @@ a live scanned-file count; the final response reconciles the full result.
 | Command | Default key | What it does |
 |---------|-------------|--------------|
 | AST Matcher: Run Query | <kbd>⌘↵</kbd> / <kbd>Ctrl↵</kbd> | runs the query through the server; results in the panel, tree and editor |
-| AST Matcher: Run Query in Terminal | <kbd>⇧⌘↵</kbd> / <kbd>Ctrl⇧↵</kbd> | saves and runs `clang-query -f <file> <sample> -- <flags>` in a terminal; this path supports file scope and compiler flags |
+| AST Matcher: Run Query in Terminal | <kbd>⇧⌘↵</kbd> / <kbd>Ctrl⇧↵</kbd> | saves and runs `clang-query -f <file> <sample> -- <flags>` in a terminal for hands-on lab work; this path supports file scope and compiler flags |
 | AST Matcher: Select Sample File… | status bar | choose the translation unit for this query file |
 | AST Matcher: Run Query on This Target… | — | from a C/C++ file or directory: pick a query and run it on that target |
 | AST Matcher: New Query and Run | — | from a C/C++ file or directory: create a starter query and run it |
@@ -144,8 +156,8 @@ a live scanned-file count; the final response reconciles the full result.
 | AST Matcher: Clear Results | — | empties the panel, tree and highlights |
 | AST Matcher: Restart Language Server | — | after editing the server or regenerating `data/` |
 
-`astmatcher.clangQueryPath` defaults to `$LLVM/bin/clang-query`, else
-`clang-query` on `PATH`.
+The explicit terminal command finds `clang-query` under `$LLVM/bin`, then on
+`PATH`. **Run Query** uses the native server and does not fall back to that command.
 
 ## Settings
 
@@ -154,7 +166,7 @@ a live scanned-file count; the final response reconciles the full result.
 | `astmatcher.server.enabled` | `true` |
 | `astmatcher.server.path` | `""` (auto-detect in the workspace) |
 | `astmatcher.server.python` | `python3` |
-| `astmatcher.clangQueryPath` | `""` (`$LLVM/bin/clang-query`) |
+| `astmatcher.nativeServerPath` | `""` (installed or in-tree binary, then `PATH`) |
 | `astmatcher.sample` | `manifests/intro.cpp` |
 | `astmatcher.flags` | `["-std=c++23"]` |
 | `astmatcher.scope` | `"file"` |

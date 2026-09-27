@@ -1,0 +1,85 @@
+syntax = "proto3";
+
+package astmatcher.native.v1;
+
+// The extension sends one source file and its query commands per request.
+service MatcherService {
+  rpc Ping(PingRequest) returns (PingReply);
+  rpc Run(RunRequest) returns (RunReply);
+}
+
+message PingRequest {}
+message PingReply {
+  string version = 1;
+  string compiler_path = 2; // absolute clang executable from the linked LLVM
+}
+
+message Command {
+  enum Kind {
+    KIND_UNSPECIFIED = 0;
+    MATCH = 1;
+    LET = 2;
+    SET_TRAVERSAL = 3;
+    SET_BIND_ROOT = 4;
+  }
+  Kind kind = 1;
+  string expression = 2; // matcher expression for MATCH and LET
+  string name = 3;       // variable name for LET
+  string value = 4;      // traversal/bind-root setting
+}
+
+message RunRequest {
+  string source_path = 1;
+  string working_directory = 2;
+  repeated string flags = 3;
+  string traversal = 4; // AsIs or IgnoreUnlessSpelledInSource
+  uint32 max_matches = 5; // zero uses the server default
+  repeated Command commands = 6;
+}
+
+message Position {
+  uint32 line = 1;
+  uint32 character = 2;
+}
+
+message SourceRange {
+  string file = 1;
+  Position start = 2;
+  Position end = 3; // exclusive, including the final token
+}
+
+message Binding {
+  string id = 1;
+  string node = 2; // opaque identity within this response
+  string kind = 3;
+  string semantic_kind = 4;
+  string summary = 5;
+  string text = 6;
+  SourceRange range = 7;
+}
+
+message Match {
+  uint32 index = 1; // one-based within a Query
+  repeated Binding bindings = 2;
+}
+
+message Query {
+  uint32 command_index = 1; // zero-based in RunRequest.commands
+  string matcher = 2;
+  uint32 count = 3;
+  repeated Match matches = 4;
+}
+
+message Diagnostic {
+  uint32 command_index = 1; // zero-based in RunRequest.commands
+  string message = 2;
+  uint32 line = 3; // zero-based in the command expression
+  uint32 column = 4;
+}
+
+message RunReply {
+  repeated Query queries = 1;
+  repeated Diagnostic diagnostics = 2;
+  string stderr = 3;
+  bool truncated = 4;
+}

@@ -191,7 +191,11 @@ def matcher_markdown(cat: Catalog, matcher: Matcher) -> str:
     if matcher.parts:
         tags.append(_doc_link(cat, matcher))
     lines.append(" · ".join(tags))
-    if not matcher.in_clang_query:
+    if matcher.native_available is False:
+        lines.append("")
+        lines.append(f"**Not registered in linked Clang {matcher.native_llvm_major}** "
+                     "— this matcher cannot run with the installed native server.")
+    elif matcher.native_available is None and not matcher.in_clang_query:
         lines.append("")
         lines.append("**Not in clang-query 22** — this reference row has no registered "
                      "matcher; see `docs/part_12_capstone.md` for the nearest alternative.")
@@ -233,7 +237,7 @@ def _completion_item(cat: Catalog, matcher: Matcher, group: str) -> dict:
         "filterText": matcher.name,
         "data": {"matcher": matcher.name},
     }
-    if not matcher.in_clang_query:
+    if matcher.native_available is None and not matcher.in_clang_query:
         item["tags"] = [1]                  # CompletionItemTag.Deprecated
     return item
 
@@ -271,6 +275,8 @@ def _matcher_candidates(cat: Catalog, ctx: Context, an: Analyzer) -> list[dict]:
     root_slot = expected is None or cat.is_root(expected)
 
     for matcher in cat.matchers.values():
+        if matcher.native_available is False:
+            continue
         if ctx.top_level and not matcher.is_node_matcher:
             continue
         if not cat.applies_to(matcher, expected):
@@ -377,7 +383,8 @@ def completions(cat: Catalog, doc: Document, offset: int,
             "label": m.name, "kind": K_CLASS, "sortText": f"0{m.name}",
             "detail": m.ret_display(),
             "documentation": {"kind": "markdown", "value": matcher_markdown(cat, m)},
-        } for m in cat.matchers.values() if m.kind == "node"]
+        } for m in cat.matchers.values()
+        if m.kind == "node" and m.native_available is not False]
 
     if ctx.kind == "matcher":
         return _matcher_candidates(cat, ctx, an)
@@ -629,7 +636,8 @@ def _token_calls(cat: Catalog, expr, let_names, add) -> None:
             type_ = {"node": "nodeMatcher", "narrowing": "narrowingMatcher",
                      "traversal": "traversalMatcher"}[matcher.kind]
             mods = _MOD_INDEX["defaultLibrary"]
-            if not matcher.in_clang_query:
+            if matcher.native_available is False or (
+                    matcher.native_available is None and not matcher.in_clang_query):
                 mods |= _MOD_INDEX["deprecated"]
             add(expr.name_token.start, expr.name_token.end, type_, mods)
         elif expr.name in let_names:

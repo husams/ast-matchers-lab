@@ -476,6 +476,8 @@ def write_json(path: Path, obj) -> None:
 def by_kind(matchers: dict[str, dict]) -> dict[str, list[str]]:
     out: dict[str, list[str]] = {"node": [], "narrowing": [], "traversal": []}
     for name, entry in sorted(matchers.items()):
+        if entry.get("native_available") is False:
+            continue
         out[entry["kind"]].append(name)
     return out
 
@@ -602,7 +604,7 @@ def write_snippets(path: Path, matchers: dict[str, dict]) -> None:
     }
     # One snippet per matcher, so the editor offers the shape of its arguments.
     for name, entry in sorted(matchers.items()):
-        if not entry["in_clang_query"]:
+        if not entry["in_clang_query"] or entry.get("native_available") is False:
             continue
         o = entry["overloads"][0]
         slots = o["params"]
@@ -739,7 +741,9 @@ def write_vim_syntax(path: Path, matchers: dict[str, dict], enums: dict) -> None
 
 
 def write_dictionary(path: Path, matchers: dict[str, dict], enums: dict) -> None:
-    words = set(matchers) | set(COMMANDS) | set(SET_OPTIONS) | set(OUTPUT_FEATURES)
+    words = {name for name, entry in matchers.items()
+             if entry.get("native_available") is not False}
+    words |= set(COMMANDS) | set(SET_OPTIONS) | set(OUTPUT_FEATURES)
     words |= set(TRAVERSAL_KINDS) | {"bind"}
     for key in ("CastKind", "attr::Kind", "UnaryExprOrTypeTrait", "OpenMPClauseKind"):
         words |= set(enums[key])
@@ -749,7 +753,19 @@ def write_dictionary(path: Path, matchers: dict[str, dict], enums: dict) -> None
 
 # --------------------------------------------------------------------------
 
-def generate(root: Path, verbose: bool = True) -> None:
+def native_capabilities(binary: Path, names: list[str]) -> set[str]:
+    result = subprocess.run([str(binary), "capabilities"],
+                            input="\n".join(names) + "\n", text=True,
+                            capture_output=True, check=True)
+    available = set(result.stdout.splitlines())
+    if not available or "functionDecl" not in available or not available <= set(names):
+        sys.exit("native matcher capability scan returned an invalid matcher set")
+    return available
+
+
+def generate(root: Path, verbose: bool = True,
+             native_binary: Path | None = None,
+             native_llvm_major: int | None = None) -> None:
     include_dir = llvm_prefix() / "include"
     if not (include_dir / "clang" / "AST" / "DeclNodes.inc").exists():
         sys.exit(f"clang headers not found under {include_dir}")
@@ -758,6 +774,10 @@ def generate(root: Path, verbose: bool = True) -> None:
     bases = build_hierarchy(include_dir)
     enums = build_enums(include_dir)
     matchers = build_matchers(rows, bases)
+    if native_binary is not None:
+        available = native_capabilities(native_binary, list(matchers))
+        for name, entry in matchers.items():
+            entry["native_available"] = name in available
 
     missing = check_coverage(matchers, bases)
     if missing:
@@ -780,11 +800,14 @@ def generate(root: Path, verbose: bool = True) -> None:
         "set_options": {k: {"type": v[0], "doc": v[1]} for k, v in SET_OPTIONS.items()},
         "bound_id_args": sorted(BOUND_ID_ARGS),
     })
-    write_json(root / "data" / "matchers.json", {
+    matcher_data = {
         "source": "scripts/catalog.json",
         "rows": len(rows),
         "matchers": matchers,
-    })
+    }
+    if native_llvm_major is not None:
+        matcher_data["native_llvm_major"] = native_llvm_major
+    write_json(root / "data" / "matchers.json", matcher_data)
     write_tmlanguage(root / "vscode" / "syntaxes" / "astmatcher.tmLanguage.json", matchers, enums)
     write_snippets(root / "vscode" / "snippets" / "astmatcher.json", matchers)
     write_vim_syntax(root / "vim" / "syntax" / "astmatcher.vim", matchers, enums)
@@ -802,10 +825,25 @@ def generate(root: Path, verbose: bool = True) -> None:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--check", action="store_true",
-                    help="regenerate into a temp tree and diff against the committed files")
+    output = ap.add_mutually_exclusive_group()
+    output.add_argument("--check", action="store_true",
+                        help="regenerate into a temp tree and diff against the committed files")
+    output.add_argument("--output-dir", type=Path,
+                        help="write generated files into this separate tree")
+    ap.add_argument("--native-binary", type=Path,
+                    help="filter generated completion with this binary's registered matchers")
+    ap.add_argument("--native-llvm-major", type=int,
+                    help="linked LLVM major for version-specific diagnostics")
     args = ap.parse_args()
+    if args.native_binary is not None and args.output_dir is None:
+        ap.error("--native-binary requires --output-dir")
+    if args.native_binary is not None and args.native_llvm_major is None:
+        ap.error("--native-binary requires --native-llvm-major")
 
+    if args.output_dir is not None:
+        generate(args.output_dir, native_binary=args.native_binary,
+                 native_llvm_major=args.native_llvm_major)
+        return 0
     if not args.check:
         generate(HERE)
         return 0

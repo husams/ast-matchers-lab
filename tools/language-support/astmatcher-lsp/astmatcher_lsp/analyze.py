@@ -218,7 +218,13 @@ class Analyzer:
                       f"Matcher not found: {expr.name}{extra}", code="unknown-matcher")
             return
 
-        if not matcher.in_clang_query:
+        if matcher.native_available is False:
+            self._err(expr.name_token.start, expr.name_token.end,
+                      f"`{matcher.name}` is not registered in linked Clang "
+                      f"{matcher.native_llvm_major}",
+                      code="unavailable-matcher")
+            return
+        if matcher.native_available is None and not matcher.in_clang_query:
             self._err(expr.name_token.start, expr.name_token.end,
                       f"`{matcher.name}` is in the AST Matcher Reference but is not registered "
                       f"in clang-query 22 — see docs/part_12_capstone.md for the alternative",

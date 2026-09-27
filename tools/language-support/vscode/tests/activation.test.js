@@ -34,6 +34,7 @@ test("activation starts the language client for saved and untitled matcher docum
         "server.enabled": true,
         "server.path": path.resolve(__dirname, "../../astmatcher-lsp/bin/astmatcher-lsp"),
         "server.python": "python3",
+        "nativeServerPath": "tools/language-support/native/build/astmatcher-native",
         "flags": ["-std=c++23"], "traversal": "AsIs", "exclusions": [],
         "visibleColumns": ["match", "kind", "semanticKind", "summary", "text", "location"],
         "cacheEnabled": false, "cacheLocation": "", "compileCommands": "", "scope": "file",
@@ -140,6 +141,10 @@ test("activation starts the language client for saved and untitled matcher docum
     assert.equal(request.traversal, "IgnoreUnlessSpelledInSource");
     assert.deepEqual(request.cache, { enabled: true, location: "/external/ast-cache" });
     const workspaceRoot = vscode.workspace.workspaceFolders[0].uri.fsPath;
+    assert.equal(request.nativeServerPath,
+      path.join(workspaceRoot, "tools/language-support/native/build/astmatcher-native"));
+    assert.equal(Object.hasOwn(request, "clangQuery"), false,
+      "Run Query must not send the old clang-query executable path");
     await registered.get("astmatcher.saveRunSettings")({ scope: "workspace", targetPath: __filename });
     const workspaceSettings = await registered.get("astmatcher.getRunSettings")();
     assert.equal(workspaceSettings.scope, "workspace");
