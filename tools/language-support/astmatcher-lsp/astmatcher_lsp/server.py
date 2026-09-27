@@ -3,14 +3,22 @@
 Implements the requests an editor needs for this language and nothing else:
 completion (+resolve), hover, signature help, diagnostics on change, document
 symbols, go-to-definition for `let` names, and semantic tokens.
+
+One custom request, `astmatcher/runQuery`, runs the document through
+clang-query and answers with the JSON described in run.py.  It runs on a worker
+thread so completion keeps working while clang-query parses the sample.
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import subprocess
 import sys
+import threading
 import traceback
+from pathlib import Path
+from urllib.parse import unquote, urlparse
 from typing import Any
 
 from . import __version__
@@ -21,8 +29,12 @@ from .features import (SEMANTIC_TOKEN_MODIFIERS, SEMANTIC_TOKEN_TYPES, completio
                        signature_help)
 from .lexer import LineIndex
 from .parser import Document, parse
+from .run import run_query
 
 log = logging.getLogger("astmatcher-lsp")
+
+# A handler returns this when it will send the response itself, later.
+DEFERRED = object()
 
 SERVER_CAPABILITIES: dict[str, Any] = {
     "positionEncoding": "utf-16",
@@ -73,6 +85,11 @@ class Server:
         self.catalog = _CATALOG
         self.documents: dict[str, TextDocument] = {}
         self.shutdown_requested = False
+        self._write_lock = threading.Lock()
+        self._request_id = None
+        self._run_lock = threading.Lock()
+        self._proc: subprocess.Popen | None = None
+        self._worker: threading.Thread | None = None
 
     # -- transport ---------------------------------------------------------
     def _read(self) -> dict | None:
@@ -95,9 +112,10 @@ class Server:
 
     def _write(self, message: dict) -> None:
         body = json.dumps(message).encode("utf-8")
-        self.stdout.write(b"Content-Length: %d\r\n\r\n" % len(body))
-        self.stdout.write(body)
-        self.stdout.flush()
+        with self._write_lock:
+            self.stdout.write(b"Content-Length: %d\r\n\r\n" % len(body))
+            self.stdout.write(body)
+            self.stdout.flush()
 
     def _respond(self, request_id, result=None, error=None) -> None:
         message: dict[str, Any] = {"jsonrpc": "2.0", "id": request_id}
@@ -131,7 +149,10 @@ class Server:
                         self._respond(request_id, error={"code": -32601,
                                                          "message": f"unhandled: {method}"})
                     continue
+                self._request_id = request_id
                 result = handler(params)
+                if result is DEFERRED:
+                    continue
                 if request_id is not None:
                     self._respond(request_id, result)
                 if method == "exit":
@@ -155,6 +176,7 @@ class Server:
 
     def on_shutdown(self, params: dict) -> None:
         self.shutdown_requested = True
+        self._cancel_run()
         return None
 
     def on_exit(self, params: dict) -> None:
@@ -259,12 +281,58 @@ class Server:
             return {"data": []}
         return {"data": semantic_tokens(self.catalog, doc.doc, doc.index)}
 
+    # -- clang-query ---------------------------------------------------------
+    def on_astmatcher_runQuery(self, params: dict):
+        """Params: textDocument.uri, sample, flags?, clangQuery?, cwd?, timeout?.
+
+        Uses the editor's current text, saved or not.  A new run cancels the
+        one still going.
+        """
+        uri = (params.get("textDocument") or {}).get("uri", "")
+        doc = self.documents.get(uri)
+        text = doc.text if doc else Path(_uri_path(uri)).read_text(encoding="utf-8")
+        request_id = self._request_id
+        self._cancel_run()
+
+        def work() -> None:
+            with self._run_lock:
+                try:
+                    result = run_query(
+                        text, params["sample"], params.get("flags") or [],
+                        clang_query=params.get("clangQuery") or None,
+                        cwd=params.get("cwd") or None,
+                        timeout=float(params.get("timeout") or 120),
+                        on_start=self._started)
+                    self._respond(request_id, result)
+                except Exception:
+                    log.error("runQuery failed\n%s", traceback.format_exc())
+                    self._respond(request_id, error={"code": -32603,
+                                                     "message": traceback.format_exc()})
+                finally:
+                    self._proc = None
+
+        self._worker = threading.Thread(target=work, daemon=True)
+        self._worker.start()
+        return DEFERRED
+
+    def _started(self, proc: subprocess.Popen) -> None:
+        self._proc = proc
+
+    def _cancel_run(self) -> None:
+        proc = self._proc
+        if proc is not None and proc.poll() is None:
+            proc.kill()
+
     def on_textDocument_diagnostic(self, params: dict) -> dict:
         doc = self._document(params)
         if doc is None:
             return {"kind": "full", "items": []}
         return {"kind": "full",
                 "items": [self._lsp_diagnostic(doc, d) for d in doc.diagnostics]}
+
+
+def _uri_path(uri: str) -> str:
+    return unquote(urlparse(uri).path)
 
 
 def serve(data_dir: str | None = None) -> int:

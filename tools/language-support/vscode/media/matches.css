@@ -1,0 +1,103 @@
+/* AST Matches panel — colours come from the active VS Code theme. */
+body {
+  padding: 0;
+  margin: 0;
+  color: var(--vscode-foreground);
+  background: var(--vscode-panel-background);
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+}
+#bar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: var(--vscode-panel-background);
+  border-bottom: 1px solid var(--vscode-panel-border);
+}
+#bar .spacer { flex: 1; }
+#summary { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#summary a { color: var(--vscode-textLink-foreground); cursor: pointer; }
+#summary .muted, .muted { color: var(--vscode-descriptionForeground); }
+input[type="search"] {
+  color: var(--vscode-input-foreground);
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border, transparent);
+  padding: 2px 6px;
+  width: 16em;
+}
+button {
+  color: var(--vscode-button-secondaryForeground);
+  background: var(--vscode-button-secondaryBackground);
+  border: none;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+button:hover { background: var(--vscode-button-secondaryHoverBackground); }
+button#rerun { color: var(--vscode-button-foreground); background: var(--vscode-button-background); }
+button#rerun:hover { background: var(--vscode-button-hoverBackground); }
+table { width: 100%; border-collapse: collapse; }
+th, td { border-right: 1px solid var(--vscode-panel-border); }
+th:last-child, td:last-child { border-right: none; }
+th { cursor: pointer; user-select: none; }
+th:hover { color: var(--vscode-textLink-foreground); }
+tr.group td {
+  padding-top: 6px;
+  font-weight: 600;
+  border-right: none;
+  border-bottom: 1px solid var(--vscode-panel-border);
+  background: var(--vscode-sideBarSectionHeader-background, transparent);
+}
+tr.group { cursor: pointer; }
+tr.group:hover td { background: var(--vscode-list-hoverBackground); }
+tr.group.selected td {
+  color: var(--vscode-list-activeSelectionForeground);
+  background: var(--vscode-list-activeSelectionBackground);
+}
+tr.group:focus { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+.twisty { display: inline-block; width: 1em; color: var(--vscode-foreground); cursor: pointer; }
+td.tree { padding-left: 14px; white-space: pre; color: var(--vscode-descriptionForeground); }
+td.tree .branch {
+  color: var(--vscode-tree-indentGuidesStroke, var(--vscode-descriptionForeground));
+  font-family: var(--vscode-editor-font-family);
+}
+tr.binding.selected td.tree, tr.binding.selected td.tree .branch { color: inherit; }
+tr.group .id { color: var(--vscode-symbolIcon-fieldForeground, var(--vscode-foreground)); }
+label.toggle { display: flex; align-items: center; gap: 4px; white-space: nowrap; cursor: pointer; }
+th {
+  position: sticky;
+  top: 31px;
+  z-index: 1;
+  text-align: left;
+  font-weight: 600;
+  padding: 3px 8px;
+  background: var(--vscode-panel-background);
+  border-bottom: 1px solid var(--vscode-panel-border);
+}
+td { padding: 2px 8px; vertical-align: top; white-space: nowrap; }
+td.src, td.summary { max-width: 40vw; overflow: hidden; text-overflow: ellipsis; }
+td.src { font-family: var(--vscode-editor-font-family); }
+td.num, th.num { text-align: right; width: 3em; color: var(--vscode-descriptionForeground); }
+tr.binding { cursor: pointer; }
+tr.binding:hover { background: var(--vscode-list-hoverBackground); }
+tr.binding.selected {
+  color: var(--vscode-list-activeSelectionForeground);
+  background: var(--vscode-list-activeSelectionBackground);
+}
+tr.binding:focus { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+.id-root { font-weight: 600; }
+td.kind { color: var(--vscode-symbolIcon-classForeground, var(--vscode-foreground)); }
+#errors { padding: 4px 8px; color: var(--vscode-errorForeground); }
+#errors div { padding: 1px 0; }
+#stderr {
+  margin: 8px;
+  padding: 6px;
+  white-space: pre-wrap;
+  font-family: var(--vscode-editor-font-family);
+  color: var(--vscode-descriptionForeground);
+  border-left: 2px solid var(--vscode-panel-border);
+}
+.empty { padding: 12px 8px; color: var(--vscode-descriptionForeground); }

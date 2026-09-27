@@ -8,7 +8,13 @@ echo "== generated data"
 python3 generate.py --check
 
 echo "== unit tests"
-cd astmatcher-lsp && python3 -m unittest discover -s tests -q && cd ..
+(
+  cd astmatcher-lsp
+  python3 -m unittest discover -s tests -q
+)
+
+echo "== VS Code selection tests"
+node --test vscode/tests/*.test.js
 
 echo "== corpus"
 python3 corpus_check.py

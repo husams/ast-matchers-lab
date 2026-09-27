@@ -275,6 +275,8 @@ def _matcher_candidates(cat: Catalog, ctx: Context, an: Analyzer) -> list[dict]:
             group, depth = ("2" if root_slot else "4"), 0
         elif matcher.kind == "node":
             bucket, depth = _rank(cat, expected, matcher.node_kinds)
+            if expected is not None and bucket == 9:
+                continue
             group = ("0" if root_slot else "3") if bucket != 0 else "0"
         else:
             bucket, depth = _rank(cat, expected, matcher.ret_kinds)

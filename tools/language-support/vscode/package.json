@@ -2,7 +2,7 @@
   "name": "astmatcher-dsl",
   "displayName": "AST Matcher DSL (clang-query)",
   "description": "Syntax highlighting, completion, hover and diagnostics for Clang AST matcher scripts (.query).",
-  "version": "1.0.0",
+  "version": "1.5.4",
   "publisher": "ast-matchers-lab",
   "license": "MIT",
   "private": true,
@@ -34,7 +34,8 @@
           "clang-query"
         ],
         "extensions": [
-          ".query"
+          ".query",
+          ".astmatcher"
         ],
         "configuration": "./language-configuration.json",
         "icon": {
@@ -59,20 +60,173 @@
     "commands": [
       {
         "command": "astmatcher.runQuery",
-        "title": "AST Matcher: Run this query with clang-query",
+        "title": "Run Query",
+        "category": "AST Matcher",
+        "icon": "$(play)"
+      },
+      {
+        "command": "astmatcher.runQueryInTerminal",
+        "title": "Run Query in Terminal",
+        "category": "AST Matcher",
+        "icon": "$(terminal)"
+      },
+      {
+        "command": "astmatcher.selectSample",
+        "title": "Select Sample File…",
+        "category": "AST Matcher",
+        "icon": "$(file-code)"
+      },
+      {
+        "command": "astmatcher.newQueryForFile",
+        "title": "New Query for This File",
+        "category": "AST Matcher",
+        "icon": "$(new-file)"
+      },
+      {
+        "command": "astmatcher.runQueryOnFile",
+        "title": "Run Query on This File…",
+        "category": "AST Matcher",
+        "icon": "$(search)"
+      },
+      {
+        "command": "astmatcher.useAsSample",
+        "title": "Use as AST Matcher Sample",
+        "category": "AST Matcher"
+      },
+      {
+        "command": "astmatcher.editFlags",
+        "title": "Edit Compiler Flags…",
+        "category": "AST Matcher"
+      },
+      {
+        "command": "astmatcher.clearResults",
+        "title": "Clear Results",
+        "category": "AST Matcher",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "astmatcher.revealBinding",
+        "title": "Reveal Binding",
         "category": "AST Matcher"
       },
       {
         "command": "astmatcher.restartServer",
-        "title": "AST Matcher: Restart language server",
+        "title": "Restart Language Server",
         "category": "AST Matcher"
+      },
+      {
+        "command": "astmatcher.toggleRoot",
+        "title": "Show Root Binding",
+        "category": "AST Matcher",
+        "icon": "$(eye-closed)"
+      },
+      {
+        "command": "astmatcher.toggleRoot.off",
+        "title": "Hide Root Binding",
+        "category": "AST Matcher",
+        "icon": "$(eye)"
       }
     ],
     "menus": {
       "editor/title/run": [
         {
           "command": "astmatcher.runQuery",
-          "when": "resourceLangId == astmatcher"
+          "when": "resourceLangId == astmatcher",
+          "group": "navigation@1"
+        },
+        {
+          "command": "astmatcher.runQueryInTerminal",
+          "when": "resourceLangId == astmatcher",
+          "group": "navigation@2"
+        },
+        {
+          "command": "astmatcher.runQueryOnFile",
+          "when": "resourceLangId =~ /^(c|cpp|objective-c|objective-cpp|cuda-cpp)$/",
+          "group": "navigation@9"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "astmatcher.selectSample",
+          "when": "resourceLangId == astmatcher",
+          "group": "navigation"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "astmatcher.runQuery",
+          "when": "view == astmatcher.bindings || view == astmatcher.matches",
+          "group": "navigation@1"
+        },
+        {
+          "command": "astmatcher.selectSample",
+          "when": "view == astmatcher.bindings || view == astmatcher.matches",
+          "group": "navigation@2"
+        },
+        {
+          "command": "astmatcher.clearResults",
+          "when": "view == astmatcher.bindings || view == astmatcher.matches",
+          "group": "navigation@3"
+        },
+        {
+          "command": "astmatcher.toggleRoot",
+          "when": "(view == astmatcher.bindings || view == astmatcher.matches) && !astmatcher.showRoot",
+          "group": "navigation@4"
+        },
+        {
+          "command": "astmatcher.toggleRoot.off",
+          "when": "(view == astmatcher.bindings || view == astmatcher.matches) && astmatcher.showRoot",
+          "group": "navigation@4"
+        }
+      ],
+      "explorer/context": [
+        {
+          "submenu": "astmatcher.source",
+          "when": "resourceLangId =~ /^(c|cpp|objective-c|objective-cpp|cuda-cpp)$/",
+          "group": "navigation@9"
+        }
+      ],
+      "editor/context": [
+        {
+          "submenu": "astmatcher.source",
+          "when": "resourceLangId =~ /^(c|cpp|objective-c|objective-cpp|cuda-cpp)$/",
+          "group": "navigation@9"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "astmatcher.revealBinding",
+          "when": "false"
+        },
+        {
+          "command": "astmatcher.useAsSample",
+          "when": "editorLangId =~ /^(c|cpp|objective-c|objective-cpp|cuda-cpp)$/"
+        },
+        {
+          "command": "astmatcher.newQueryForFile",
+          "when": "editorLangId =~ /^(c|cpp|objective-c|objective-cpp|cuda-cpp)$/"
+        },
+        {
+          "command": "astmatcher.runQueryOnFile",
+          "when": "editorLangId =~ /^(c|cpp|objective-c|objective-cpp|cuda-cpp)$/"
+        },
+        {
+          "command": "astmatcher.toggleRoot.off",
+          "when": "false"
+        }
+      ],
+      "astmatcher.source": [
+        {
+          "command": "astmatcher.runQueryOnFile",
+          "group": "1_run@1"
+        },
+        {
+          "command": "astmatcher.newQueryForFile",
+          "group": "1_run@2"
+        },
+        {
+          "command": "astmatcher.useAsSample",
+          "group": "2_sample@1"
         }
       ]
     },
@@ -81,6 +235,12 @@
         "command": "astmatcher.runQuery",
         "key": "ctrl+enter",
         "mac": "cmd+enter",
+        "when": "editorTextFocus && resourceLangId == astmatcher"
+      },
+      {
+        "command": "astmatcher.runQueryInTerminal",
+        "key": "ctrl+shift+enter",
+        "mac": "cmd+shift+enter",
         "when": "editorTextFocus && resourceLangId == astmatcher"
       }
     ],
@@ -110,7 +270,7 @@
         "astmatcher.sample": {
           "type": "string",
           "default": "manifests/intro.cpp",
-          "description": "Sample translation unit the run command feeds to clang-query. A `# sample: <path> [flags\u2026]` first line in the .query file overrides it."
+          "description": "Default sample translation unit a query runs against. Overridden by a `# sample: <path> [flags…]` first line, and by the file picked with “AST Matcher: Select Sample File…” (status bar)."
         },
         "astmatcher.flags": {
           "type": "array",
@@ -121,14 +281,67 @@
             "-std=c++23"
           ],
           "description": "Compiler flags passed after `--` to clang-query."
+        },
+        "astmatcher.queriesDirectory": {
+          "type": "string",
+          "default": "matchers",
+          "description": "Workspace folder where “New Query for This File” creates .astmatcher files."
         }
       }
-    }
+    },
+    "configurationDefaults": {
+      "[astmatcher]": {
+        "editor.snippetSuggestions": "none",
+        "editor.quickSuggestions": {
+          "other": "on",
+          "comments": "off",
+          "strings": "off"
+        }
+      }
+    },
+    "viewsContainers": {
+      "panel": [
+        {
+          "id": "astmatcher-results",
+          "title": "AST Matches",
+          "icon": "$(search)"
+        }
+      ]
+    },
+    "views": {
+      "astmatcher-results": [
+        {
+          "type": "webview",
+          "id": "astmatcher.matches",
+          "name": "Matches"
+        }
+      ],
+      "explorer": [
+        {
+          "id": "astmatcher.bindings",
+          "name": "AST Match Bindings",
+          "icon": "$(symbol-field)"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "astmatcher.bindings",
+        "contents": "Run a .query file (⌘↵) to list every match and its bound nodes here.\n[Run Query](command:astmatcher.runQuery)\n[Select Sample File…](command:astmatcher.selectSample)"
+      }
+    ],
+    "submenus": [
+      {
+        "id": "astmatcher.source",
+        "label": "AST Matcher"
+      }
+    ]
   },
   "dependencies": {
     "vscode-languageclient": "^9.0.1"
   },
   "scripts": {
+    "test": "node --test tests/*.test.js",
     "package": "vsce package --allow-missing-repository"
   }
 }

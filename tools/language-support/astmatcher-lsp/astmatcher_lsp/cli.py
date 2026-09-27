@@ -13,6 +13,7 @@ from .catalog import load
 from .features import completions, context_at, hover, signature_help
 from .lexer import LineIndex
 from .parser import parse
+from .run import run_query
 
 SEVERITY = {1: "error", 2: "warning", 3: "note", 4: "hint"}
 
@@ -86,7 +87,26 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--hover", metavar="FILE", help="print hover text at --at")
     ap.add_argument("--signature", metavar="FILE", help="print signature help at --at")
     ap.add_argument("--data", metavar="DIR", help="override the generated data directory")
+    ap.add_argument("--run", metavar="FILE",
+                    help="run FILE through clang-query against --sample and print JSON; "
+                         "compiler flags go after `--`")
+    ap.add_argument("--sample", metavar="SOURCE", help="with --run: the translation unit")
+    ap.add_argument("--clang-query", metavar="PATH", help="with --run: clang-query binary")
+    argv = list(sys.argv[1:] if argv is None else argv)
+    flags: list[str] = []
+    if "--" in argv:
+        cut = argv.index("--")
+        argv, flags = argv[:cut], argv[cut + 1:]
     args = ap.parse_args(argv)
+
+    if args.run:
+        if not args.sample:
+            ap.error("--run needs --sample SOURCE")
+        text = sys.stdin.read() if args.run == "-" else Path(args.run).read_text()
+        result = run_query(text, args.sample, flags, clang_query=args.clang_query)
+        json.dump(result, sys.stdout, indent=2)
+        print()
+        return 0 if result["ok"] else 1
 
     for what in ("complete", "hover", "signature"):
         path = getattr(args, what)
