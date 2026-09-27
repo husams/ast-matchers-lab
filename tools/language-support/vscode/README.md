@@ -159,7 +159,7 @@ a live scanned-file count; the final response reconciles the full result.
 | `astmatcher.flags` | `["-std=c++23"]` |
 | `astmatcher.scope` | `"file"` |
 | `astmatcher.targetPath` | selected file or directory; workspace scope searches all workspace folders |
-| `astmatcher.compileCommands` | `""` |
+| `astmatcher.compileCommands` | `"auto"` (nearest `compile_commands.json` at or above the file, also under `build/` or `out/`; `""` turns it off) |
 | `astmatcher.traversal` | `"AsIs"` |
 | `astmatcher.exclusions` | `[]` |
 | `astmatcher.visibleColumns` | match, kind, semantic kind, summary, text, location |

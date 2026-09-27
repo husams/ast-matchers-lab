@@ -39,8 +39,12 @@ the selected file, directory, or workspace roots; a new request kills a run
 still in progress. `target` is `{scope: "file"|"directory"|"workspace",
 path, roots?}`. Directory/workspace discovery applies `.gitignore` files and
 the `exclusions` glob list. `compileCommands` accepts a compilation database
-file or build directory; its per-source flags are used, with `flags` appended
-as explicit overrides. `traversal` accepts `AsIs` or
+file, a build directory, or `"auto"` (the nearest `compile_commands.json` at or
+above the source, including one in `build/` or `out/`); its per-source flags are
+used, with `flags` appended — except an explicit `-std=` when the database
+already sets one. A header has no entry of its own, so it takes the flags of
+the closest related translation unit: the same-stem source beside it, then any
+TU in that directory, then the nearest enclosing one. `traversal` accepts `AsIs` or
 `IgnoreUnlessSpelledInSource`. `cache` is `{enabled, location?}` and is off by
 default; when enabled, entries are keyed by query/tool/flags and the Clang
 dependency list, so included-header changes invalidate them. A TU is skipped

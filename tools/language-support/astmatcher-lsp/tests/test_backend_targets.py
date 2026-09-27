@@ -114,6 +114,34 @@ class TestBackendTargets(unittest.TestCase):
             self.assertTrue(result["ok"], result["errors"])
             self.assertEqual(result["bindings"]["v"][0]["semanticKind"], "variable")
 
+    def test_header_target_borrows_the_include_paths_of_a_related_tu(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "include").mkdir()
+            (root / "src").mkdir()
+            (root / "include" / "shared.hpp").write_text("struct Shared {};\n")
+            header = root / "include" / "model.hpp"
+            header.write_text("#include <shared.hpp>\nstruct Model { Shared s; };\n")
+            (root / "src" / "model.cpp").write_text("#include <model.hpp>\n")
+            database = root / "compile_commands.json"
+            database.write_text(json.dumps([{
+                "directory": str(root / "src"), "file": "model.cpp",
+                "arguments": ["clang++", "-std=c++23", "-I../include", "-c", "model.cpp"]}]))
+
+            # Without the database the angled include is not on any search path,
+            # and clang matches a broken AST.
+            bare = run_query('match fieldDecl(hasType(recordDecl())).bind("f")',
+                             str(header), ["-std=c++23"])
+            self.assertIn("shared.hpp", bare["stderr"])
+            self.assertIn("file not found", bare["stderr"])
+
+            result = run_query('match fieldDecl(hasType(recordDecl())).bind("f")',
+                               str(header), ["-std=c++23"],
+                               compile_commands=str(database))
+            self.assertTrue(result["ok"], result["errors"])
+            self.assertNotIn("file not found", result["stderr"])
+            self.assertEqual(len(result["bindings"]["f"]), 1)
+
     def test_jsonrpc_streams_each_file_before_the_full_response(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

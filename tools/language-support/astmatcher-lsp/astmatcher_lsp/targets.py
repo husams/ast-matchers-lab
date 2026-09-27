@@ -154,59 +154,148 @@ def discover_target(target: dict | None, sample: str, cwd: str,
     return {"scope": scope, "path": str(path), "roots": roots}, files
 
 
+# Build directories a compilation database is conventionally written to.
+DATABASE_DIRECTORIES = ("", "build", "out", "cmake-build-debug", "cmake-build-release")
+
+_DISCOVERED: dict[str, str | None] = {}
+
+
+def find_compile_database(source: str) -> str | None:
+    """The nearest compile_commands.json at or above `source`, if any."""
+    start = Path(source).resolve()
+    if not start.is_dir():
+        start = start.parent
+    key = str(start)
+    if key in _DISCOVERED:
+        return _DISCOVERED[key]
+    found = None
+    for directory in (start, *start.parents):
+        for build in DATABASE_DIRECTORIES:
+            candidate = (directory / build / "compile_commands.json") if build \
+                else directory / "compile_commands.json"
+            if candidate.is_file():
+                found = str(candidate)
+                break
+        if found:
+            break
+    _DISCOVERED[key] = found
+    return found
+
+
+def _entry_file(entry: dict) -> Path:
+    directory = Path(entry["directory"])
+    file = Path(entry["file"])
+    return (file if file.is_absolute() else directory / file).resolve()
+
+
+def _relatedness(entry_file: Path, target: Path) -> int | None:
+    """How close an entry's TU is to `target`; lower is better, None unrelated."""
+    if entry_file.parent == target.parent:
+        return 0 if entry_file.stem == target.stem else 1
+    common = 0
+    for a, b in zip(entry_file.parent.parts, target.parent.parts):
+        if a != b:
+            break
+        common += 1
+    if common <= 1:                 # only "/" (or a drive) in common
+        return None
+    return 2 + (len(target.parent.parts) - common)
+
+
+def _merge_flags(database: list[str], explicit: list[str]) -> list[str]:
+    """Database flags win: an explicit -std= or repeated flag would override them."""
+    out = list(database)
+    has_std = any(flag.startswith(("-std=", "--std=")) for flag in database)
+    for flag in explicit:
+        if has_std and flag.startswith(("-std=", "--std=")):
+            continue
+        if flag in out:
+            continue
+        out.append(flag)
+    return out
+
+
 def compile_flags(database: str | None, source: str, explicit: list[str], cwd: str
                   ) -> tuple[list[str], str | None]:
-    """Get flags and working directory for a source from compile_commands.json."""
+    """Get flags and working directory for a source from compile_commands.json.
+
+    `database` is a file, a build directory, `"auto"` (find the nearest
+    compile_commands.json at or above the source), or empty (flags as given).
+
+    A header is never its own entry in the database, so when `source` has none
+    the flags of the closest related translation unit are used: the same-stem
+    source next to it first, then any TU in that directory, then the nearest
+    enclosing one. Without a database, or with no related entry at all, the
+    caller's explicit flags are used as they are.
+    """
     if not database:
         return list(explicit), None
+    if database == "auto":
+        database = find_compile_database(source)
+        if not database:
+            return list(explicit), None
     db_path = Path(database if os.path.isabs(database) else os.path.join(cwd, database))
     if db_path.is_dir():
         db_path = db_path / "compile_commands.json"
     entries = json.loads(db_path.read_text(encoding="utf-8"))
+    target = Path(source).resolve()
+
+    chosen: dict | None = None
+    best_rank: int | None = None
     for entry in entries:
-        directory = Path(entry["directory"])
-        file = Path(entry["file"])
-        resolved = str((directory / file).resolve() if not file.is_absolute() else file.resolve())
-        if resolved != str(Path(source).resolve()):
+        try:
+            resolved = _entry_file(entry)
+        except KeyError:
             continue
-        args = entry.get("arguments") or shlex.split(entry.get("command", ""))
-        args = list(args)
-        if args:
-            args.pop(0)
-        out: list[str] = []
-        skip_operand = False
-        option_operand = False
-        operand_options = {"-include", "-include-pch", "-imacros", "-I", "-isystem",
-                           "-iquote", "-idirafter", "-isysroot", "-D", "-U", "-x",
-                           "-std", "-target", "--target", "-stdlib", "-Xclang",
-                           "-resource-dir", "-fmodule-map-file"}
-        for arg in args:
-            if skip_operand:
-                skip_operand = False
+        if resolved == target:
+            chosen, best_rank = entry, -1
+            break
+        rank = _relatedness(resolved, target)
+        if rank is not None and (best_rank is None or rank < best_rank):
+            chosen, best_rank = entry, rank
+
+    if chosen is None:
+        if explicit:
+            return list(explicit), None
+        raise ValueError(f"no compile_commands.json entry for {source}")
+
+    directory = Path(chosen["directory"])
+    entry_file = _entry_file(chosen)
+    args = chosen.get("arguments") or shlex.split(chosen.get("command", ""))
+    args = list(args)
+    if args:
+        args.pop(0)
+    out: list[str] = []
+    skip_operand = False
+    option_operand = False
+    operand_options = {"-include", "-include-pch", "-imacros", "-I", "-isystem",
+                       "-iquote", "-idirafter", "-isysroot", "-D", "-U", "-x",
+                       "-std", "-target", "--target", "-stdlib", "-Xclang",
+                       "-resource-dir", "-fmodule-map-file"}
+    for arg in args:
+        if skip_operand:
+            skip_operand = False
+            continue
+        if option_operand:
+            out.append(arg)
+            option_operand = False
+            continue
+        if arg in {"-o", "-MF", "-MT", "-MQ"}:
+            skip_operand = True
+        elif arg in {"-c", "-MMD", "-MD", "-MP"}:
+            continue
+        else:
+            out.append(arg)
+            if arg in operand_options:
+                option_operand = True
                 continue
-            if option_operand:
-                out.append(arg)
-                option_operand = False
-                continue
-            if arg in {"-o", "-MF", "-MT", "-MQ"}:
-                skip_operand = True
-            elif arg in {"-c", "-MMD", "-MD", "-MP"}:
-                continue
-            else:
-                out.append(arg)
-                if arg in operand_options:
-                    option_operand = True
-                    continue
-                if not arg.startswith("-"):
-                    candidate = Path(arg)
-                    if not candidate.is_absolute():
-                        candidate = directory / candidate
-                    if candidate.resolve() == Path(source).resolve():
-                        out.pop()
-        return out + list(explicit), str(directory)
-    if explicit:
-        return list(explicit), None
-    raise ValueError(f"no compile_commands.json entry for {source}")
+            if not arg.startswith("-"):
+                candidate = Path(arg)
+                if not candidate.is_absolute():
+                    candidate = directory / candidate
+                if candidate.resolve() == entry_file:
+                    out.pop()
+    return _merge_flags(out, explicit), str(directory)
 
 
 def translation_unit_dependencies(source: str, flags: list[str], cwd: str,

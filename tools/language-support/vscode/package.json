@@ -2,7 +2,7 @@
   "name": "astmatcher-dsl",
   "displayName": "AST Matcher DSL (clang-query)",
   "description": "Syntax highlighting, completion, hover and diagnostics for Clang AST matcher scripts (.query).",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "publisher": "ast-matchers-lab",
   "license": "MIT",
   "private": true,
@@ -316,8 +316,8 @@
         },
         "astmatcher.compileCommands": {
           "type": "string",
-          "default": "",
-          "description": "Path to compile_commands.json used to obtain compiler arguments."
+          "default": "auto",
+          "description": "Compilation database used for per-file compiler arguments: a compile_commands.json, a build directory, \"auto\" (the nearest compile_commands.json at or above the file, also in build/ or out/), or empty to use astmatcher.flags alone. A header takes the flags of the closest related translation unit."
         },
         "astmatcher.traversal": {
           "type": "string",

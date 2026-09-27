@@ -22,6 +22,7 @@ VSCE_SPEC=""
 SETTINGS_FILES=()
 SAMPLE=""
 FLAGS=""
+COMPILE_DB=""
 DO_DEPS=0
 DO_REGEN=0
 DO_TESTS=1
@@ -60,6 +61,9 @@ Options
                          rewritten as plain JSON, comments dropped, .bak kept)
       --sample PATH      astmatcher.sample default (default: <lab>/manifests/intro.cpp)
       --flags "A B"      astmatcher.flags default (default: -std=c++23)
+      --compile-commands P  astmatcher.compileCommands: a compile_commands.json,
+                         a build directory, or "auto" (the default: the nearest
+                         one at or above each file, also under build/ or out/)
       --regenerate       re-run generate.py against --llvm headers before building
       --vim              also install the Vim/Neovim files for this user
       --offline          npm ci --offline, no npx download (needs a warm cache)
@@ -88,6 +92,7 @@ while [ $# -gt 0 ]; do
     --no-manual)      MANUAL=never; shift;;
     --sample)         SAMPLE=${2:?}; shift 2;;
     --flags)          FLAGS=${2:?}; shift 2;;
+    --compile-commands) COMPILE_DB=${2:?}; shift 2;;
     --regenerate)     DO_REGEN=1; shift;;
     --vim)            DO_VIM=1; shift;;
     --offline)        OFFLINE=1; shift;;
@@ -436,6 +441,7 @@ if [ "$DO_CONFIG" = 1 ]; then
     ASTM_CLANG_QUERY=$CLANG_QUERY \
     ASTM_SAMPLE=$SAMPLE \
     ASTM_FLAGS=$FLAGS \
+    ASTM_COMPILE_DB=$COMPILE_DB \
     "$PYTHON" - "$settings" <<'PY'
 import json, os, re, sys
 
@@ -471,6 +477,8 @@ new = {
 }
 if env.get("ASTM_CLANG_QUERY"):
     new["astmatcher.clangQueryPath"] = env["ASTM_CLANG_QUERY"]
+if env.get("ASTM_COMPILE_DB"):
+    new["astmatcher.compileCommands"] = env["ASTM_COMPILE_DB"]
 
 changed = {k: v for k, v in new.items() if data.get(k) != v}
 if not changed:

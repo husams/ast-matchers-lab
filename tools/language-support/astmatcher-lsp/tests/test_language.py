@@ -11,6 +11,7 @@ from __future__ import annotations
 import io
 import json
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -27,6 +28,8 @@ from astmatcher_lsp.run import (OutputParser, attach_query_ranges,     # noqa: E
                                 build_script, clang_query_path, group_bindings,
                                 parse_dump_header, run_query)
 from astmatcher_lsp.server import Server                            # noqa: E402
+from astmatcher_lsp.targets import (compile_flags,                   # noqa: E402
+                                    find_compile_database)
 
 CAT = load()
 LAB = HERE.parent.parent.parent.parent
@@ -499,6 +502,102 @@ class TestGeneratedData(unittest.TestCase):
         for name in ("functionDecl", "hasName", "hasDescendant"):
             self.assertIn(name, vim)
             self.assertIn(name, grammar)
+
+
+class TestCompileFlags(unittest.TestCase):
+    """compile_commands.json lookup, including the header fallback."""
+
+    def database(self, root: Path, *entries: dict) -> str:
+        path = root / "compile_commands.json"
+        path.write_text(json.dumps(list(entries)))
+        return str(path)
+
+    def entry(self, root: Path, name: str, *args: str) -> dict:
+        return {"directory": str(root), "file": name,
+                "arguments": ["clang++", *args, "-c", name]}
+
+    def test_no_database_keeps_the_explicit_flags(self):
+        self.assertEqual(compile_flags(None, "/x/a.cpp", ["-std=c++23"], "/x"),
+                         (["-std=c++23"], None))
+
+    def test_exact_entry_drops_the_source_and_the_output_options(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "a.cpp").write_text("")
+            db = self.database(root, {
+                "directory": str(root), "file": "a.cpp",
+                "arguments": ["clang++", "-std=c++17", "-Iinc", "-DX=1",
+                              "-o", "a.o", "-c", "a.cpp"]})
+            flags, directory = compile_flags(db, str(root / "a.cpp"), [], str(root))
+            self.assertEqual(flags, ["-std=c++17", "-Iinc", "-DX=1"])
+            self.assertEqual(directory, str(root))
+
+    def test_database_std_wins_over_the_configured_one(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            db = self.database(root, self.entry(root, "a.cpp", "-std=c++17", "-Iinc"))
+            flags, _ = compile_flags(db, str(root / "a.cpp"), ["-std=c++23", "-Wall"], str(root))
+            self.assertEqual(flags, ["-std=c++17", "-Iinc", "-Wall"])
+
+    def test_header_uses_the_same_stem_translation_unit(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            db = self.database(root,
+                               self.entry(root, "other.cpp", "-DOTHER=1"),
+                               self.entry(root, "widget.cpp", "-DWIDGET=1"))
+            flags, directory = compile_flags(db, str(root / "widget.hpp"), [], str(root))
+            self.assertEqual(flags, ["-DWIDGET=1"])
+            self.assertEqual(directory, str(root))
+
+    def test_header_falls_back_to_the_nearest_enclosing_translation_unit(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "src").mkdir()
+            (root / "include" / "deep").mkdir(parents=True)
+            db = self.database(root, self.entry(root / "src", "main.cpp", "-I../include"))
+            flags, directory = compile_flags(
+                db, str(root / "include" / "deep" / "model.hpp"), ["-std=c++23"], str(root))
+            self.assertEqual(flags, ["-I../include", "-std=c++23"])
+            self.assertEqual(directory, str(root / "src"))
+
+    def test_auto_finds_the_database_in_a_build_directory(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "src").mkdir()
+            (root / "build").mkdir()
+            (root / "build" / "compile_commands.json").write_text(json.dumps([
+                self.entry(root / "src", "main.cpp", "-std=c++20", "-Iinc")]))
+            header = root / "src" / "main.hpp"
+            self.assertEqual(Path(find_compile_database(str(header))),
+                             (root / "build" / "compile_commands.json").resolve())
+            flags, directory = compile_flags("auto", str(header), ["-std=c++23"], str(root))
+            self.assertEqual(flags, ["-std=c++20", "-Iinc"])
+            self.assertEqual(directory, str(root / "src"))
+
+    def test_auto_without_a_database_keeps_the_explicit_flags(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "a.cpp").write_text("")
+            self.assertEqual(compile_flags("auto", str(root / "a.cpp"), ["-std=c++23"], str(root)),
+                             (["-std=c++23"], None))
+
+    def test_unrelated_database_keeps_the_explicit_flags(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            db = self.database(root, {"directory": "/elsewhere/build",
+                                      "file": "/elsewhere/src/a.cpp",
+                                      "arguments": ["clang++", "-c", "/elsewhere/src/a.cpp"]})
+            self.assertEqual(compile_flags(db, str(root / "b.hpp"), ["-std=c++23"], str(root)),
+                             (["-std=c++23"], None))
+
+    def test_unrelated_database_without_flags_reports_the_gap(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            db = self.database(root, {"directory": "/elsewhere/build",
+                                      "file": "/elsewhere/src/a.cpp",
+                                      "arguments": ["clang++", "-c", "/elsewhere/src/a.cpp"]})
+            with self.assertRaises(ValueError):
+                compile_flags(db, str(root / "b.hpp"), [], str(root))
 
 
 if __name__ == "__main__":

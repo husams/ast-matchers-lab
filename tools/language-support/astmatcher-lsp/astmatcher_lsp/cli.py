@@ -100,7 +100,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--exclude", action="append", default=[],
                     help="with --run: exclude glob; may be repeated")
     ap.add_argument("--compile-commands", metavar="PATH",
-                    help="with --run: compile_commands.json")
+                    help="with --run: compile_commands.json, a build directory, "
+                         "or 'auto' to find the nearest one")
     ap.add_argument("--traversal", choices=("AsIs", "IgnoreUnlessSpelledInSource"),
                     help="with --run: clang-query traversal mode")
     ap.add_argument("--cache", action="store_true", help="with --run: enable result cache")
