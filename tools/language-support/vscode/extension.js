@@ -22,6 +22,8 @@ let store;
 let matchesView;
 let statusItem;
 let runStatusItem;
+let runErrorStatusItem;
+let runDiagnosticsOutput;
 let queryDiagnostics;
 let lastQueryDoc;             // the .query document commands act on from the panel
 let targets;
@@ -33,6 +35,38 @@ const RELATIVE_SERVER = path.join(
 
 function config() {
   return vscode.workspace.getConfiguration("astmatcher");
+}
+
+function renderRunDiagnostics(result) {
+  const errors = result && Array.isArray(result.errors) ? result.errors : [];
+  runDiagnosticsOutput.clear();
+  if (!errors.length) {
+    runErrorStatusItem.hide();
+    return;
+  }
+  const entries = errors.map((error) => ({
+    file: error.file || result.sample || "(unknown source)",
+    message: error.message || "Unknown compiler error",
+  }));
+  runErrorStatusItem.text = `$(error) ${entries.length}`;
+  const visible = entries.slice(0, 8).map(({ file, message }) =>
+    `• ${path.basename(file)} — ${message}: ${file}`);
+  if (entries.length > visible.length) visible.push(`• … ${entries.length - visible.length} more errors`);
+  runErrorStatusItem.tooltip = new vscode.MarkdownString(
+    `AST Matcher: ${entries.length} source error${entries.length === 1 ? "" : "s"} — ` +
+    `${visible.join(" · ")} · Click to open AST Matcher Diagnostics.`);
+  runErrorStatusItem.show();
+  runDiagnosticsOutput.appendLine(`AST Matcher run: ${entries.length} error${entries.length === 1 ? "" : "s"}`);
+  for (const { file, message } of entries) runDiagnosticsOutput.appendLine(`${file}: ${message}`);
+  if (result.stderr) {
+    runDiagnosticsOutput.appendLine("Compiler output:");
+    runDiagnosticsOutput.append(result.stderr);
+    runDiagnosticsOutput.appendLine("");
+  }
+}
+
+function showRunDiagnostics() {
+  runDiagnosticsOutput.show(true);
 }
 
 /** Absolute path to the server launcher, or null when it cannot be found. */
@@ -87,8 +121,13 @@ async function startServer(context) {
   await client.start();
   context.subscriptions.push(client.onNotification("astmatcher/queryProgress", (progress) => {
     if (!activeRunId || progress.runId !== activeRunId) return;
-    if (progress.kind === "start") store.startStreaming(progress);
-    else if (progress.kind === "file") store.appendStreamingFile(progress);
+    if (progress.kind === "start") {
+      store.startStreaming(progress);
+      renderRunDiagnostics(undefined);
+    } else if (progress.kind === "file") {
+      store.appendStreamingFile(progress);
+      renderRunDiagnostics(store.result);
+    }
     if (progress.kind === "file-start" || progress.kind === "heartbeat" ||
         progress.kind === "file") {
       const file = progress.file ? path.basename(progress.file) : "preparing";
@@ -377,6 +416,7 @@ async function runQuery(arg) {
     ? "all workspace folders" : path.basename(target.path);
   const runId = crypto.randomUUID();
   activeRunId = runId;
+  renderRunDiagnostics(undefined);
   runStatusItem.text = "$(sync~spin) AST Matcher · preparing";
   runStatusItem.show();
   store.setRunning({ sample: runningLabel, scope: target.scope,
@@ -393,6 +433,8 @@ async function runQuery(arg) {
     activeRunId = undefined;
     runStatusItem.hide();
     store.set(undefined);
+    renderRunDiagnostics({ sample: sample.absolute,
+      errors: [{ file: sample.absolute, message: err.message || String(err) }] });
     vscode.window.showErrorMessage(`astmatcher: run failed: ${err.message || err}`);
     return;
   }
@@ -400,6 +442,7 @@ async function runQuery(arg) {
   activeRunId = undefined;
   runStatusItem.hide();
   store.set(result);
+  renderRunDiagnostics(result);
   queryDiagnostics.set(document.uri, result.errors.filter((e) => e.range).map((e) => {
     const r = e.range;
     const diag = new vscode.Diagnostic(
@@ -409,13 +452,7 @@ async function runQuery(arg) {
     return diag;
   }));
   const total = result.queries.reduce((n, q) => n + q.count, 0);
-  if (!result.ok && result.errors.length) {
-    const error = result.errors[0];
-    const failedFile = error.file || result.sample;
-    vscode.window.setStatusBarMessage(
-      `$(error) ${path.basename(failedFile)} · ${error.message}`, 10000);
-    return;
-  }
+  if (!result.ok && result.errors.length) return;
   vscode.window.setStatusBarMessage(
     `$(search) ${total} match${total === 1 ? "" : "es"} in ${path.basename(result.sample)}`, 5000);
 }
@@ -620,6 +657,11 @@ async function activate(context) {
   runStatusItem = vscode.window.createStatusBarItem("astmatcher.runProgress",
                                                      vscode.StatusBarAlignment.Left, 100);
   runStatusItem.name = "AST Matcher Query Progress";
+  runErrorStatusItem = vscode.window.createStatusBarItem("astmatcher.runErrors",
+                                                          vscode.StatusBarAlignment.Right, 99);
+  runErrorStatusItem.name = "AST Matcher Run Diagnostics";
+  runErrorStatusItem.command = "astmatcher.showRunDiagnostics";
+  runDiagnosticsOutput = vscode.window.createOutputChannel("AST Matcher Diagnostics");
   const highlighter = new Highlighter(store);
   const tree = new BindingsTree(store);
 
@@ -630,7 +672,7 @@ async function activate(context) {
   track(vscode.window.activeTextEditor);
 
   context.subscriptions.push(
-    queryDiagnostics, statusItem, runStatusItem, highlighter,
+    queryDiagnostics, statusItem, runStatusItem, runErrorStatusItem, runDiagnosticsOutput, highlighter,
     vscode.window.registerWebviewViewProvider("astmatcher.matches", matchesView,
                                               { webviewOptions: { retainContextWhenHidden: true } }),
     vscode.window.createTreeView("astmatcher.bindings", { treeDataProvider: tree,
@@ -644,6 +686,7 @@ async function activate(context) {
       if (e.affectsConfiguration("astmatcher")) updateStatus();
     }),
     vscode.commands.registerCommand("astmatcher.runQuery", runQuery),
+    vscode.commands.registerCommand("astmatcher.showRunDiagnostics", showRunDiagnostics),
     vscode.commands.registerCommand("astmatcher.runFile", (uri) => runWithScope("file", uri)),
     vscode.commands.registerCommand("astmatcher.runDirectory", (uri) => runWithScope("directory", uri)),
     vscode.commands.registerCommand("astmatcher.runWorkspace", (uri) => runWithScope("workspace", uri)),

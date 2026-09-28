@@ -16,6 +16,7 @@ sys.path.insert(0, str(HERE.parent))
 from astmatcher_lsp.native_client import NativeClientError, native_binary_path  # noqa: E402
 from astmatcher_lsp.run import run_query  # noqa: E402
 from astmatcher_lsp.server import DEFERRED, Server, TextDocument  # noqa: E402
+from astmatcher_lsp.targets import discover_target  # noqa: E402
 
 
 class TestBackendTargets(unittest.TestCase):
@@ -39,6 +40,49 @@ class TestBackendTargets(unittest.TestCase):
                                exclusions=["*_test.cpp"])
             self.assertTrue(result["ok"], result["errors"])
             self.assertEqual(result["files"], [str(root / "a.cpp")])
+
+    def test_directory_discovery_keeps_cpp_translation_units_only(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for name in ("main.cpp", "legacy.c", "screen.m", "screen.mm",
+                         "kernel.cu", "model.hpp", "module.ixx"):
+                (root / name).write_text("struct Item {};\n")
+            _, files = discover_target({"scope": "directory", "path": str(root)},
+                                       str(root), str(root))
+            self.assertEqual([Path(file).name for file in files], ["main.cpp", "module.ixx"])
+
+    def test_results_exclude_matches_spelled_in_included_headers(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            header = root / "model.hpp"
+            header.write_text("struct FromHeader {};\n")
+            source = root / "main.cpp"
+            source.write_text('#include "model.hpp"\nstruct Local {};\n')
+            result = run_query(
+                'match cxxRecordDecl(isDefinition(), unless(isImplicit())).bind("record")',
+                str(source), ["-std=c++23"])
+            self.assertTrue(result["ok"], result["errors"])
+            self.assertEqual(len(result["bindings"]["record"]), 1)
+            self.assertEqual(result["bindings"]["record"][0]["file"], str(source.resolve()))
+            self.assertIn("Local", result["bindings"]["record"][0]["summary"])
+
+    def test_parse_errors_keep_source_path_without_blocking_other_cpp_files(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            good = root / "good.cpp"
+            bad = root / "bad.cpp"
+            good.write_text("int answer = 42;\n")
+            bad.write_text("int broken( {\n")
+            result = run_query('match varDecl(hasName("answer")).bind("v")', str(root),
+                               ["-std=c++23"],
+                               target={"scope": "directory", "path": str(root)})
+            self.assertEqual(result["bindings"]["v"][0]["file"], str(good.resolve()))
+            self.assertFalse(any(query["translationUnit"] == str(bad.absolute())
+                                 for query in result["queries"]))
+            failures = [error for error in result["errors"]
+                        if error.get("file") == str(bad.absolute())]
+            self.assertTrue(failures, result)
+            self.assertIn("parse", failures[0]["message"].lower())
 
     def test_nested_gitignore_rules_and_anchored_patterns(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -66,7 +110,7 @@ class TestBackendTargets(unittest.TestCase):
             header.write_text("struct Shared {};\n")
             sources = [root / "one.cpp", root / "two.cpp"]
             for source in sources:
-                source.write_text('#include "model.hpp"\n')
+                source.write_text('#include "model.hpp"\nstruct Local {};\n')
             db = root / "build"
             db.mkdir()
             (db / "compile_commands.json").write_text(json.dumps([
@@ -74,7 +118,7 @@ class TestBackendTargets(unittest.TestCase):
                  "arguments": ["clang++", "-std=c++23", "-Iinclude", "-c", str(source)]}
                 for source in sources
             ]))
-            query = ('match cxxRecordDecl(hasName("Shared"), '
+            query = ('match cxxRecordDecl(isDefinition(), '
                      'unless(isImplicit())).bind("record")')
             target = {"scope": "workspace", "path": str(root), "roots": [str(root)]}
             options = {"target": target, "compile_commands": str(db),
@@ -82,6 +126,7 @@ class TestBackendTargets(unittest.TestCase):
             first = run_query(query, str(root), **options)
             self.assertTrue(first["ok"], first["errors"])
             self.assertEqual(len(first["bindings"]["record"]), 2)
+            self.assertEqual({node["summary"] for node in first["bindings"]["record"]}, {"Local"})
             self.assertEqual(len({node["translationUnit"] for node in first["bindings"]["record"]}), 2)
             self.assertEqual({node["semanticKind"] for node in first["bindings"]["record"]}, {"struct"})
             second = run_query(query, str(root), **options)
@@ -89,7 +134,7 @@ class TestBackendTargets(unittest.TestCase):
             header.write_text("union Shared {};\n")
             third = run_query(query, str(root), **options)
             self.assertEqual(third["cache"]["hits"], 0)
-            self.assertEqual({node["semanticKind"] for node in third["bindings"]["record"]}, {"union"})
+            self.assertEqual({node["semanticKind"] for node in third["bindings"]["record"]}, {"struct"})
 
     def test_compile_database_preserves_cpp_forced_include_operand(self):
         with tempfile.TemporaryDirectory() as temporary:

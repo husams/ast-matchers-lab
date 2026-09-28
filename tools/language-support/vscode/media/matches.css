@@ -130,16 +130,6 @@ tr.binding.selected {
 tr.binding:focus { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
 .id-root { font-weight: 600; }
 td.kind { color: var(--vscode-symbolIcon-classForeground, var(--vscode-foreground)); }
-#errors { padding: 4px 8px; color: var(--vscode-errorForeground); }
-#errors div { padding: 1px 0; }
-#stderr {
-  margin: 8px;
-  padding: 6px;
-  white-space: pre-wrap;
-  font-family: var(--vscode-editor-font-family);
-  color: var(--vscode-descriptionForeground);
-  border-left: 2px solid var(--vscode-panel-border);
-}
 #cache-info { padding: 3px 8px; color: var(--vscode-descriptionForeground); }
 #settings-screen { padding: 8px; overflow: auto; }
 #settings-form { max-width: 900px; display: grid; grid-template-columns: repeat(2, minmax(230px, 1fr)); gap: 8px; }
