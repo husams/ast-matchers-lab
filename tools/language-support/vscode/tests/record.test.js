@@ -101,3 +101,245 @@ test("record explorer sends source locators and opens only graph-owned source no
     delete require.cache[require.resolve("../record-explorer")];
   }
 });
+
+async function withRecordExplorer(reply, run) {
+  const originalLoad = Module._load;
+  let panel;
+  let receive;
+  let dispose;
+  const sent = [];
+  const requests = [];
+  const vscode = {
+    ViewColumn: { Active: 1, Beside: 2 },
+    Uri: { joinPath: (base, ...parts) => ({ fsPath: `${base.fsPath}/${parts.join("/")}` }) },
+    window: { createWebviewPanel(_viewType, title) {
+      panel = { title, onDidDispose: (callback) => { dispose = callback; }, webview: {
+        cspSource: "vscode-webview-resource:",
+        asWebviewUri: (uri) => `vscode-webview-resource:${uri.fsPath}`,
+        onDidReceiveMessage: (callback) => { receive = callback; },
+        postMessage: (message) => { sent.push(message); },
+      } };
+      return panel;
+    } },
+  };
+  Module._load = function (request, parent, isMain) {
+    if (request === "vscode") return vscode;
+    return originalLoad.call(this, request, parent, isMain);
+  };
+  const modulePath = require.resolve("../record-explorer");
+  delete require.cache[modulePath];
+  try {
+    const recordModule = require("../record-explorer");
+    const explorer = new recordModule.RecordExplorer(
+      { extensionUri: { fsPath: "/extension" } },
+      async (method, params) => { requests.push({ method, params }); return reply(method, params); });
+    await run(explorer, { receive: (message) => receive(message), dispose: () => dispose(),
+      panel: () => panel, sent, requests }, recordModule);
+  } finally {
+    Module._load = originalLoad;
+    delete require.cache[modulePath];
+  }
+}
+
+const sourceRange = (line) => ({ start: { line, character: 1 }, end: { line, character: 9 } });
+const sourceTarget = { file: "/project/main.cpp", translationUnit: "/project/main.cpp",
+  range: sourceRange(1), recordIdentity: "app::Root" };
+const record = (id, name, line, extra = {}) => ({ id, kind: "CXXRecordDecl", name,
+  qualifiedName: `app::${name}`, recordIdentity: `app::${name}`,
+  definitionStatus: "defined", file: "/project/main.cpp", range: sourceRange(line), ...extra });
+
+test("expanding a resolved related record preserves context and merges reply-local identities", async () => {
+  const initial = { ok: true, recordId: "n1", nodes: [record("n1", "Root", 1),
+    record("n2", "Base", 5), { id: "n3", kind: "FieldDecl", name: "base", type: "app::Base*",
+      qualifiedName: "app::Root::base", file: "/project/main.cpp", range: sourceRange(3) }],
+  edges: [{ from: "n1", to: "n3", kind: "field" }, { from: "n3", to: "n2", kind: "fieldType" }],
+  diagnostics: [], truncated: false };
+  const next = { ok: true, recordId: "n1", nodes: [record("n1", "Base", 5),
+    record("n2", "Ancestor", 9), { id: "n3", kind: "FieldDecl", name: "base", type: "app::Base*",
+      qualifiedName: "app::Root::base", file: "/project/main.cpp", range: sourceRange(3) },
+    { id: "n4", kind: "CXXMethodDecl", name: "run", signature: "void app::Base::run()",
+      qualifiedName: "app::Base::run", file: "/project/main.cpp", range: sourceRange(7) }],
+  edges: [{ from: "n1", to: "n2", kind: "inherits", access: "public" },
+    { from: "n1", to: "n4", kind: "method" }, { from: "n3", to: "n1", kind: "fieldType" }],
+  diagnostics: [], truncated: false };
+  const replies = [initial, next];
+  await withRecordExplorer(async () => replies.shift(), async (explorer, host) => {
+    const options = { cwd: "/project/build", flags: ["-std=c++23", "-DDEBUG"],
+      compileCommands: "/project/build/compile_commands.json", nativeServerPath: "/bin/native", timeout: 42 };
+    const run = explorer.open(sourceTarget, options);
+    host.receive({ type: "ready" });
+    await run;
+    assert.deepEqual(host.sent.at(-1).graph.expandedRecordIds, ["n1"]);
+    await host.receive({ type: "expand", id: "n2" });
+    assert.deepEqual(host.requests[1], { method: "astmatcher/inspectRecord", params: {
+      translationUnit: "/project/main.cpp", file: "/project/main.cpp", range: sourceRange(5),
+      recordIdentity: "app::Base", ...options,
+    } });
+    const state = host.sent.at(-1);
+    assert.equal(state.status, "ready");
+    assert.equal(state.focusId, "n2");
+    assert.equal(state.graph.recordId, "n1");
+    const ancestor = state.graph.nodes.find((node) => node.recordIdentity === "app::Ancestor");
+    assert.deepEqual(state.graph.expandedRecordIds, ["n1", "n2", ancestor.id]);
+    assert.equal(state.graph.nodes.length, 5, "shared records and members are deduplicated");
+    const method = state.graph.nodes.find((node) => node.signature === "void app::Base::run()");
+    assert.notEqual(ancestor.id, "n2", "reply-local IDs are remapped");
+    assert.deepEqual(state.graph.edges.find((edge) => edge.kind === "inherits"),
+      { from: "n2", to: ancestor.id, kind: "inherits", access: "public" });
+    assert.deepEqual(state.graph.edges.find((edge) => edge.kind === "method"),
+      { from: "n2", to: method.id, kind: "method" });
+    assert.equal(state.graph.edges.filter((edge) => edge.kind === "fieldType").length, 1);
+    await host.receive({ type: "expand", id: "n2" });
+    await host.receive({ type: "expand", id: ancestor.id });
+    assert.equal(host.requests.length, 2, "inspected records and their bases are not requested again");
+  });
+});
+
+test("merge uses source fallback, keeps distinct template identities, and bounds accumulated nodes", async () => {
+  await withRecordExplorer(async () => undefined, async (_explorer, _host, { mergeRecordGraphs }) => {
+    const box = (id, identity) => record(id, "Box", 5,
+      { kind: "ClassTemplateSpecializationDecl", recordKind: "class",
+        qualifiedName: "app::Box", recordIdentity: identity });
+    const current = { ok: true, recordId: "r", nodes: [record("r", "Root", 1),
+      record("fallback", "Fallback", 7, { recordIdentity: "" }),
+      box("int", "app::Box<int>"), box("double", "app::Box<double>")],
+    edges: [], diagnostics: [], expandedRecordIds: ["r"], truncated: false };
+    const reply = { ok: true, recordId: "x", nodes: [record("x", "Fallback", 7),
+      box("y", "app::Box<double>")],
+    edges: [{ from: "x", to: "y", kind: "fieldType" }], diagnostics: [], truncated: false };
+    const merged = mergeRecordGraphs(current, reply, "fallback");
+    assert.equal(merged.nodes.length, 4);
+    assert.deepEqual(merged.edges, [{ from: "fallback", to: "double", kind: "fieldType" }]);
+    assert.deepEqual(merged.expandedRecordIds, ["r", "fallback"]);
+    const full = { ...current, nodes: [record("r", "Root", 1),
+      ...Array.from({ length: 255 }, (_, i) => record(`old-${i}`, `Old${i}`, i + 10))] };
+    const capped = mergeRecordGraphs(full, { ok: true, recordId: "x", nodes: [
+      record("x", "Root", 1), record("new", "New", 300)],
+    edges: [{ from: "x", to: "new", kind: "inherits" }], diagnostics: [] }, "r");
+    assert.equal(capped.nodes.length, 256);
+    assert.equal(capped.edges.length, 0, "edges to omitted nodes are not retained");
+    assert.equal(capped.truncated, true);
+  });
+});
+
+test("invalid, unresolved, duplicate, and failed expansions leave the existing graph intact", async () => {
+  const initial = { ok: true, recordId: "r", nodes: [record("r", "Root", 1),
+    record("base", "Base", 5), record("pending", "Pending", 8,
+      { definitionStatus: "unresolved" })], edges: [], diagnostics: [], truncated: false };
+  let rejectExpansion;
+  await withRecordExplorer(async () => {
+    if (!rejectExpansion) return initial;
+    return new Promise((_resolve, reject) => { rejectExpansion = reject; });
+  }, async (explorer, host) => {
+    const run = explorer.open(sourceTarget, {});
+    host.receive({ type: "ready" });
+    await run;
+    const before = host.sent.at(-1).graph;
+    await host.receive({ type: "expand", id: "unknown" });
+    await host.receive({ type: "expand", id: "pending" });
+    await host.receive({ type: "expand", id: "r" });
+    assert.equal(host.requests.length, 1);
+    rejectExpansion = true;
+    const pending = host.receive({ type: "expand", id: "base" });
+    await host.receive({ type: "expand", id: "base" });
+    assert.equal(host.requests.length, 2, "a pending expansion is not repeated");
+    rejectExpansion(new Error("inspection failed"));
+    await pending;
+    assert.deepEqual(host.sent.at(-1), { type: "expansionError", message: "inspection failed" });
+    assert.equal(host.sent.at(-2).graph, before, "the prior graph remains available");
+  });
+});
+
+test("inherited bases start expanded, backend errors preserve the view, and disposal stops updates", async () => {
+  const graph = { ok: true, recordId: "root", nodes: [record("root", "Root", 1),
+    record("base", "Base", 4), record("related", "Related", 8)],
+  edges: [{ from: "root", to: "base", kind: "inherits" },
+    { from: "root", to: "related", kind: "fieldType" }],
+  diagnostics: [], truncated: false };
+  let calls = 0;
+  let finish;
+  await withRecordExplorer(async () => {
+    calls++;
+    if (calls === 1) return graph;
+    if (calls === 2) return { ok: false, diagnostics: [{ message: "record is ambiguous" }] };
+    return new Promise((resolve) => { finish = resolve; });
+  }, async (explorer, host) => {
+    const run = explorer.open(sourceTarget, {});
+    host.receive({ type: "ready" });
+    await run;
+    assert.deepEqual(host.sent.at(-1).graph.expandedRecordIds, ["root", "base"]);
+    assert.match(host.panel().webview.html, /Class relationship diagram/);
+    assert.match(host.panel().webview.html, /This translation unit only/);
+    await host.receive({ type: "expand", id: "base" });
+    assert.equal(host.requests.length, 1);
+    const firstGraph = host.sent.at(-1).graph;
+    await host.receive({ type: "expand", id: "related" });
+    assert.deepEqual(host.sent.at(-1), { type: "expansionError", message: "record is ambiguous" });
+    assert.equal(firstGraph.expandedRecordIds.includes("related"), false);
+    const messageCount = host.sent.length;
+    const pending = host.receive({ type: "expand", id: "related" });
+    host.dispose();
+    finish({ ok: true, recordId: "n1", nodes: [record("n1", "Related", 8)],
+      edges: [], diagnostics: [], truncated: false });
+    await pending;
+    assert.equal(host.sent.length, messageCount, "a disposed webview receives no late graph update");
+    assert.equal(host.requests.length, 3, "a failed inspection can be retried");
+  });
+});
+
+test("separate expansion clicks are inspected serially without losing either request", async () => {
+  const initial = { ok: true, recordId: "root", nodes: [record("root", "Root", 1),
+    record("a", "A", 4), record("b", "B", 8)], edges: [], diagnostics: [], truncated: false };
+  let completeFirst;
+  let calls = 0;
+  await withRecordExplorer(async () => {
+    calls++;
+    if (calls === 1) return initial;
+    if (calls === 2) return new Promise((resolve) => { completeFirst = resolve; });
+    return { ok: true, recordId: "local", nodes: [record("local", "B", 8)],
+      edges: [], diagnostics: [], truncated: false };
+  }, async (explorer, host) => {
+    const run = explorer.open(sourceTarget, {});
+    host.receive({ type: "ready" });
+    await run;
+    const first = host.receive({ type: "expand", id: "a" });
+    await host.receive({ type: "expand", id: "b" });
+    await host.receive({ type: "expand", id: "a" });
+    assert.equal(host.requests.length, 2, "only the first inspection starts while it is pending");
+    completeFirst({ ok: true, recordId: "local", nodes: [record("local", "A", 4)],
+      edges: [], diagnostics: [], truncated: false });
+    await first;
+    assert.equal(host.requests.length, 3);
+    assert.deepEqual(host.sent.at(-1).graph.expandedRecordIds, ["root", "a", "b"]);
+    assert.equal(host.sent.at(-1).focusId, "b");
+  });
+});
+
+test("truncated inheritance leaves visible bases eligible for later inspection", async () => {
+  const replies = [
+    { ok: true, recordId: "root", nodes: [record("root", "Root", 1),
+      record("base", "Base", 4)], edges: [{ from: "root", to: "base", kind: "inherits" }],
+    diagnostics: [], truncated: true },
+    { ok: true, recordId: "local-base", nodes: [record("local-base", "Base", 4),
+      record("local-deep", "Deep", 8)],
+    edges: [{ from: "local-base", to: "local-deep", kind: "inherits" }],
+    diagnostics: [], truncated: true },
+    { ok: true, recordId: "local-deep", nodes: [record("local-deep", "Deep", 8)],
+      edges: [], diagnostics: [], truncated: false },
+  ];
+  await withRecordExplorer(async () => replies.shift(), async (explorer, host) => {
+    const run = explorer.open(sourceTarget, {});
+    host.receive({ type: "ready" });
+    await run;
+    assert.deepEqual(host.sent.at(-1).graph.expandedRecordIds, ["root"]);
+    await host.receive({ type: "expand", id: "base" });
+    const merged = host.sent.at(-1).graph;
+    const deep = merged.nodes.find((node) => node.recordIdentity === "app::Deep");
+    assert.deepEqual(merged.expandedRecordIds, ["root", "base"]);
+    assert.ok(deep, "the visible deeper base is retained");
+    await host.receive({ type: "expand", id: deep.id });
+    assert.equal(host.requests.length, 3, "both bases can be inspected on demand");
+    assert.deepEqual(host.sent.at(-1).graph.expandedRecordIds,
+      ["root", "base", deep.id]);
+  });
+});

@@ -1,48 +1,27 @@
-body {
-  margin: 0;
-  color: var(--vscode-foreground);
-  background: var(--vscode-editor-background);
-  font: var(--vscode-font-size) var(--vscode-font-family);
-}
-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--vscode-panel-border);
-}
+body { margin: 0; color: var(--vscode-foreground); background: var(--vscode-editor-background); font: var(--vscode-font-size) var(--vscode-font-family); }
+header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 16px; border-bottom: 1px solid var(--vscode-panel-border); }
 h1 { margin: 0; font-size: 1.25em; font-weight: 600; overflow-wrap: anywhere; }
 #subtitle { margin: 4px 0 0; color: var(--vscode-descriptionForeground); }
 .controls { display: flex; gap: 4px; flex-shrink: 0; }
-button {
-  padding: 5px 9px;
-  color: var(--vscode-button-secondaryForeground);
-  background: var(--vscode-button-secondaryBackground);
-  border: 1px solid var(--vscode-button-border, transparent);
-  cursor: pointer;
-  font: inherit;
-}
+button { padding: 5px 9px; color: var(--vscode-button-secondaryForeground); background: var(--vscode-button-secondaryBackground); border: 1px solid var(--vscode-button-border, transparent); cursor: pointer; font: inherit; }
 button:hover { background: var(--vscode-button-secondaryHoverBackground); }
 button.primary { color: var(--vscode-button-foreground); background: var(--vscode-button-background); }
 button.primary:hover { background: var(--vscode-button-hoverBackground); }
-button:focus-visible, svg:focus-visible, .entity:focus-visible {
-  outline: 2px solid var(--vscode-focusBorder); outline-offset: 2px;
-}
+button:focus-visible, input:focus-visible, svg:focus-visible, .record-card:focus-visible, .relation-edge:focus-visible, .member-row:focus-visible, .member-more:focus-visible, .compartment-toggle:focus-visible { outline: 2px solid var(--vscode-focusBorder); outline-offset: 2px; }
 #notice { padding: 8px 16px; border-bottom: 1px solid var(--vscode-panel-border); }
 #notice.error { color: var(--vscode-errorForeground); }
 #notice.warning { color: var(--vscode-editorWarning-foreground); }
 #notice.loading, #notice.empty { color: var(--vscode-descriptionForeground); }
-main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, 28%); min-height: calc(100vh - 91px); }
+main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 28%); min-height: calc(100vh - 91px); }
 #graph-pane { display: flex; flex-direction: column; min-width: 0; border-right: 1px solid var(--vscode-panel-border); }
-#legend { display: flex; flex-wrap: wrap; gap: 6px 16px; padding: 8px 16px 0;
-  color: var(--vscode-descriptionForeground); font-size: 0.9em; }
-#legend span { display: inline-flex; align-items: center; gap: 6px; }
+#legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; padding: 9px 16px 2px; color: var(--vscode-descriptionForeground); font-size: 0.9em; }
+#legend .scope { font-weight: 500; }
+#legend .filter { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+#legend input { margin: 0; accent-color: var(--vscode-focusBorder); }
 .swatch { display: inline-block; width: 20px; height: 0; border-top: 2px solid var(--vscode-charts-blue, var(--vscode-descriptionForeground)); }
-.swatch.inherits { border-top: 3px solid var(--vscode-charts-orange, var(--vscode-textLink-foreground)); }
-.swatch.method { border-top-style: dotted; }
+.swatch.inherits { border-top: 2px solid var(--vscode-charts-orange, var(--vscode-textLink-foreground)); }
 .swatch.fieldType { border-top-style: dashed; }
-#graph { display: block; width: 100%; height: max(420px, calc(100vh - 155px)); cursor: grab; touch-action: none; }
+#graph { display: block; width: 100%; height: max(420px, calc(100vh - 164px)); cursor: grab; touch-action: none; }
 #graph:active { cursor: grabbing; }
 #graph-help { margin: 0; padding: 8px 16px; color: var(--vscode-descriptionForeground); border-top: 1px solid var(--vscode-panel-border); }
 #details { min-width: 0; padding: 16px; overflow: auto; }
@@ -52,26 +31,36 @@ main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, 28%); 
 #details dl { display: grid; grid-template-columns: 80px minmax(0, 1fr); gap: 8px; margin: 0 0 16px; }
 #details dt { color: var(--vscode-descriptionForeground); }
 #details dd { margin: 0; overflow-wrap: anywhere; font-family: var(--vscode-editor-font-family); }
-#details .secondary { margin-left: 6px; }
+#details button { margin: 0 6px 6px 0; }
 .muted { color: var(--vscode-descriptionForeground); }
 .relations { padding-left: 0; margin: 0; list-style: none; }
 .relations li { margin: 4px 0; }
 .relations button { width: 100%; text-align: left; white-space: normal; overflow-wrap: anywhere; }
-.edge { fill: none; stroke: var(--vscode-charts-blue, var(--vscode-descriptionForeground)); stroke-width: 2; }
-.edge.inherits { stroke: var(--vscode-charts-orange, var(--vscode-textLink-foreground)); stroke-width: 2.5; }
-.edge.method { stroke-dasharray: 2 4; }
-.edge.fieldType { stroke-dasharray: 6 4; }
-#arrow path { fill: var(--vscode-descriptionForeground); }
-.entity { cursor: pointer; }
-.entity rect { fill: var(--vscode-editorWidget-background, var(--vscode-sideBar-background));
-  stroke: var(--vscode-panel-border); stroke-width: 1.5; }
-.entity.root rect { stroke: var(--vscode-textLink-foreground); stroke-width: 2.5; }
-.entity.unresolved rect { stroke-dasharray: 5 4; }
-.entity:hover rect, .entity.selected rect { stroke: var(--vscode-focusBorder); stroke-width: 3; }
-.entity .kind { fill: var(--vscode-descriptionForeground); font: 12px var(--vscode-font-family); }
-.entity .name { fill: var(--vscode-foreground); font: 600 14px var(--vscode-editor-font-family); }
-.entity .status { fill: var(--vscode-editorWarning-foreground, var(--vscode-descriptionForeground));
-  font: 11px var(--vscode-font-family); }
+.relation-edge { cursor: pointer; }
+.relation-edge.filtered-out { display: none; }
+.relation-edge .edge-line { fill: none; stroke: var(--vscode-charts-blue, var(--vscode-descriptionForeground)); stroke-width: 2; }
+.relation-edge.inherits .edge-line { stroke: var(--vscode-charts-orange, var(--vscode-textLink-foreground)); stroke-width: 2.5; }
+.relation-edge.fieldType .edge-line { stroke-dasharray: 6 4; }
+.relation-edge .edge-hit { fill: none; stroke: transparent; stroke-width: 18; pointer-events: stroke; }
+.relation-edge:hover .edge-line, .relation-edge.selected .edge-line { stroke: var(--vscode-focusBorder); stroke-width: 3; }
+.triangle { fill: var(--vscode-editor-background); stroke: var(--vscode-charts-orange, var(--vscode-textLink-foreground)); stroke-width: 1.8; }
+.edge-label { fill: var(--vscode-foreground); stroke: var(--vscode-editor-background); stroke-width: 5; paint-order: stroke fill; font: 12px var(--vscode-editor-font-family); }
+.record-card { cursor: pointer; }
+.record-card .card-outline { fill: var(--vscode-editorWidget-background, var(--vscode-sideBar-background)); stroke: var(--vscode-panel-border); stroke-width: 1.5; }
+.record-card.root .card-outline { stroke: var(--vscode-textLink-foreground); stroke-width: 2.5; }
+.record-card.unresolved .card-outline { stroke-dasharray: 5 4; }
+.record-card:hover .card-outline, .record-card.selected .card-outline { stroke: var(--vscode-focusBorder); stroke-width: 3; }
+.record-card .kind { fill: var(--vscode-descriptionForeground); font: 12px var(--vscode-font-family); }
+.record-card .name { fill: var(--vscode-foreground); font: 600 14px var(--vscode-editor-font-family); }
+.record-card .status { fill: var(--vscode-editorWarning-foreground, var(--vscode-descriptionForeground)); font: 11px var(--vscode-font-family); }
+.record-card .divider { stroke: var(--vscode-panel-border); stroke-width: 1; }
+.compartment-toggle, .member-row, .member-more { cursor: pointer; }
+.compartment-toggle rect { fill: var(--vscode-sideBarSectionHeader-background, var(--vscode-editorWidget-background)); }
+.compartment-toggle text { fill: var(--vscode-foreground); font: 600 12px var(--vscode-font-family); }
+.member-row rect, .member-more rect { fill: transparent; }
+.member-row:hover rect, .member-row.selected rect, .member-more:hover rect { fill: var(--vscode-list-hoverBackground); }
+.member-row text { fill: var(--vscode-foreground); font: 12px var(--vscode-editor-font-family); }
+.member-more text { fill: var(--vscode-textLink-foreground); font: 12px var(--vscode-font-family); }
 @media (max-width: 720px) {
   main { grid-template-columns: 1fr; }
   #graph-pane { border-right: 0; border-bottom: 1px solid var(--vscode-panel-border); }

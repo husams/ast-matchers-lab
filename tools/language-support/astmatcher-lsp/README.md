@@ -144,7 +144,8 @@ The opaque `runQuery` node ID is never used for this lookup.
 
 Graph IDs are local to one reply. `inherits` points from derived to base;
 `field` and `method` point from a record to its members; `fieldType` points
-from a field to its record type. Nodes include optional `type`, `signature`,
+from a field to its record type. Inheritance and member edges include declared
+`access` when Clang supplies it. Nodes include optional `type`, `signature`,
 `recordIdentity`, and source location fields. Record nodes report
 `definitionStatus: "defined"|"unresolved"`; unresolved nodes can represent
 forward-declared field types. The graph includes transitive bases and members

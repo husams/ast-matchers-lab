@@ -572,7 +572,7 @@ private:
     for (const auto *field : record->fields()) {
       if (field->isImplicit()) continue;
       const std::string field_id = add_node(field);
-      add_edge(owner, field_id, "field");
+      add_edge(owner, field_id, "field", access_name(field->getAccess()));
       if (const auto *target = field_record_type(field->getType())) {
         add_edge(field_id, add_node(target), "fieldType");
       }
@@ -580,7 +580,7 @@ private:
     if (const auto *cxx = llvm::dyn_cast<clang::CXXRecordDecl>(record)) {
       for (const auto *method : cxx->methods()) {
         if (method->isImplicit()) continue;
-        add_edge(owner, add_node(method), "method");
+        add_edge(owner, add_node(method), "method", access_name(method->getAccess()));
       }
     }
   }

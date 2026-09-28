@@ -227,6 +227,8 @@ os.kill(os.getpid(), signal.SIGTERM)
                 "public:\n"
                 "  Other other;\n"
                 "  int compute(int value) const { return value; }\n"
+                "private:\n"
+                "  int hidden;\n"
                 "};\n"
                 "struct Outer { struct Inner {}; };\n"
                 "union Payload { int number; };\n"
@@ -258,6 +260,11 @@ os.kill(os.getpid(), signal.SIGTERM)
             assert ("Leaf", "other", "field") in relations, inspection
             assert ("other", "Other", "fieldType") in relations, inspection
             assert ("Leaf", "compute", "method") in relations, inspection
+            member_edges = {(nodes[edge["from"]]["name"], nodes[edge["to"]]["name"]): edge
+                            for edge in inspection["edges"] if edge["kind"] in {"field", "method"}}
+            assert member_edges[("Leaf", "other")]["access"] == "public", inspection
+            assert member_edges[("Leaf", "compute")]["access"] == "public", inspection
+            assert member_edges[("Leaf", "hidden")]["access"] == "private", inspection
             inherit_edges = {(nodes[edge["from"]]["name"], nodes[edge["to"]]["name"]): edge
                              for edge in inspection["edges"] if edge["kind"] == "inherits"}
             assert inherit_edges[("Leaf", "Mid")]["access"] == "public", inspection
@@ -269,21 +276,21 @@ os.kill(os.getpid(), signal.SIGTERM)
             nested = run_inspect(binary, socket, {
                 "sourcePath": str(record_source), "workingDirectory": directory,
                 "flags": ["-std=c++23"], "file": str(record_source),
-                "position": {"line": 8, "character": 25}})
+                "position": {"line": 10, "character": 25}})
             assert nested["ok"], nested
             assert next(node for node in nested["nodes"]
                         if node["id"] == nested["recordId"])["name"] == "Inner", nested
             union = run_inspect(binary, socket, {
                 "sourcePath": str(record_source), "workingDirectory": directory,
                 "flags": ["-std=c++23"], "file": str(record_source),
-                "position": {"line": 9, "character": 8}})
+                "position": {"line": 11, "character": 8}})
             assert union["ok"], union
             assert next(node for node in union["nodes"]
                         if node["id"] == union["recordId"])["recordKind"] == "union", union
             holder = run_inspect(binary, socket, {
                 "sourcePath": str(record_source), "workingDirectory": directory,
                 "flags": ["-std=c++23"], "file": str(record_source),
-                "position": {"line": 11, "character": 8}})
+                "position": {"line": 13, "character": 8}})
             assert holder["ok"], holder
             pending = next(node for node in holder["nodes"] if node["name"] == "Pending")
             assert pending["definitionStatus"] == "unresolved", holder
