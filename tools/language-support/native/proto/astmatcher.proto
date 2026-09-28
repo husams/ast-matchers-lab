@@ -7,6 +7,7 @@ service MatcherService {
   rpc Ping(PingRequest) returns (PingReply);
   rpc Run(RunRequest) returns (RunReply);
   rpc RunWithProgress(RunRequest) returns (stream RunProgress);
+  rpc InspectRecord(InspectRecordRequest) returns (InspectRecordReply);
 }
 
 message PingRequest {}
@@ -57,6 +58,53 @@ message Binding {
   string summary = 5;
   string text = 6;
   SourceRange range = 7;
+  string qualified_name = 8;
+  string type = 9;
+  string signature = 10;
+  string record_kind = 11;
+  string record_identity = 12; // qualified specialization name, if a record
+}
+
+// A source location within the selected record in one translation unit.
+// Lines and columns use zero-based LSP UTF-16 coordinates.
+message InspectRecordRequest {
+  string source_path = 1;
+  string working_directory = 2;
+  repeated string flags = 3;
+  string file = 4;
+  Position position = 5;
+  string record_identity = 6; // optional binding identity for shared template anchors
+}
+
+message GraphNode {
+  string id = 1; // local to this reply
+  string kind = 2;
+  string name = 3;
+  string qualified_name = 4;
+  string signature = 5;
+  string type = 6;
+  string record_kind = 7;
+  SourceRange range = 8;
+  string record_identity = 9;
+  string definition_status = 10; // defined or unresolved for records
+}
+
+message GraphEdge {
+  string from = 1;
+  string to = 2;
+  string kind = 3; // inherits, field, method, fieldType
+  string access = 4;
+  bool is_virtual = 5;
+}
+
+message InspectRecordReply {
+  bool ok = 1;
+  string record_id = 2;
+  repeated GraphNode nodes = 3;
+  repeated GraphEdge edges = 4;
+  bool truncated = 5;
+  repeated Diagnostic diagnostics = 6;
+  string stderr = 7;
 }
 
 message Match {

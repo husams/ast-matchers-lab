@@ -6,9 +6,13 @@
 #include <filesystem>
 #include <memory>
 #include <optional>
+#include <set>
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <tuple>
+#include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -17,7 +21,9 @@
 #include "clang/AST/ASTTypeTraits.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
+#include "clang/AST/DeclTemplate.h"
 #include "clang/AST/PrettyPrinter.h"
+#include "clang/AST/Type.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/ASTMatchers/Dynamic/Diagnostics.h"
 #include "clang/ASTMatchers/Dynamic/Parser.h"
@@ -40,6 +46,9 @@ constexpr uint32_t kDefaultMaxMatches = 1000;
 constexpr uint32_t kMaximumMaxMatches = 10000;
 constexpr size_t kMaximumTextBytes = 4096;
 constexpr size_t kMaximumDiagnosticBytes = 64 * 1024;
+constexpr size_t kMaximumGraphNodes = 256;
+constexpr size_t kMaximumGraphEdges = 512;
+constexpr unsigned kMaximumInheritanceDepth = 32;
 constexpr std::string_view kDiagnosticTruncationMarker =
     "\n[Clang diagnostics truncated]\n";
 
@@ -242,6 +251,41 @@ std::string summary(const clang::DynTypedNode &node,
   return shortened(printed, 200);
 }
 
+std::string record_kind(const clang::RecordDecl &record) {
+  return record.isClass() ? "class" : record.isStruct() ? "struct" : "union";
+}
+
+std::string diagnostic_name(const clang::NamedDecl &declaration,
+                            const clang::ASTContext &context) {
+  std::string name;
+  llvm::raw_string_ostream stream(name);
+  declaration.getNameForDiagnostic(stream, context.getPrintingPolicy(), true);
+  stream.flush();
+  return name;
+}
+
+std::string callable_signature(const clang::FunctionDecl &function,
+                               const clang::ASTContext &context) {
+  const std::string name = function.getQualifiedNameAsString();
+  std::string signature;
+  llvm::raw_string_ostream stream(signature);
+  function.getType().print(stream, context.getPrintingPolicy(), name);
+  stream.flush();
+  // QualType's declarator printer wraps the placeholder in parentheses.
+  // The name itself does not need grouping, even for a pointer return type.
+  const std::string wrapped_name = "(" + name + ")";
+  const size_t wrapped_start = signature.find(wrapped_name);
+  if (wrapped_start != std::string::npos) {
+    signature.replace(wrapped_start, wrapped_name.size(), name);
+  }
+  if (llvm::isa<clang::CXXConstructorDecl, clang::CXXDestructorDecl,
+                clang::CXXConversionDecl>(function)) {
+    const size_t name_start = signature.find(name);
+    if (name_start != std::string::npos) return signature.substr(name_start);
+  }
+  return signature;
+}
+
 std::string node_identity(const clang::DynTypedNode &node,
                           const v1::Binding &binding) {
   const void *pointer = node.getMemoizationData();
@@ -300,6 +344,25 @@ void fill_binding(v1::Binding *binding, const clang::DynTypedNode &node,
   }
   binding->set_text(shortened(source_text, kMaximumTextBytes));
   binding->set_summary(summary(node, context, source_text));
+  if (const auto *named = node.get<clang::NamedDecl>()) {
+    binding->set_qualified_name(named->getQualifiedNameAsString());
+    if (const auto *value = llvm::dyn_cast<clang::ValueDecl>(named)) {
+      binding->set_type(value->getType().getAsString());
+    }
+    if (const auto *function = llvm::dyn_cast<clang::FunctionDecl>(named)) {
+      binding->set_signature(callable_signature(*function, context));
+    }
+    if (const auto *record = llvm::dyn_cast<clang::RecordDecl>(named)) {
+      binding->set_record_kind(record_kind(*record));
+      if (!record->getNameAsString().empty()) {
+        const std::string identity = diagnostic_name(*record, context);
+        binding->set_record_identity(identity);
+        binding->set_qualified_name(identity);
+      }
+    }
+  } else if (const auto *type = node.get<clang::QualType>()) {
+    binding->set_type(type->getAsString());
+  }
   binding->set_node(node_identity(node, *binding));
 }
 
@@ -377,6 +440,237 @@ public:
 private:
   std::string &output_;
   bool truncated_ = false;
+};
+
+void add_inspect_diagnostic(v1::InspectRecordReply &reply,
+                            const std::string &message) {
+  reply.add_diagnostics()->set_message(message);
+}
+
+std::string access_name(clang::AccessSpecifier access) {
+  switch (access) {
+  case clang::AS_public: return "public";
+  case clang::AS_protected: return "protected";
+  case clang::AS_private: return "private";
+  case clang::AS_none: return "";
+  }
+  return "";
+}
+
+const clang::RecordDecl *record_definition(const clang::RecordDecl *record) {
+  if (!record) return nullptr;
+  return record->getDefinition() ? record->getDefinition() : record;
+}
+
+const clang::RecordDecl *field_record_type(clang::QualType type) {
+  type = type.getCanonicalType();
+  while (!type.isNull()) {
+    if (const auto *record = type->getAs<clang::RecordType>()) {
+      return record_definition(record->getDecl());
+    }
+    if (type->isPointerType() || type->isReferenceType()) {
+      type = type->getPointeeType();
+    } else if (const auto *array = llvm::dyn_cast<clang::ArrayType>(type.getTypePtr())) {
+      type = array->getElementType();
+    } else {
+      break;
+    }
+  }
+  return nullptr;
+}
+
+class RecordGraph final {
+public:
+  RecordGraph(v1::InspectRecordReply &reply, const clang::ASTContext &context,
+              fs::path working_directory)
+      : reply_(reply), context_(context),
+        working_directory_(std::move(working_directory)) {}
+
+  void build(const clang::RecordDecl &record) {
+    const std::string root = add_node(&record);
+    if (root.empty()) return;
+    reply_.set_record_id(root);
+    visit(&record, 0);
+    reply_.set_ok(true);
+  }
+
+private:
+  std::string add_node(const clang::Decl *decl) {
+    if (const auto *record = llvm::dyn_cast<clang::RecordDecl>(decl)) {
+      decl = record_definition(record);
+    }
+    if (const auto found = ids_.find(decl); found != ids_.end()) {
+      return found->second;
+    }
+    if (reply_.nodes_size() >= static_cast<int>(kMaximumGraphNodes)) {
+      reply_.set_truncated(true);
+      return {};
+    }
+    const std::string id = "n" + std::to_string(reply_.nodes_size() + 1);
+    ids_[decl] = id;
+    auto *node = reply_.add_nodes();
+    node->set_id(id);
+    const auto *named = llvm::cast<clang::NamedDecl>(decl);
+    v1::Binding binding;
+    fill_binding(&binding, clang::DynTypedNode::create(*decl), context_,
+                 working_directory_);
+    node->set_kind(binding.kind());
+    node->set_name(named->getNameAsString().empty()
+                       ? (binding.record_kind().empty() ? "<anonymous>"
+                                                        : "<anonymous " + binding.record_kind() + ">")
+                       : named->getNameAsString());
+    node->set_qualified_name(binding.qualified_name());
+    node->set_signature(binding.signature());
+    node->set_type(binding.type());
+    node->set_record_kind(binding.record_kind());
+    node->set_record_identity(binding.record_identity());
+    if (const auto *record = llvm::dyn_cast<clang::RecordDecl>(decl)) {
+      node->set_definition_status(record->getDefinition() ? "defined" : "unresolved");
+    }
+    if (binding.has_range()) {
+      *node->mutable_range() = binding.range();
+    }
+    return id;
+  }
+
+  void add_edge(const std::string &from, const std::string &to,
+                llvm::StringRef kind, llvm::StringRef access = {},
+                bool is_virtual = false) {
+    if (from.empty() || to.empty()) return;
+    const auto key = std::make_tuple(from, to, kind.str());
+    if (!edges_.insert(key).second) return;
+    if (reply_.edges_size() >= static_cast<int>(kMaximumGraphEdges)) {
+      reply_.set_truncated(true);
+      return;
+    }
+    auto *edge = reply_.add_edges();
+    edge->set_from(from);
+    edge->set_to(to);
+    edge->set_kind(kind.str());
+    edge->set_access(access.str());
+    edge->set_is_virtual(is_virtual);
+  }
+
+  void visit(const clang::RecordDecl *record, unsigned depth) {
+    record = record_definition(record);
+    if (!expanded_.insert(record).second) return;
+    if (depth > kMaximumInheritanceDepth) {
+      reply_.set_truncated(true);
+      return;
+    }
+    const std::string owner = add_node(record);
+    if (const auto *cxx = llvm::dyn_cast<clang::CXXRecordDecl>(record)) {
+      for (const auto &base : cxx->bases()) {
+        const auto *parent = record_definition(base.getType()->getAsCXXRecordDecl());
+        if (!parent) continue;
+        const std::string parent_id = add_node(parent);
+        add_edge(owner, parent_id, "inherits", access_name(base.getAccessSpecifier()),
+                 base.isVirtual());
+        if (!parent_id.empty()) visit(parent, depth + 1);
+      }
+    }
+    for (const auto *field : record->fields()) {
+      if (field->isImplicit()) continue;
+      const std::string field_id = add_node(field);
+      add_edge(owner, field_id, "field");
+      if (const auto *target = field_record_type(field->getType())) {
+        add_edge(field_id, add_node(target), "fieldType");
+      }
+    }
+    if (const auto *cxx = llvm::dyn_cast<clang::CXXRecordDecl>(record)) {
+      for (const auto *method : cxx->methods()) {
+        if (method->isImplicit()) continue;
+        add_edge(owner, add_node(method), "method");
+      }
+    }
+  }
+
+  v1::InspectRecordReply &reply_;
+  const clang::ASTContext &context_;
+  fs::path working_directory_;
+  std::unordered_map<const clang::Decl *, std::string> ids_;
+  std::unordered_set<const clang::RecordDecl *> expanded_;
+  std::set<std::tuple<std::string, std::string, std::string>> edges_;
+};
+
+class RecordCollector final : public am::MatchFinder::MatchCallback {
+public:
+  RecordCollector(fs::path file, v1::Position position, fs::path working_directory,
+                  std::string record_identity)
+      : file_(std::move(file)), position_(std::move(position)),
+        working_directory_(std::move(working_directory)),
+        record_identity_(std::move(record_identity)) {}
+
+  void run(const am::MatchFinder::MatchResult &result) override {
+    const auto *record = result.Nodes.getNodeAs<clang::RecordDecl>("record");
+    if (!record || record->isImplicit()) return;
+    v1::Binding binding;
+    fill_binding(&binding, clang::DynTypedNode::create(*record),
+                 *result.Context, working_directory_);
+    if (!record_identity_.empty() && binding.record_identity() != record_identity_) return;
+    if (!binding.has_range()) return;
+    std::error_code file_error;
+    const bool same_file = fs::equivalent(binding.range().file(), file_, file_error);
+    if ((file_error && fs::path(binding.range().file()).lexically_normal() != file_) ||
+        (!file_error && !same_file)) return;
+    const auto &range = binding.range();
+    const auto start = std::make_pair(range.start().line(), range.start().character());
+    const auto end = std::make_pair(range.end().line(), range.end().character());
+    const auto point = std::make_pair(position_.line(), position_.character());
+    if (point < start || !(point < end)) return;
+    const clang::RecordDecl *candidate = record_definition(record);
+    if (record_identity_.empty()) {
+      if (const auto *specialization =
+              llvm::dyn_cast<clang::ClassTemplateSpecializationDecl>(record)) {
+        if (specialization->getSpecializationKind() ==
+            clang::TSK_ImplicitInstantiation) {
+          const auto pattern = specialization->getSpecializedTemplateOrPartial();
+          if (const auto *partial =
+                  pattern.dyn_cast<clang::ClassTemplatePartialSpecializationDecl *>()) {
+            candidate = record_definition(partial);
+          } else if (const auto *primary = pattern.dyn_cast<clang::ClassTemplateDecl *>()) {
+            candidate = record_definition(primary->getTemplatedDecl());
+          }
+        }
+      }
+    }
+    const auto span = std::make_pair(end.first - start.first,
+                                     end.first == start.first
+                                         ? end.second - start.second : end.second);
+    if (best_span_ && span > *best_span_) return;
+    if (best_span_ && span == *best_span_) {
+      if (candidate != selected_) ambiguous_ = true;
+      return;
+    }
+    best_span_ = span;
+    selected_ = candidate;
+    ambiguous_ = false;
+    graph_.Clear();
+    RecordGraph(graph_, *result.Context, working_directory_).build(*selected_);
+  }
+
+  v1::InspectRecordReply finish() {
+    if (!selected_) {
+      add_inspect_diagnostic(graph_, record_identity_.empty()
+          ? "No record definition contains this source position"
+          : "Record definition with identity '" + record_identity_ +
+                "' was not found at this source position");
+    } else if (ambiguous_) {
+      graph_.Clear();
+      add_inspect_diagnostic(graph_, "Several record definitions share this source position");
+    }
+    return std::move(graph_);
+  }
+
+private:
+  fs::path file_;
+  v1::Position position_;
+  fs::path working_directory_;
+  std::string record_identity_;
+  std::optional<std::pair<uint32_t, uint32_t>> best_span_;
+  const clang::RecordDecl *selected_ = nullptr;
+  bool ambiguous_ = false;
+  v1::InspectRecordReply graph_;
 };
 
 } // namespace
@@ -555,6 +849,80 @@ v1::RunReply run_match_request(const v1::RunRequest &request) {
   if (status != 0) {
     add_diagnostic(reply, request.commands_size(),
                    "Clang failed to parse the source file");
+  }
+  return reply;
+}
+
+v1::InspectRecordReply inspect_record_request(const v1::InspectRecordRequest &request) {
+  v1::InspectRecordReply reply;
+  if (request.source_path().empty() || request.file().empty() ||
+      !request.has_position()) {
+    add_inspect_diagnostic(reply, "sourcePath, file, and position are required");
+    return reply;
+  }
+  std::error_code error;
+  const fs::path working_directory =
+      request.working_directory().empty()
+          ? fs::current_path(error)
+          : fs::path(request.working_directory());
+  if (error || !working_directory.is_absolute() ||
+      !fs::is_directory(working_directory, error)) {
+    add_inspect_diagnostic(reply,
+                           "workingDirectory must be an existing absolute directory");
+    return reply;
+  }
+  auto absolute_path = [&](const std::string &path) {
+    fs::path value(path);
+    return (value.is_absolute() ? value : working_directory / value).lexically_normal();
+  };
+  const fs::path source_path = absolute_path(request.source_path());
+  const fs::path file = absolute_path(request.file());
+  if (!fs::is_regular_file(source_path, error)) {
+    add_inspect_diagnostic(reply, "sourcePath is not a readable file: " +
+                                      source_path.string());
+    return reply;
+  }
+  if (!fs::is_regular_file(file, error)) {
+    add_inspect_diagnostic(reply, "file is not a readable file: " + file.string());
+    return reply;
+  }
+
+  RecordCollector collector(file, request.position(), working_directory,
+                            request.record_identity());
+  am::MatchFinder finder;
+  finder.addMatcher(am::recordDecl(am::isDefinition()).bind("record"), &collector);
+  std::vector<std::string> flags(request.flags().begin(), request.flags().end());
+  const bool has_resource_dir =
+      std::any_of(flags.begin(), flags.end(), [](const std::string &flag) {
+        return flag == "-resource-dir" || flag == "--resource-dir" ||
+               flag.rfind("-resource-dir=", 0) == 0 ||
+               flag.rfind("--resource-dir=", 0) == 0;
+      });
+  if (!has_resource_dir) {
+    flags.insert(flags.begin(),
+                 std::string("-resource-dir=") + ASTMATCHER_RESOURCE_DIR);
+  }
+  clang::tooling::FixedCompilationDatabase compilation_database(
+      working_directory.string(), flags);
+  clang::tooling::ClangTool tool(compilation_database, {source_path.string()});
+  tool.appendArgumentsAdjuster(
+      [](const clang::tooling::CommandLineArguments &arguments,
+         llvm::StringRef) {
+        auto adjusted = arguments;
+        if (!adjusted.empty()) adjusted[0] = ASTMATCHER_COMPILER_PATH;
+        return adjusted;
+      });
+  std::string stderr;
+  CompileDiagnostics diagnostic_consumer(stderr);
+  tool.setDiagnosticConsumer(&diagnostic_consumer);
+  tool.setPrintErrorMessage(false);
+  auto factory = clang::tooling::newFrontendActionFactory(&finder);
+  const int status = tool.run(factory.get());
+  reply = collector.finish();
+  reply.set_stderr(stderr);
+  if (status != 0) {
+    add_inspect_diagnostic(reply, "Clang failed to parse the translation unit");
+    reply.set_ok(false);
   }
   return reply;
 }

@@ -62,6 +62,10 @@ def group_bindings(queries: list[dict]) -> dict[str, list[dict]]:
                 if key not in nodes:
                     nodes[key] = {k: b[k] for k in ("node", "kind", "semanticKind", "summary", "text", "file",
                                                     "uri", "location", "range")}
+                    nodes[key].update({k: b[k] for k in
+                                       ("qualifiedName", "type", "signature", "recordKind",
+                                        "recordIdentity")
+                                       if k in b})
                     nodes[key]["translationUnit"] = tu
                     nodes[key]["matches"] = []
                 nodes[key]["matches"].append({"query": qi, "match": mi, "binding": bi,
@@ -195,11 +199,16 @@ def _native_binding(binding: dict, working_directory: str) -> dict:
         uri = Path(path).as_uri()
         location = (f"{Path(path).name}:{lsp_range['start']['line'] + 1}:"
                     f"{lsp_range['start']['character'] + 1}")
-    return {"id": binding.get("id", ""), "node": binding.get("node") or None,
+    mapped = {"id": binding.get("id", ""), "node": binding.get("node") or None,
             "kind": binding.get("kind", ""),
             "semanticKind": binding.get("semanticKind", ""),
             "summary": binding.get("summary", ""), "text": binding.get("text", ""),
             "file": path, "uri": uri, "location": location, "range": lsp_range}
+    for key in ("qualifiedName", "type", "signature", "recordKind",
+                "recordIdentity"):
+        if binding.get(key):
+            mapped[key] = binding[key]
+    return mapped
 
 
 def _native_diagnostic(diagnostic: dict, originals: list[Command],
@@ -296,6 +305,86 @@ def _valid_cached_queries(queries: object) -> bool:
                                 type(point.get("character")) is not int):
                             return False
     return True
+
+
+def inspect_record(translation_unit: str, file: str, source_range: dict,
+                   flags: list[str] | None = None, *, cwd: str | None = None,
+                   compile_commands: str | None = None,
+                   native_server: str | None = None, timeout: float = 120.0,
+                   client: NativeClient | None = None,
+                   record_identity: str | None = None) -> dict:
+    """Return a bounded graph for the innermost record at a source location."""
+    result: dict = {"ok": False, "recordId": None, "nodes": [], "edges": [],
+                    "truncated": False, "diagnostics": [], "stderr": ""}
+
+    def error(message: str) -> dict:
+        result["diagnostics"].append({"message": message})
+        return result
+
+    cwd = cwd or os.getcwd()
+    if not isinstance(translation_unit, str) or not translation_unit:
+        return error("translationUnit is required")
+    if not isinstance(file, str) or not file:
+        return error("file is required")
+    try:
+        start = source_range["start"]
+        line, character = start["line"], start["character"]
+        if (type(line) is not int or type(character) is not int or
+                line < 0 or character < 0):
+            raise ValueError
+    except (TypeError, KeyError, ValueError):
+        return error("range.start must be a nonnegative LSP position")
+    tu = str((Path(cwd) / translation_unit).resolve())
+    selected_file = str((Path(cwd) / file).resolve())
+    if not Path(tu).is_file():
+        return error(f"translation unit not found: {tu}")
+    if not Path(selected_file).is_file():
+        return error(f"record source file not found: {selected_file}")
+    try:
+        tu_flags, tu_cwd = compile_flags(compile_commands, tu, list(flags or []), cwd)
+        effective_cwd = tu_cwd or cwd
+        client = client or get_client(native_server)
+        request = {"sourcePath": tu, "workingDirectory": effective_cwd,
+                                "flags": tu_flags, "file": selected_file,
+                                "position": {"line": line, "character": character}}
+        if isinstance(record_identity, str) and record_identity:
+            request["recordIdentity"] = record_identity
+        reply = client.inspect(request, cwd=effective_cwd, timeout=timeout)
+    except (OSError, ValueError, json.JSONDecodeError, NativeClientError) as exc:
+        return error(str(exc))
+
+    def node_location(raw: dict) -> tuple[str | None, str | None, dict | None]:
+        source = raw.get("range") or {}
+        filename = source.get("file")
+        if not filename:
+            return None, None, None
+        path = str((Path(effective_cwd) / filename).resolve())
+        return path, Path(path).as_uri(), {
+            "start": {"line": int((source.get("start") or {}).get("line", 0)),
+                      "character": int((source.get("start") or {}).get("character", 0))},
+            "end": {"line": int((source.get("end") or {}).get("line", 0)),
+                    "character": int((source.get("end") or {}).get("character", 0))}}
+
+    for raw in reply.get("nodes", []):
+        path, uri, location = node_location(raw)
+        node = {key: raw.get(key, "") for key in
+                ("id", "kind", "name", "qualifiedName", "signature", "type",
+                 "recordKind", "recordIdentity", "definitionStatus")}
+        node.update({"file": path, "uri": uri, "range": location})
+        result["nodes"].append(node)
+    for raw in reply.get("edges", []):
+        edge = {key: raw.get(key, "") for key in ("from", "to", "kind")}
+        if raw.get("access"):
+            edge["access"] = raw["access"]
+        if raw.get("isVirtual"):
+            edge["virtual"] = True
+        result["edges"].append(edge)
+    result["recordId"] = reply.get("recordId") or None
+    result["truncated"] = bool(reply.get("truncated", False))
+    result["diagnostics"] = reply.get("diagnostics", [])
+    result["stderr"] = reply.get("stderr", "")
+    result["ok"] = bool(reply.get("ok", False)) and not result["diagnostics"]
+    return result
 
 
 def run_query(text: str, sample: str, flags: list[str] | None = None, *,
@@ -427,7 +516,7 @@ def run_query(text: str, sample: str, flags: list[str] | None = None, *,
             if deps is not None:
                 import hashlib
                 h = hashlib.sha256()
-                h.update(b"astmatcher-native-result-cache-v6\0")
+                h.update(b"astmatcher-native-result-cache-v8\0")
                 h.update(text.encode())
                 h.update(json.dumps([source, tu_flags, effective_cwd, traversal],
                                     sort_keys=True).encode())
@@ -454,7 +543,7 @@ def run_query(text: str, sample: str, flags: list[str] | None = None, *,
         if cache_file and cache_file.is_file():
             try:
                 cached = json.loads(cache_file.read_text(encoding="utf-8"))
-                if not isinstance(cached, dict) or cached.get("schema") != 6:
+                if not isinstance(cached, dict) or cached.get("schema") != 8:
                     raise ValueError("unsupported cache schema")
                 parsed, tu_stderr, exit_code = (
                     cached["queries"], cached["stderr"], cached["exitCode"])
@@ -521,7 +610,7 @@ def run_query(text: str, sample: str, flags: list[str] | None = None, *,
                     cache_dir.mkdir(parents=True, exist_ok=True)
                     with tempfile.NamedTemporaryFile("w", dir=cache_dir, suffix=".tmp",
                                                      delete=False, encoding="utf-8") as tmp:
-                        tmp.write(json.dumps({"schema": 6, "queries": parsed,
+                        tmp.write(json.dumps({"schema": 8, "queries": parsed,
                                               "stderr": tu_stderr, "exitCode": exit_code}))
                         tmp_name = tmp.name
                     os.replace(tmp_name, cache_file)

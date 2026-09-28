@@ -24,7 +24,7 @@ sys.path.insert(0, str(HERE.parent))
 from astmatcher_lsp.native_client import (NativeClient, NativeClientError,  # noqa: E402
                                           close_global, get_client, native_binary_path)
 from astmatcher_lsp.cli import main  # noqa: E402
-from astmatcher_lsp.run import run_query  # noqa: E402
+from astmatcher_lsp.run import inspect_record, run_query  # noqa: E402
 from astmatcher_lsp.server import Server  # noqa: E402
 from astmatcher_lsp.targets import translation_unit_dependencies  # noqa: E402
 
@@ -37,6 +37,8 @@ class FakeClient:
         self.reply = reply
         self.progress_event = progress_event
         self.requests: list[dict] = []
+        self.inspect_reply: dict = {}
+        self.inspect_requests: list[dict] = []
 
     def run(self, request: dict, *, cwd: str, timeout: float, on_start=None,
             on_progress=None):
@@ -44,6 +46,10 @@ class FakeClient:
         if self.progress_event and on_progress:
             on_progress(self.progress_event)
         return self.reply, [self.binary, "query", "--socket", "/tmp/fake/s"], 0, ""
+
+    def inspect(self, request: dict, *, cwd: str, timeout: float) -> dict:
+        self.inspect_requests.append(request)
+        return self.inspect_reply
 
 
 def reply_for(source: Path) -> dict:
@@ -60,6 +66,63 @@ def reply_for(source: Path) -> dict:
 
 
 class TestNativeBridge(unittest.TestCase):
+    def test_binding_details_reach_queries_and_grouped_nodes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary) / "sample.cpp"
+            source.write_text("struct Widget {};\n")
+            reply = reply_for(source)
+            binding = reply["queries"][0]["matches"][0]["bindings"][0]
+            binding.update({"qualifiedName": "Widget", "recordKind": "struct",
+                            "type": "Widget", "signature": "Widget::Widget()",
+                            "recordIdentity": "Widget"})
+            client = FakeClient(reply)
+            result = run_query("match varDecl()\nmatch varDecl()", str(source),
+                               client=client)
+            self.assertTrue(result["ok"], result)
+            self.assertEqual(result["queries"][0]["matches"][0]["bindings"][0]
+                             ["qualifiedName"], "Widget")
+            self.assertEqual(result["bindings"]["v"][0]["recordKind"], "struct")
+            self.assertEqual(result["bindings"]["v"][0]["signature"], "Widget::Widget()")
+            self.assertEqual(result["bindings"]["v"][0]["recordIdentity"], "Widget")
+
+    def test_inspect_record_uses_tu_and_source_position_and_maps_graph(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary) / "sample.cpp"
+            source.write_text("struct Base {};\nstruct Child : Base {};\n")
+            client = FakeClient({})
+            client.inspect_reply = {
+                "ok": True, "recordId": "n1", "truncated": False,
+                "nodes": [{"id": "n1", "kind": "CXXRecordDecl", "name": "Child",
+                           "qualifiedName": "Child", "recordKind": "struct",
+                           "recordIdentity": "Child", "definitionStatus": "defined",
+                           "range": {"file": str(source),
+                                     "start": {"line": 1, "character": 0},
+                                     "end": {"line": 1, "character": 23}}},
+                          {"id": "n2", "kind": "CXXRecordDecl", "name": "Base",
+                           "definitionStatus": "unresolved"}],
+                "edges": [{"from": "n1", "to": "n2", "kind": "inherits",
+                           "access": "public", "isVirtual": True}],
+                "diagnostics": [], "stderr": ""}
+            result = inspect_record(str(source), str(source),
+                                    {"start": {"line": 1, "character": 10},
+                                     "end": {"line": 1, "character": 10}},
+                                    flags=["-std=c++23"], cwd=temporary, client=client,
+                                    record_identity="Child")
+            self.assertTrue(result["ok"], result)
+            self.assertEqual(client.inspect_requests[0]["sourcePath"], str(source.resolve()))
+            self.assertEqual(client.inspect_requests[0]["file"], str(source.resolve()))
+            self.assertEqual(client.inspect_requests[0]["position"],
+                             {"line": 1, "character": 10})
+            self.assertEqual(client.inspect_requests[0]["recordIdentity"], "Child")
+            self.assertEqual(result["nodes"][0]["range"]["start"]["line"], 1)
+            self.assertEqual(result["nodes"][0]["uri"], source.resolve().as_uri())
+            self.assertEqual(result["nodes"][1]["definitionStatus"], "unresolved")
+            self.assertEqual(result["edges"][0]["virtual"], True)
+            self.assertFalse(inspect_record(str(source), str(source),
+                                           {"start": {"line": -1, "character": 0}},
+                                           cwd=temporary, client=client)["ok"])
+            self.assertEqual(len(client.inspect_requests), 1)
+
     def test_progress_includes_current_file_and_elapsed_time(self):
         with tempfile.TemporaryDirectory() as temporary:
             source = Path(temporary) / "sample.cpp"

@@ -58,6 +58,7 @@ th { cursor: pointer; user-select: none; }
 th.tree, td.tree { width: 12%; }
 th.kind, td.kind { width: 18%; }
 th.summary, td.summary { width: 22%; }
+th.detail, td.detail { width: 42%; }
 th.src, td.src { width: 22%; }
 th.loc, td.loc { width: 8%; }
 th:hover { color: var(--vscode-textLink-foreground); }
@@ -119,6 +120,15 @@ th {
 td { padding: 2px 8px; vertical-align: top; white-space: nowrap; }
 td.src { max-width: 22ch; overflow: hidden; text-overflow: ellipsis; font-family: var(--vscode-editor-font-family); }
 td.summary { max-width: 24ch; overflow: hidden; text-overflow: ellipsis; }
+td.detail { max-width: 50ch; white-space: normal; }
+.entity-detail { font-family: var(--vscode-editor-font-family); overflow-wrap: anywhere; }
+.explore-record { margin-left: 8px; padding: 1px 6px; white-space: nowrap; }
+.source-details { display: inline-block; margin-left: 8px; vertical-align: top; }
+.source-details summary { color: var(--vscode-textLink-foreground); cursor: pointer; }
+.source-details pre { max-width: min(70vw, 760px); max-height: 12em; overflow: auto; white-space: pre-wrap;
+  padding: 8px; margin: 4px 0; color: var(--vscode-editor-foreground); background: var(--vscode-editor-background);
+  border: 1px solid var(--vscode-panel-border); font: var(--vscode-editor-font-size) var(--vscode-editor-font-family); }
+tr.binding td.detail:has(.source-details[open]) { overflow: visible; }
 td.num, th.num { text-align: right; width: 3em; color: var(--vscode-descriptionForeground); }
 tr.binding { cursor: pointer; }
 tr.binding td { overflow: hidden; text-overflow: ellipsis; }

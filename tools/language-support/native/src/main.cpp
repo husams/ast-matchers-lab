@@ -65,6 +65,15 @@ public:
     return grpc::Status::OK;
   }
 
+  grpc::Status InspectRecord(
+      grpc::ServerContext *,
+      const astmatcher::native::v1::InspectRecordRequest *request,
+      astmatcher::native::v1::InspectRecordReply *reply) override {
+    const std::lock_guard<std::mutex> guard(mutex_);
+    *reply = astmatcher::native::inspect_record_request(*request);
+    return grpc::Status::OK;
+  }
+
   grpc::Status RunWithProgress(
       grpc::ServerContext *context,
       const astmatcher::native::v1::RunRequest *request,
@@ -303,6 +312,44 @@ int query(const std::string &socket_path, uint32_t timeout_ms, bool progress_ena
   return 0;
 }
 
+int inspect(const std::string &socket_path, uint32_t timeout_ms) {
+  const std::string input(std::istreambuf_iterator<char>(std::cin), {});
+  astmatcher::native::v1::InspectRecordRequest request;
+  const auto parse_status =
+      google::protobuf::util::JsonStringToMessage(input, &request);
+  if (!parse_status.ok()) {
+    std::cerr << "Invalid InspectRecordRequest JSON: " << parse_status.message() << '\n';
+    return 2;
+  }
+  grpc::ChannelArguments arguments;
+  arguments.SetMaxReceiveMessageSize(kMaximumMessageBytes);
+  auto channel = grpc::CreateCustomChannel(
+      grpc_address(socket_path), grpc::InsecureChannelCredentials(), arguments);
+  auto stub = astmatcher::native::v1::MatcherService::NewStub(channel);
+  grpc::ClientContext context;
+  context.set_deadline(std::chrono::system_clock::now() +
+                       std::chrono::milliseconds(timeout_ms));
+  astmatcher::native::v1::InspectRecordReply reply;
+  const auto rpc_status = stub->InspectRecord(&context, request, &reply);
+  if (!rpc_status.ok()) {
+    std::cerr << "Matcher server record inspection failed: "
+              << rpc_status.error_message() << '\n';
+    return rpc_status.error_code() == grpc::StatusCode::DEADLINE_EXCEEDED ? 124 : 1;
+  }
+  google::protobuf::util::JsonPrintOptions options;
+  include_default_json_fields(options);
+  std::string output;
+  const auto json_status =
+      google::protobuf::util::MessageToJsonString(reply, &output, options);
+  if (!json_status.ok()) {
+    std::cerr << "Cannot serialize InspectRecordReply JSON: "
+              << json_status.message() << '\n';
+    return 1;
+  }
+  std::cout << output << '\n';
+  return 0;
+}
+
 int ping(const std::string &socket_path) {
   auto channel = grpc::CreateChannel(grpc_address(socket_path),
                                      grpc::InsecureChannelCredentials());
@@ -349,6 +396,8 @@ int main(int argc, char **argv) {
                  "       astmatcher-native ping --socket /absolute/path.sock\n"
                  "       astmatcher-native query --socket /absolute/path.sock "
                  "[--timeout-ms 1..3600000] [--progress]\n"
+                 "       astmatcher-native inspect --socket /absolute/path.sock "
+                 "[--timeout-ms 1..3600000]\n"
                  "       astmatcher-native capabilities < matcher-names.txt\n";
     return 2;
   };
@@ -359,7 +408,7 @@ int main(int argc, char **argv) {
     return usage();
   }
   const std::string command = argv[1];
-  if (command != "serve" && command != "query" && command != "ping") {
+  if (command != "serve" && command != "query" && command != "inspect" && command != "ping") {
     return usage();
   }
   uint32_t timeout_ms = kDefaultQueryTimeoutMs;
@@ -373,7 +422,7 @@ int main(int argc, char **argv) {
     }
     if (index + 1 >= argc) return usage();
     const std::string_view input(argv[++index]);
-    if (command == "query" && option == "--timeout-ms") {
+    if ((command == "query" || command == "inspect") && option == "--timeout-ms") {
       const auto [end, error] =
           std::from_chars(input.data(), input.data() + input.size(), timeout_ms);
       if (error != std::errc{} || end != input.data() + input.size() ||
@@ -403,6 +452,8 @@ int main(int argc, char **argv) {
   if (command == "serve") {
     return serve(socket_path, parent_pid);
   }
-  return command == "query" ? query(socket_path, timeout_ms, progress_enabled)
-                            : ping(socket_path);
+  if (command == "query") {
+    return query(socket_path, timeout_ms, progress_enabled);
+  }
+  return command == "inspect" ? inspect(socket_path, timeout_ms) : ping(socket_path);
 }
