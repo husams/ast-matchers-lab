@@ -52,6 +52,8 @@ const vscode = {
   commands: { executeCommand() {} },
   window: {
     visibleTextEditors: [],
+    information: [],
+    showInformationMessage(message) { this.information.push(message); },
     onDidChangeVisibleTextEditors: () => ({ dispose() {} }),
     createTextEditorDecorationType: () => ({ id: ++decorationId }),
     setStatusBarMessage(message) { this.statusMessage = message; },
@@ -82,7 +84,7 @@ Module._load = function (request, parent, isMain) {
   if (request === "vscode") return vscode;
   return originalLoad.call(this, request, parent, isMain);
 };
-const { ResultStore, BindingsTree, Highlighter, reveal, formatLocation } = require("../results");
+const { ResultStore, BindingsTree, Highlighter, MatchesView, reveal, formatLocation } = require("../results");
 Module._load = originalLoad;
 
 const file = "/workspace/pair.cpp";
@@ -107,6 +109,7 @@ function createStore() {
   ];
   return {
     selected: undefined,
+    generation: 1,
     showRoot: false,
     onDidChange: () => ({ dispose() {} }),
     groups: () => groups,
@@ -125,10 +128,10 @@ test("a result row selects and decorates only that exact bound node", async () =
   editors.clear();
   vscode.window.visibleTextEditors = [];
   const store = createStore();
-  await reveal(store, { q: 0, m: 0, b: 1 });
+  await reveal(store, { q: 0, m: 0, b: 1, generation: 1 });
   const editor = editors.get(file);
   assert.deepEqual(spans(editor), [[15, 13, 15, 22]]);
-  assert.deepEqual(store.selected, { q: 0, m: 0, b: 1 });
+  assert.deepEqual(store.selected, { q: 0, m: 0, b: 1, generation: 1 });
 
   const highlighter = new Highlighter(store);
   highlighter.paint(editor);
@@ -141,10 +144,10 @@ test("a binding group selects every distinct range and a later row resets it", a
   editors.clear();
   vscode.window.visibleTextEditors = [];
   const store = createStore();
-  await reveal(store, { id: "v" });
+  await reveal(store, { id: "v", generation: 1 });
   const editor = editors.get(file);
   assert.deepEqual(spans(editor), [[15, 13, 15, 22], [15, 24, 15, 34]]);
-  assert.deepEqual(store.selected, { id: "v" });
+  assert.deepEqual(store.selected, { id: "v", generation: 1 });
 
   const highlighter = new Highlighter(store);
   highlighter.paint(editor);
@@ -152,21 +155,103 @@ test("a binding group selects every distinct range and a later row resets it", a
   assert.deepEqual(groupPaint.map((d) => [d.range.start.character, d.range.end.character]),
                    [[13, 22], [24, 34]]);
 
-  await reveal(store, { q: 0, m: 0, b: 1 });
+  await reveal(store, { q: 0, m: 0, b: 1, generation: 1 });
   assert.deepEqual(spans(editor), [[15, 13, 15, 22]]);
   highlighter.paint(editor);
   assert.deepEqual([...editor.decorations.values()][0]
     .map((d) => [d.range.start.character, d.range.end.character]), [[13, 22]]);
 });
 
+test("stale source selectors cannot reveal a binding reused by a newer result", async () => {
+  editors.clear();
+  vscode.window.visibleTextEditors = [];
+  vscode.window.information = [];
+  const store = createStore();
+  store.generation = 2;
+  await reveal(store, { q: 0, m: 0, b: 1, generation: 1 });
+  assert.equal(editors.size, 0);
+  assert.equal(store.selected, undefined);
+  assert.match(vscode.window.information.at(-1), /stale/);
+  await reveal(store, { id: "v", generation: 1 });
+  assert.equal(editors.size, 0, "an old binding group must not navigate to newer results");
+  await reveal(store, { id: "v", generation: 2 });
+  assert.equal(editors.size, 1, "current group reveal still selects its source");
+});
+
+test("stale Explorer parents cannot mint fresh-generation descendants", () => {
+  const store = createStore();
+  store.result = { sample: file, queries: [], errors: [] };
+  const tree = new BindingsTree(store);
+  const oldFile = tree.getChildren()[0];
+  assert.equal(oldFile.generation, 1);
+  store.generation = 2;
+  assert.deepEqual(tree.getChildren(oldFile), []);
+  const freshFile = tree.getChildren()[0];
+  const oldGroup = tree.getChildren(freshFile)[0];
+  assert.equal(oldGroup.generation, 2);
+  store.generation = 3;
+  assert.deepEqual(tree.getChildren(oldGroup), []);
+  const currentFile = tree.getChildren()[0];
+  const currentGroup = tree.getChildren(currentFile)[0];
+  assert.equal(tree.getChildren(currentGroup)[0].generation, 3);
+});
+
 test("Explorer group and node items dispatch group and single-node selectors", () => {
   const tree = new BindingsTree(createStore());
-  const group = tree.getTreeItem({ type: "bind", group: { id: "v", nodes: [{ b: first }] } });
-  assert.deepEqual(group.command.arguments, [{ id: "v" }]);
+  const group = tree.getTreeItem({ type: "bind", group: { id: "v", nodes: [{ b: first }] }, generation: 1 });
+  assert.deepEqual(group.command.arguments, [{ id: "v", generation: 1 }]);
   const row = tree.getTreeItem({ type: "node", node: {
     b: first, matches: ["1"], sels: [{ q: 0, m: 0, b: 1 }],
+  }, generation: 1 });
+  assert.deepEqual(row.command.arguments, [{ q: 0, m: 0, b: 1, generation: 1 }]);
+});
+
+test("record binding rows offer a separate Explore Record action", () => {
+  const tree = new BindingsTree(createStore());
+  const item = tree.getTreeItem({ type: "node", node: {
+    b: { ...pair, recordKind: "struct", qualifiedName: "Pair" },
+    matches: ["1"], sels: [{ q: 0, m: 0, b: 0 }],
   } });
-  assert.deepEqual(row.command.arguments, [{ q: 0, m: 0, b: 1 }]);
+  assert.equal(item.contextValue, "astmatcherRecordBinding");
+  assert.match(item.label, /struct Pair/);
+  assert.equal(item.command.command, "astmatcher.revealBinding");
+});
+
+test("result generation advances when selectors can be rebound", () => {
+  const store = new ResultStore();
+  assert.equal(store.generation, 0);
+  store.setRunning({ sample: "workspace" });
+  assert.equal(store.generation, 1);
+  store.startStreaming({ sample: file, totalFiles: 1 });
+  assert.equal(store.generation, 2);
+  store.appendStreamingFile({ file, queries: [], bindings: {}, errors: [] });
+  assert.equal(store.generation, 2, "appending to one run keeps existing coordinates stable");
+  store.set({ queries: [], bindings: {} });
+  assert.equal(store.generation, 3);
+});
+
+test("matches webview carries result generation with Explore Record and source reveal actions", () => {
+  const store = createStore();
+  store.generation = 7;
+  const actions = [];
+  const reveals = [];
+  const posted = [];
+  let onMessage;
+  const matches = new MatchesView({}, store, {
+    exploreRecord: (input) => actions.push(input), reveal: (input) => reveals.push(input),
+  });
+  matches.html = () => "";
+  matches.resolveWebviewView({
+    webview: { onDidReceiveMessage: (callback) => { onMessage = callback; },
+      postMessage: (message) => posted.push(message) },
+    onDidChangeVisibility() {},
+  });
+  matches.post("result");
+  assert.equal(posted.at(-1).generation, 7);
+  onMessage({ type: "explore-record", generation: 6, sel: { q: 0, m: 0, b: 1 } });
+  assert.deepEqual(actions, [{ generation: 6, sel: { q: 0, m: 0, b: 1 } }]);
+  onMessage({ type: "reveal", generation: 6, sel: { q: 0, m: 0, b: 1 } });
+  assert.deepEqual(reveals, [{ generation: 6, q: 0, m: 0, b: 1 }]);
 });
 
 test("Explorer groups bindings under themed source-file parents with scoped selection", () => {
@@ -185,10 +270,10 @@ test("Explorer groups bindings under themed source-file parents with scoped sele
 
   const bind = tree.getChildren(files[0]).find((entry) => entry.group.id === "v");
   const bindItem = tree.getTreeItem(bind);
-  assert.deepEqual(bindItem.command.arguments, [{ id: "v", file }]);
+  assert.deepEqual(bindItem.command.arguments, [{ id: "v", file, generation: 1 }]);
   const child = tree.getChildren(bind)[0];
   const nodeItem = tree.getTreeItem(child);
-  assert.deepEqual(nodeItem.command.arguments, [{ q: 0, m: 0, b: 1, file }]);
+  assert.deepEqual(nodeItem.command.arguments, [{ q: 0, m: 0, b: 1, file, generation: 1 }]);
   assert.match(nodeItem.description, /16:14$/);
   assert.equal(formatLocation({ range: loc(12, 18) }), "16:13");
   assert.equal(formatLocation({}), "");

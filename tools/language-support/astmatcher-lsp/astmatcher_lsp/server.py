@@ -4,8 +4,8 @@ Implements the requests an editor needs for this language and nothing else:
 completion (+resolve), hover, signature help, diagnostics on change, document
 symbols, go-to-definition for `let` names, and semantic tokens.
 
-One custom request, `astmatcher/runQuery`, runs the document through the
-native matcher server and answers with the JSON described in run.py. For
+`astmatcher/runQuery` runs the document through the native matcher server,
+and `astmatcher/inspectRecord` returns a source-located record graph. For
 requests with a runId it streams source-file starts, native elapsed-time
 heartbeats, per-file results, and the final response on the same connection.
 It runs on a worker thread so completion keeps working during the scan.
@@ -32,7 +32,7 @@ from .features import (SEMANTIC_TOKEN_MODIFIERS, SEMANTIC_TOKEN_TYPES, completio
 from .lexer import LineIndex
 from .native_client import close_global
 from .parser import Document, parse
-from .run import run_query
+from .run import inspect_record, run_query
 
 log = logging.getLogger("astmatcher-lsp")
 
@@ -341,6 +341,30 @@ class Server:
 
         self._worker = threading.Thread(target=work, daemon=True)
         self._worker.start()
+        return DEFERRED
+
+    def on_astmatcher_inspectRecord(self, params: dict):
+        """Inspect the innermost record at a location in one translation unit."""
+        request_id = self._request_id
+
+        def work() -> None:
+            with self._run_lock:
+                try:
+                    result = inspect_record(
+                        params.get("translationUnit"), params.get("file"),
+                        params.get("range"), params.get("flags") or [],
+                        cwd=params.get("cwd") or None,
+                        compile_commands=params.get("compileCommands") or None,
+                        native_server=params.get("nativeServerPath") or None,
+                        timeout=float(params.get("timeout") or 120),
+                        record_identity=params.get("recordIdentity"))
+                    self._respond(request_id, result)
+                except Exception:
+                    log.error("inspectRecord failed\n%s", traceback.format_exc())
+                    self._respond(request_id, error={"code": -32603,
+                                                     "message": "Record inspection failed"})
+
+        threading.Thread(target=work, daemon=True).start()
         return DEFERRED
 
     def _started(self, proc: subprocess.Popen) -> None:

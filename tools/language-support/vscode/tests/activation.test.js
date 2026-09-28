@@ -10,11 +10,14 @@ test("activation starts the language client for saved and untitled matcher docum
   let started = false;
   const registered = new Map();
   const stored = {};
+  const information = [];
+  const explorerOpens = [];
 
   class LanguageClient {
     constructor(_id, _name, _serverOptions, options) { clientOptions = options; }
     async start() { started = true; }
     async stop() {}
+    isRunning() { return true; }
     onNotification() { return disposable; }
   }
 
@@ -48,6 +51,7 @@ test("activation starts the language client for saved and untitled matcher docum
     },
     window: {
       activeTextEditor: undefined,
+      showInformationMessage: (message) => { information.push(message); },
       createStatusBarItem: () => ({ hide() {}, show() {} }),
       createOutputChannel: () => ({ clear() {}, append() {}, appendLine() {}, show() {}, dispose() {} }),
       registerWebviewViewProvider: () => disposable,
@@ -69,7 +73,7 @@ test("activation starts the language client for saved and untitled matcher docum
       constructor() { this.onDidChange = () => disposable; }
       defaultFlags() { return ["-DVALUE=a b", "-Iinclude path"]; }
     },
-    SOURCE_EXTS: new Set(),
+    SOURCE_EXTS: new Set([".cpp"]),
   };
   const results = Object.fromEntries(
     ["ResultStore", "Highlighter", "BindingsTree", "MatchesView"].map((name) => [
@@ -77,6 +81,11 @@ test("activation starts the language client for saved and untitled matcher docum
     ]),
   );
   results.reveal = () => {};
+  results.ResultStore = class {
+    constructor() { this.generation = 2; this.result = { cwd: "/workspace", flags: ["-std=c++23"] }; }
+    binding(sel) { return sel.q === 0 ? { kind: "CXXRecordDecl", file: "/workspace/source.cpp",
+      range: { start: { line: 1, character: 0 }, end: { line: 4, character: 1 } } } : undefined; }
+  };
 
   const originalLoad = Module._load;
   Module._load = function (request, parent, isMain) {
@@ -86,6 +95,9 @@ test("activation starts the language client for saved and untitled matcher docum
     }
     if (request === "./sample") return sample;
     if (request === "./results") return results;
+    if (request === "./record-explorer") return { RecordExplorer: class {
+      async open(target) { explorerOpens.push(target); }
+    } };
     return originalLoad.call(this, request, parent, isMain);
   };
 
@@ -107,8 +119,20 @@ test("activation starts the language client for saved and untitled matcher docum
     for (const command of [
       "astmatcher.runFile", "astmatcher.runDirectory", "astmatcher.runWorkspace",
       "astmatcher.selectTarget", "astmatcher.getRunSettings", "astmatcher.saveRunSettings",
-      "astmatcher.openSettings", "astmatcher.createAndRunQuery",
+      "astmatcher.openSettings", "astmatcher.createAndRunQuery", "astmatcher.exploreRecord",
     ]) assert.equal(registered.has(command), true, `missing command ${command}`);
+    vscode.window.activeTextEditor = { document: { uri: { fsPath: "/workspace/source.cpp" },
+      languageId: "cpp" }, selection: {
+      start: { line: 2, character: 1 }, end: { line: 2, character: 1 },
+    } };
+    await registered.get("astmatcher.exploreRecord")({ q: 99, m: 0, b: 0 });
+    assert.equal(explorerOpens.length, 0, "an expired result must not inspect the active editor cursor");
+    assert.match(information.at(-1), /stale/);
+    await registered.get("astmatcher.exploreRecord")({ sel: { q: 0, m: 0, b: 0 }, generation: 1 });
+    assert.equal(explorerOpens.length, 0, "reused selector coordinates from an older run must be rejected");
+    assert.match(information.at(-1), /stale/);
+    await registered.get("astmatcher.exploreRecord")({ sel: { q: 0, m: 0, b: 0 }, generation: 2 });
+    assert.equal(explorerOpens.length, 1, "current generation may inspect the selected binding");
     const settings = await registered.get("astmatcher.getRunSettings")();
     assert.deepEqual(Object.keys(settings).sort(), [
       "cacheEnabled", "cacheLocation", "compileCommands", "exclusions", "flags",
@@ -160,4 +184,12 @@ test("activation starts the language client for saved and untitled matcher docum
     Module._load = originalLoad;
     delete require.cache[require.resolve("../extension")];
   }
+});
+
+test("Explorer file menu does not expose cursor-only Explore Record", () => {
+  const contribution = require("../package.json").contributes;
+  assert.equal(contribution.menus["astmatcher.source"].some((entry) =>
+    entry.command === "astmatcher.exploreRecord"), false);
+  assert.equal(contribution.menus["editor/context"].some((entry) =>
+    entry.command === "astmatcher.exploreRecord"), true);
 });

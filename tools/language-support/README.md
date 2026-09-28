@@ -37,7 +37,7 @@ cmake --build tools/language-support/native/build --parallel
 
 # 4. VS Code
 cd tools/language-support/vscode && npm install && npx @vscode/vsce package
-code --install-extension astmatcher-dsl-1.8.1.vsix
+code --install-extension astmatcher-dsl-1.9.0.vsix
 ```
 
 `astmatcher-lsp --run` and VS Code **Run Query** send each translation unit to
@@ -113,6 +113,26 @@ Code host without Node.js.
   the reference but **not registered in clang-query 22** (the 14 names listed
   in `CLAUDE.md`), and an argument that *builds* but can never match because
   the node kinds are siblings (`functionDecl(varDecl())`).
+
+## Query results and record explorer
+
+**Run Query** shows bound nodes in **AST Matches** and **AST Match Bindings**.
+The default results table emphasizes each entity: a qualified callable signature,
+a record name and kind, or a declaration name and type when available. Binding,
+AST kind, and location remain visible. Expand **Source** in an entity cell when
+you need the matched text; selecting a result still highlights its source.
+
+Choose **Explore Record** on a record result, in the bindings tree, or at a
+class/struct/union in a C/C++ editor. A full editor tab shows a class diagram:
+records are cards, fields and methods appear inside their record, and lines
+connect inheritance and record-typed fields. Select a class or relationship for
+details and source evidence, then reveal a related class to inspect more of its
+neighborhood. Filter bases, known derived classes, field types, and known
+incoming field links from the selected class. Use **Open source**, zoom, pan,
+and Fit to navigate. The explorer inspects the selected translation unit with
+its compile options; it does not build a workspace-wide derived-class index or
+infer field ownership from a type alone. Unavailable definitions and bounded
+graphs are identified in the view.
 
 ## Layout
 

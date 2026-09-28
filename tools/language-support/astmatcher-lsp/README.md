@@ -34,6 +34,7 @@ in [`../README.md`](../README.md).
 | `textDocument/definition` | jumps to a `let` definition |
 | `textDocument/semanticTokens/full` | custom `nodeMatcher` / `narrowingMatcher` / `traversalMatcher` / `literal` types, `let` names, bound ids |
 | `astmatcher/runQuery` (custom) | runs the document through the native matcher server, answers with the matches as JSON (below) |
+| `astmatcher/inspectRecord` (custom) | finds the innermost explicit record at a source position and returns its relationship graph |
 
 ### `astmatcher/runQuery`
 
@@ -57,6 +58,11 @@ from caching when dependency discovery fails. The answer includes `files`,
 normalized `target`, cache hit/miss metadata, and `translationUnit` for each
 result. `semanticKind` identifies declaration meaning (for example `struct`,
 `union`, `function`, or `method`) and is empty for non-declarations.
+Bindings also carry optional `qualifiedName`, `type`, `signature`,
+`recordKind`, and `recordIdentity` fields where Clang provides them.
+`signature` is a display-ready qualified callable declaration such as
+`int Widget::size() const`; `recordIdentity` includes template arguments,
+so `Box<int>` and `Box<long>` remain distinct even when they share a source range.
 
 When `runId` is supplied, the server also sends `astmatcher/queryProgress`
 notifications on the same LSP connection: `kind: "start"` gives `totalFiles`;
@@ -104,6 +110,48 @@ over the Unix socket to the gRPC server. `run.py` converts that reply into the
 editor schema above, including file URIs and query source ranges; it does not
 parse human-readable `clang-query` output. Missing native dependencies fail
 the run with an error rather than silently running `clang-query`.
+
+### `astmatcher/inspectRecord`
+
+Params: `{translationUnit, file, range, recordIdentity?, flags?, compileCommands?, nativeServerPath?, cwd?, timeout?}`.
+`translationUnit` is the source file Clang should parse; `file` and
+`range.start` locate a record in that translation unit. Paths are absolute,
+and the range uses zero-based UTF-16 LSP positions. The locator can be the
+start of a `runQuery` record binding or a cursor anywhere inside a record
+definition. The innermost explicit definition wins when records are nested.
+For a result binding, send its `recordIdentity` to select a specific template
+specialization at a shared source position. A cursor request without an
+identity selects the primary or partial template definition at that position.
+The opaque `runQuery` node ID is never used for this lookup.
+
+```jsonc
+{
+  "ok": true, "recordId": "n1", "truncated": false,
+  "nodes": [
+    {"id": "n1", "kind": "CXXRecordDecl", "name": "Widget",
+     "qualifiedName": "app::Widget", "recordIdentity": "app::Widget",
+     "recordKind": "class", "definitionStatus": "defined",
+     "file": "/abs/widget.cpp", "uri": "file:///abs/widget.cpp",
+     "range": {"start": {"line": 3, "character": 0}, "end": {…}}},
+    {"id": "n2", "kind": "CXXRecordDecl", "name": "Base",
+     "definitionStatus": "defined", …}
+  ],
+  "edges": [{"from": "n1", "to": "n2", "kind": "inherits",
+             "access": "public", "virtual": false}],
+  "diagnostics": [], "stderr": ""
+}
+```
+
+Graph IDs are local to one reply. `inherits` points from derived to base;
+`field` and `method` point from a record to its members; `fieldType` points
+from a field to its record type. Inheritance and member edges include declared
+`access` when Clang supplies it. Nodes include optional `type`, `signature`,
+`recordIdentity`, and source location fields. Record nodes report
+`definitionStatus: "defined"|"unresolved"`; unresolved nodes can represent
+forward-declared field types. The graph includes transitive bases and members
+of those bases. It stops at 256 nodes, 512 edges, or 32 inheritance levels
+and sets `truncated` when a limit is reached. A missing or ambiguous record
+returns `ok: false` with a diagnostic.
 
 ## Wiring it up by hand
 

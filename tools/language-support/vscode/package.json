@@ -2,7 +2,7 @@
   "name": "astmatcher-dsl",
   "displayName": "AST Matcher DSL (clang-query)",
   "description": "Syntax highlighting, completion, hover and diagnostics for Clang AST matcher scripts (.query).",
-  "version": "1.8.3",
+  "version": "1.9.1",
   "publisher": "ast-matchers-lab",
   "license": "MIT",
   "private": true,
@@ -129,6 +129,12 @@
         "category": "AST Matcher"
       },
       {
+        "command": "astmatcher.exploreRecord",
+        "title": "Explore Record",
+        "category": "AST Matcher",
+        "icon": "$(type-hierarchy)"
+      },
+      {
         "command": "astmatcher.restartServer",
         "title": "Restart Language Server",
         "category": "AST Matcher"
@@ -203,6 +209,13 @@
           "group": "navigation@4"
         }
       ],
+      "view/item/context": [
+        {
+          "command": "astmatcher.exploreRecord",
+          "when": "view == astmatcher.bindings && viewItem == astmatcherRecordBinding",
+          "group": "inline@1"
+        }
+      ],
     "explorer/context": [
       {
         "submenu": "astmatcher.source",
@@ -215,6 +228,11 @@
           "submenu": "astmatcher.source",
           "when": "resourceLangId =~ /^(c|cpp|objective-c|objective-cpp|cuda-cpp)$/",
           "group": "navigation@9"
+        },
+        {
+          "command": "astmatcher.exploreRecord",
+          "when": "resourceLangId =~ /^(c|cpp|objective-c|objective-cpp|cuda-cpp)$/",
+          "group": "navigation@10"
         }
       ],
       "commandPalette": [
@@ -240,6 +258,10 @@
         },
         {
           "command": "astmatcher.runQueryOnFile",
+          "when": "editorLangId =~ /^(c|cpp|objective-c|objective-cpp|cuda-cpp)$/"
+        },
+        {
+          "command": "astmatcher.exploreRecord",
           "when": "editorLangId =~ /^(c|cpp|objective-c|objective-cpp|cuda-cpp)$/"
         },
         {
@@ -344,8 +366,8 @@
         },
         "astmatcher.visibleColumns": {
           "type": "array",
-          "items": { "type": "string", "enum": ["match", "kind", "semanticKind", "summary", "text", "location"] },
-          "default": ["match", "kind", "semanticKind", "summary", "text", "location"],
+          "items": { "type": "string", "enum": ["match", "kind", "semanticKind", "detail", "summary", "text", "location"] },
+          "default": ["match", "kind", "semanticKind", "detail", "location"],
           "description": "Columns shown in AST Matches."
         },
         "astmatcher.cacheEnabled": {

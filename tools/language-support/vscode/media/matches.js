@@ -9,6 +9,10 @@
       html: (n) => esc(n.b.kind) },
     { key: "semanticKind", title: "Declaration kind", cls: "kind",
       value: (n) => n.b.semanticKind || "", html: (n) => esc(n.b.semanticKind || "—") },
+    { key: "detail", title: "Entity", cls: "detail", value: (n) => n.detail || n.b.summary || "",
+      html: (n) => `<span class="entity-detail">${esc(n.detail || n.b.summary || "—")}</span>` +
+        (n.record ? '<button type="button" class="explore-record" title="Explore this record and its relationships">Explore Record</button>' : "") +
+        (n.b.text ? `<details class="source-details"><summary>Source</summary><pre><code>${esc(n.b.text)}</code></pre></details>` : "") },
     { key: "summary", title: "Summary", cls: "summary", value: (n) => n.b.summary,
       html: (n) => esc(n.b.summary) },
     { key: "text", title: "Source", cls: "src", value: (n) => n.b.text,
@@ -17,6 +21,7 @@
       value: (n) => n.b.range ? n.b.range.start.line * 1e6 + n.b.range.start.character : Number.MAX_SAFE_INTEGER,
       html: (n) => n.b.range ? `${n.b.range.start.line + 1}:${n.b.range.start.character + 1}` : '<span class="muted">—</span>' },
   ];
+  const DEFAULT_COLUMNS = ["match", "kind", "semanticKind", "detail", "location"];
   const esc = (s) => String(s == null ? "" : s).replace(/&/g, "&amp;")
     .replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   const key = (sel) => sel ? `${sel.q}:${sel.m}:${sel.b}` : "";
@@ -29,7 +34,7 @@
   const collapsedBindings = new Set();
 
   function columns() {
-    const visible = Array.isArray(settings.visibleColumns) ? settings.visibleColumns : COLUMNS.map((c) => c.key);
+    const visible = Array.isArray(settings.visibleColumns) ? settings.visibleColumns : DEFAULT_COLUMNS;
     const selected = COLUMNS.filter((c) => visible.includes(c.key));
     return selected.length ? selected : [COLUMNS[0]];
   }
@@ -102,7 +107,7 @@
   function visibleNodes(group) {
     const needle = filter.toLowerCase();
     let nodes = group.nodes.filter((n) => !needle ||
-      `${group.id} ${n.b.kind} ${n.b.semanticKind} ${n.b.summary} ${n.b.text} ${n.b.location} ${n.b.file}`
+      `${group.id} ${n.b.kind} ${n.b.semanticKind} ${n.detail} ${n.b.summary} ${n.b.text} ${n.b.location} ${n.b.file}`
         .toLowerCase().includes(needle));
     const activeColumns = columns();
     if (sort.key) {
@@ -182,10 +187,11 @@
   function activate(tr) {
     if (tr) vscode.postMessage({ type: "reveal", sel: {
       q: +tr.dataset.q, m: +tr.dataset.m, b: +tr.dataset.b,
-    } });
+    }, generation: state.generation });
   }
   function activateGroup(tr) {
-    if (tr) vscode.postMessage({ type: "reveal", sel: { id: tr.dataset.group, file: tr.dataset.file } });
+    if (tr) vscode.postMessage({ type: "reveal", generation: state.generation,
+      sel: { id: tr.dataset.group, file: tr.dataset.file } });
   }
   function toggle(tr, set, value, selector) {
     if (set.has(value)) set.delete(value); else set.add(value);
@@ -198,6 +204,15 @@
   }
 
   $("rows").addEventListener("click", (e) => {
+    const explore = e.target.closest("button.explore-record");
+    if (explore) {
+      const row = explore.closest("tr.binding");
+      if (row) vscode.postMessage({ type: "explore-record", generation: state.generation, sel: {
+        q: +row.dataset.q, m: +row.dataset.m, b: +row.dataset.b,
+      } });
+      return;
+    }
+    if (e.target.closest("details.source-details")) return;
     const file = e.target.closest("tr.file-group");
     const group = e.target.closest("tr.group");
     if (file && e.target.closest(".twisty")) toggle(file, collapsedFiles, file.dataset.file, "tr.file-group");
@@ -208,6 +223,7 @@
     else activate(e.target.closest("tr.binding"));
   });
   $("rows").addEventListener("keydown", (e) => {
+    if (e.target.closest("button.explore-record, details.source-details")) return;
     const row = e.target.closest("tr.file-group, tr.group, tr.binding");
     if (!row) return;
     const isFile = row.classList.contains("file-group");
@@ -295,7 +311,7 @@
     $("cache-enabled").checked = !!settings.cacheEnabled;
     $("cache-location").value = settings.cacheLocation || "";
     $("cache-location").disabled = !settings.cacheEnabled;
-    const selected = Array.isArray(settings.visibleColumns) ? settings.visibleColumns : COLUMNS.map((c) => c.key);
+    const selected = Array.isArray(settings.visibleColumns) ? settings.visibleColumns : DEFAULT_COLUMNS;
     $("columns").innerHTML = COLUMNS.map((c) => `<label class="column-choice"><input type="checkbox" name="visibleColumns" value="${c.key}" ${selected.includes(c.key) ? "checked" : ""}> ${c.title}</label>`).join("");
     $("settings-error").hidden = true;
     setScreen("settings");

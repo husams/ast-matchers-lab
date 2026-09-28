@@ -29,6 +29,14 @@ def run_query(binary: str, socket: str, request: dict, timeout_ms: int | None = 
     return json.loads(result.stdout)
 
 
+def run_inspect(binary: str, socket: str, request: dict) -> dict:
+    result = subprocess.run(
+        [binary, "inspect", "--socket", socket], input=json.dumps(request),
+        text=True, capture_output=True, timeout=15, check=False)
+    assert result.returncode == 0, result.stderr
+    return json.loads(result.stdout)
+
+
 def wait_process_exit(pid: int, seconds: float) -> bool:
     deadline = time.monotonic() + seconds
     while time.monotonic() < deadline:
@@ -209,6 +217,154 @@ os.kill(os.getpid(), signal.SIGTERM)
             assert explicit["text"] == "int main() { return 1; }", reply
             assert reply["diagnostics"][0]["commandIndex"] == 3, reply
             assert "noSuchMatcher" in reply["diagnostics"][0]["message"], reply
+
+            record_source = Path(directory) / "records.cpp"
+            record_source.write_text(
+                "struct Root { int id; };\n"
+                "struct Other {};\n"
+                "struct Mid : virtual public Root {};\n"
+                "class Leaf : public Mid {\n"
+                "public:\n"
+                "  Other other;\n"
+                "  int compute(int value) const { return value; }\n"
+                "private:\n"
+                "  int hidden;\n"
+                "};\n"
+                "struct Outer { struct Inner {}; };\n"
+                "union Payload { int number; };\n"
+                "struct Pending;\n"
+                "struct Holder { Pending* next; };\n"
+                "int globalValue;\n"
+                "class Factory { public: int (*make())(double); };\n", encoding="utf-8")
+            record_query = run_query(binary, socket, {
+                "sourcePath": str(record_source), "workingDirectory": directory,
+                "flags": ["-std=c++23"], "commands": [{"kind": "MATCH",
+                "expression": 'cxxRecordDecl(hasName("Leaf")).bind("record")'}]})
+            record_binding = next(binding for binding in
+                                  record_query["queries"][0]["matches"][0]["bindings"]
+                                  if binding["id"] == "record")
+            assert record_binding["qualifiedName"] == "Leaf", record_binding
+            assert record_binding["recordKind"] == "class", record_binding
+            inspection = run_inspect(binary, socket, {
+                "sourcePath": str(record_source), "workingDirectory": directory,
+                "flags": ["-std=c++23"], "file": str(record_source),
+                "position": record_binding["range"]["start"]})
+            assert inspection["ok"] and not inspection["truncated"], inspection
+            nodes = {node["id"]: node for node in inspection["nodes"]}
+            root_node = nodes[inspection["recordId"]]
+            assert root_node["name"] == "Leaf" and root_node["recordKind"] == "class", inspection
+            relations = {(nodes[edge["from"]]["name"], nodes[edge["to"]]["name"],
+                          edge["kind"]) for edge in inspection["edges"]}
+            assert ("Leaf", "Mid", "inherits") in relations, inspection
+            assert ("Mid", "Root", "inherits") in relations, inspection
+            assert ("Leaf", "other", "field") in relations, inspection
+            assert ("other", "Other", "fieldType") in relations, inspection
+            assert ("Leaf", "compute", "method") in relations, inspection
+            member_edges = {(nodes[edge["from"]]["name"], nodes[edge["to"]]["name"]): edge
+                            for edge in inspection["edges"] if edge["kind"] in {"field", "method"}}
+            assert member_edges[("Leaf", "other")]["access"] == "public", inspection
+            assert member_edges[("Leaf", "compute")]["access"] == "public", inspection
+            assert member_edges[("Leaf", "hidden")]["access"] == "private", inspection
+            inherit_edges = {(nodes[edge["from"]]["name"], nodes[edge["to"]]["name"]): edge
+                             for edge in inspection["edges"] if edge["kind"] == "inherits"}
+            assert inherit_edges[("Leaf", "Mid")]["access"] == "public", inspection
+            assert inherit_edges[("Mid", "Root")]["isVirtual"], inspection
+            method = next(node for node in nodes.values() if node["name"] == "compute")
+            assert method["signature"] == "int Leaf::compute(int) const", inspection
+            assert all(node["range"]["file"] == str(record_source)
+                       for node in nodes.values() if node.get("range")), inspection
+            nested = run_inspect(binary, socket, {
+                "sourcePath": str(record_source), "workingDirectory": directory,
+                "flags": ["-std=c++23"], "file": str(record_source),
+                "position": {"line": 10, "character": 25}})
+            assert nested["ok"], nested
+            assert next(node for node in nested["nodes"]
+                        if node["id"] == nested["recordId"])["name"] == "Inner", nested
+            union = run_inspect(binary, socket, {
+                "sourcePath": str(record_source), "workingDirectory": directory,
+                "flags": ["-std=c++23"], "file": str(record_source),
+                "position": {"line": 11, "character": 8}})
+            assert union["ok"], union
+            assert next(node for node in union["nodes"]
+                        if node["id"] == union["recordId"])["recordKind"] == "union", union
+            holder = run_inspect(binary, socket, {
+                "sourcePath": str(record_source), "workingDirectory": directory,
+                "flags": ["-std=c++23"], "file": str(record_source),
+                "position": {"line": 13, "character": 8}})
+            assert holder["ok"], holder
+            pending = next(node for node in holder["nodes"] if node["name"] == "Pending")
+            assert pending["definitionStatus"] == "unresolved", holder
+            semantic_query = run_query(binary, socket, {
+                "sourcePath": str(record_source), "workingDirectory": directory,
+                "flags": ["-std=c++23"], "commands": [
+                    {"kind": "MATCH", "expression":
+                     'varDecl(hasName("globalValue")).bind("value")'},
+                    {"kind": "MATCH", "expression":
+                     'cxxMethodDecl(hasName("make")).bind("method")'}]})
+            variable = next(binding for binding in
+                            semantic_query["queries"][0]["matches"][0]["bindings"]
+                            if binding["id"] == "value")
+            assert variable["qualifiedName"] == "globalValue" and variable["type"] == "int", variable
+            callable_binding = next(binding for binding in
+                                    semantic_query["queries"][1]["matches"][0]["bindings"]
+                                    if binding["id"] == "method")
+            assert callable_binding["signature"] == "int (*Factory::make())(double)", callable_binding
+            missing = run_inspect(binary, socket, {
+                "sourcePath": str(record_source), "workingDirectory": directory,
+                "flags": ["-std=c++23"], "file": str(record_source),
+                "position": {"line": 50, "character": 0}})
+            assert not missing["ok"] and missing["diagnostics"], missing
+
+            large_record = Path(directory) / "large-record.cpp"
+            large_record.write_text("struct Big {\n" + "".join(
+                f"  int field_{index};\n" for index in range(300)) + "};\n",
+                encoding="utf-8")
+            bounded = run_inspect(binary, socket, {
+                "sourcePath": str(large_record), "workingDirectory": directory,
+                "flags": ["-std=c++23"], "file": str(large_record),
+                "position": {"line": 0, "character": 0}})
+            assert bounded["ok"] and bounded["truncated"], bounded
+            assert len(bounded["nodes"]) <= 256 and len(bounded["edges"]) <= 512, bounded
+
+            template_source = Path(directory) / "templates.cpp"
+            template_source.write_text(
+                "template<class T> struct Box { T value; };\n"
+                "Box<int> i; Box<long> l;\n"
+                "template<class T> struct Choice { T value; };\n"
+                "template<class T> struct Choice<T*> { T* pointer; };\n"
+                "Choice<int*> choice;\n", encoding="utf-8")
+            template_request = {"sourcePath": str(template_source),
+                                "workingDirectory": directory, "flags": ["-std=c++23"]}
+            template_query = run_query(binary, socket, template_request | {
+                "commands": [{"kind": "MATCH", "expression":
+                              'classTemplateSpecializationDecl(hasName("Box")).bind("record")'}]})
+            specializations = [binding for match in template_query["queries"][0]["matches"]
+                               for binding in match["bindings"] if binding["id"] == "record"]
+            assert {binding["recordIdentity"] for binding in specializations} == {
+                "Box<int>", "Box<long>"}, specializations
+            assert len({json.dumps(binding["range"], sort_keys=True)
+                        for binding in specializations}) == 1, specializations
+            for binding in specializations:
+                selected = run_inspect(binary, socket, template_request | {
+                    "file": str(template_source),
+                    "position": binding["range"]["start"],
+                    "recordIdentity": binding["recordIdentity"]})
+                assert selected["ok"] and selected["recordId"], selected
+                selected_root = next(node for node in selected["nodes"]
+                                     if node["id"] == selected["recordId"])
+                assert selected_root["recordIdentity"] == binding["recordIdentity"], selected
+                field_type = next(node["type"] for node in selected["nodes"]
+                                  if node["name"] == "value")
+                assert field_type in ("int", "long"), selected
+            primary = run_inspect(binary, socket, template_request | {
+                "file": str(template_source), "position": {"line": 0, "character": 0}})
+            assert primary["ok"], primary
+            assert next(node for node in primary["nodes"]
+                        if node["id"] == primary["recordId"])["recordIdentity"] == "Box", primary
+            partial = run_inspect(binary, socket, template_request | {
+                "file": str(template_source), "position": {"line": 3, "character": 0}})
+            assert partial["ok"] and any(node["name"] == "pointer"
+                                         for node in partial["nodes"]), partial
 
             large_source = Path(directory) / "large.cpp"
             large_source.write_text("".join(

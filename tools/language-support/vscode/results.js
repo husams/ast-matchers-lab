@@ -12,6 +12,7 @@
 
 const crypto = require("crypto");
 const vscode = require("vscode");
+const { isRecordBinding, detailForBinding } = require("./binding-detail");
 
 /**
  * [{ id, nodes: [{ key, b, sels: [{q,m,b}], matches: ["1", "2"] }] }] — one
@@ -27,6 +28,8 @@ function groupByBind(result, showRoot) {
     nodes: result.bindings[id].map((n, i) => ({
       key: `${id}:${n.node || i}`,
       b: { ...n, id },
+      detail: detailForBinding(n),
+      record: isRecordBinding(n),
       sels: n.matches.map((m) => ({ q: m.query, m: m.match, b: m.binding })),
       matches: n.matches.map((m) => (multi ? `${m.query + 1}.${m.index}` : String(m.index))),
     })),
@@ -40,11 +43,13 @@ class ResultStore {
     this.running = false;
     this.showRoot = false;
     this.selected = undefined;          // { q, m, b } node selector or { id } group selector
+    this.generation = 0;               // changes whenever selectors may refer to new results
     this.emitter = new vscode.EventEmitter();
     this.onDidChange = this.emitter.event;
   }
 
   set(result) {
+    this.generation++;
     this.result = result;
     this.running = false;
     this.selected = undefined;
@@ -52,6 +57,7 @@ class ResultStore {
   }
 
   setRunning(info) {
+    this.generation++;
     this.result = undefined;
     this.running = info;
     this.selected = undefined;
@@ -59,6 +65,7 @@ class ResultStore {
   }
 
   startStreaming(progress) {
+    this.generation++;
     this.result = {
       ok: false, sample: progress.sample, flags: progress.flags || [],
       target: progress.target, queries: [], bindings: {}, files: [], errors: [],
@@ -198,6 +205,10 @@ function nodesForBinding(store, sel) {
 
 /** Open the selected node or binding group and select its exact source range(s). */
 async function reveal(store, sel) {
+  if (!sel || sel.generation !== store.generation) {
+    vscode.window.showInformationMessage("AST Matcher: this result is stale; run the query again.");
+    return;
+  }
   const group = sel && sel.id;
   const nodes = group
     ? nodesForBinding(store, sel)
@@ -260,13 +271,16 @@ class BindingsTree {
           byFile.set(file, new Map());
       }
       return [...byFile].sort(([a], [b]) => a.localeCompare(b))
-        .map(([file, groups]) => ({ type: "file", file, groups: [...groups.values()] }));
+        .map(([file, groups]) => ({ type: "file", file,
+          groups: [...groups.values()], generation: this.store.generation }));
     }
+    if (node.generation !== this.store.generation) return [];
     if (node.type === "file") return node.groups.map((group) => ({
-      type: "bind", group, file: node.file,
+      type: "bind", group, file: node.file, generation: node.generation,
     }));
     if (node.type === "bind") {
-      return node.group.nodes.map((n) => ({ type: "node", node: n, file: node.file }));
+      return node.group.nodes.map((n) => ({ type: "node", node: n,
+        file: node.file, generation: node.generation }));
     }
     return [];
   }
@@ -290,11 +304,13 @@ class BindingsTree {
       item.iconPath = new vscode.ThemeIcon(node.group.id === "root" ? "symbol-class"
                                                                      : "symbol-field");
       item.command = { command: "astmatcher.revealBinding", title: "Select binding",
-                       arguments: [{ id: node.group.id, ...(node.file ? { file: node.file } : {}) }] };
+                       arguments: [{ id: node.group.id, ...(node.file ? { file: node.file } : {}),
+                         generation: node.generation }] };
       return item;
     }
     const { b, matches, sels } = node.node;
-    const item = new vscode.TreeItem(`${b.kind}${b.summary ? " " + b.summary : ""}`, C.None);
+    const detail = detailForBinding(b);
+    const item = new vscode.TreeItem(`${b.kind}${detail ? " · " + detail : ""}`, C.None);
     const location = formatLocation(b);
     item.description = `#${matches.join(", #")}` + (location ? ` · ${location}` : "");
     item.tooltip = new vscode.MarkdownString()
@@ -303,7 +319,9 @@ class BindingsTree {
       .appendMarkdown(location ? `\n${location}` : "\n_no source location_");
     item.iconPath = new vscode.ThemeIcon("symbol-misc");
     item.command = { command: "astmatcher.revealBinding", title: "Reveal",
-      arguments: [{ ...sels[0], ...(node.file ? { file: node.file } : {}) }] };
+      arguments: [{ ...sels[0], ...(node.file ? { file: node.file } : {}),
+        generation: node.generation }] };
+    if (isRecordBinding(b)) item.contextValue = "astmatcherRecordBinding";
     return item;
   }
 }
@@ -327,7 +345,11 @@ class MatchesView {
     view.webview.options = { enableScripts: true };
     view.webview.html = this.html(view.webview);
     view.webview.onDidReceiveMessage((msg) => {
-      if (msg.type === "reveal") this.handlers.reveal(msg.sel);
+      if (msg.type === "reveal") this.handlers.reveal({ ...msg.sel,
+        generation: msg.generation });
+      else if (msg.type === "explore-record") this.handlers.exploreRecord({
+        sel: msg.sel, generation: msg.generation,
+      });
       else if (msg.type === "command") vscode.commands.executeCommand(msg.command);
       else if (msg.type === "settings-open") this.showSettings();
       else if (msg.type === "settings-load") this.loadSettings();
@@ -416,6 +438,7 @@ class MatchesView {
       type: why === "selection" ? "selection" : "state",
       result: this.store.result, running: this.store.running, selected: this.store.selected,
       groups: this.store.groups(), showRoot: this.store.showRoot,
+      generation: this.store.generation,
     });
   }
 

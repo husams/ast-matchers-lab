@@ -14,6 +14,8 @@ const { LanguageClient, TransportKind } = require("vscode-languageclient/node");
 const { Samples, SOURCE_EXTS } = require("./sample");
 const { ResultStore, Highlighter, BindingsTree, MatchesView, reveal } = require("./results");
 const { RunTarget } = require("./target");
+const { RecordExplorer } = require("./record-explorer");
+const { isRecordBinding } = require("./binding-detail");
 
 let client;
 let terminal;
@@ -27,6 +29,7 @@ let runDiagnosticsOutput;
 let queryDiagnostics;
 let lastQueryDoc;             // the .query document commands act on from the panel
 let targets;
+let recordExplorer;
 let runSerial = 0;
 let activeRunId;
 
@@ -187,7 +190,7 @@ function getRunSettings() {
     : scope === "workspace" ? ""
       : configuredPath || (sample && sample.absolute) || base;
   return {
-    visibleColumns: config().get("visibleColumns") || ["match", "kind", "semanticKind", "summary", "text", "location"],
+    visibleColumns: config().get("visibleColumns") || ["match", "kind", "semanticKind", "detail", "location"],
     flags: sample ? sample.flags : (config().get("flags") || ["-std=c++23"]),
     compileCommands: config().get("compileCommands") || "",
     traversal: config().get("traversal") || "AsIs",
@@ -206,8 +209,8 @@ async function saveRunSettings(values = {}) {
   let selectedScope;
   let selectedTargetPath;
   if (values.visibleColumns !== undefined && (!Array.isArray(values.visibleColumns) ||
-      values.visibleColumns.some((v) => !["match", "kind", "semanticKind", "summary", "text", "location"].includes(v)))) {
-    throw new Error("Visible columns must be selected from match, kind, semanticKind, summary, text, location.");
+      values.visibleColumns.some((v) => !["match", "kind", "semanticKind", "detail", "summary", "text", "location"].includes(v)))) {
+    throw new Error("Visible columns must be selected from match, kind, semanticKind, detail, summary, text, location.");
   }
   if (values.flags !== undefined && (!Array.isArray(values.flags) ||
       values.flags.some((v) => typeof v !== "string"))) throw new Error("Compiler flags must be an array of strings.");
@@ -457,6 +460,61 @@ async function runQuery(arg) {
     `$(search) ${total} match${total === 1 ? "" : "es"} in ${path.basename(result.sample)}`, 5000);
 }
 
+async function exploreRecord(input) {
+  if (!client || !client.isRunning()) {
+    vscode.window.showWarningMessage("AST Matcher: start the language server before exploring a record.");
+    return;
+  }
+  const explicitSelector = input?.type === "node" || (input && typeof input === "object" &&
+    ("sel" in input || "q" in input || "m" in input || "b" in input));
+  const sel = input?.type === "node" ? input.node?.sels?.[0] : input?.sel || input;
+  if (explicitSelector && input?.generation !== store.generation) {
+    vscode.window.showInformationMessage("AST Matcher: this result is stale; run the query again.");
+    return;
+  }
+  const binding = explicitSelector && Number.isInteger(sel?.q) &&
+    Number.isInteger(sel?.m) && Number.isInteger(sel?.b) ? store.binding(sel) : undefined;
+  if (explicitSelector && !binding) {
+    vscode.window.showInformationMessage("AST Matcher: this result is stale; run the query again.");
+    return;
+  }
+  let target;
+  let flags;
+  let cwd;
+  if (binding) {
+    if (!isRecordBinding(binding)) {
+      vscode.window.showInformationMessage("Select a class, struct, or union binding to explore it.");
+      return;
+    }
+    target = binding;
+    flags = store.result?.flags || config().get("flags") || [];
+    cwd = store.result?.cwd;
+  } else {
+    const editor = vscode.window.activeTextEditor;
+    const file = input?.fsPath || editor?.document?.uri?.fsPath;
+    if (!file || !editor || editor.document.uri.fsPath !== file || !SOURCE_EXTS.has(path.extname(file))) {
+      vscode.window.showInformationMessage("Open a C or C++ source file and place the cursor on a record.");
+      return;
+    }
+    const selection = editor.selection;
+    target = { file, translationUnit: file,
+      range: { start: { line: selection.start.line, character: selection.start.character },
+               end: { line: selection.end.line, character: selection.end.character } } };
+    const query = queryDocument();
+    const sample = query && samples.resolve(query);
+    flags = sample?.absolute === file ? sample.flags : samples.defaultFlags(file);
+    cwd = vscode.workspace.getWorkspaceFolder(editor.document.uri)?.uri.fsPath || path.dirname(file);
+  }
+  const nativeServerPath = config().get("nativeServerPath");
+  const options = { cwd, flags, compileCommands: config().get("compileCommands") || "",
+    nativeServerPath: nativeServerPath ? resolveWorkspace(nativeServerPath) : "" };
+  try {
+    await recordExplorer.open(target, options);
+  } catch (error) {
+    vscode.window.showErrorMessage(`AST Matcher: ${error.message || error}`);
+  }
+}
+
 async function runQueryInTerminal() {
   const document = queryDocument();
   if (!document) {
@@ -648,7 +706,10 @@ async function activate(context) {
   samples = new Samples(context);
   targets = new RunTarget();
   store = new ResultStore();
-  matchesView = new MatchesView(context, store, { reveal: (sel) => reveal(store, sel) });
+  recordExplorer = new RecordExplorer(context, (method, request) => client.sendRequest(method, request));
+  matchesView = new MatchesView(context, store, {
+    reveal: (sel) => reveal(store, sel), exploreRecord,
+  });
   queryDiagnostics = vscode.languages.createDiagnosticCollection("astmatcher-native");
   statusItem = vscode.window.createStatusBarItem("astmatcher.sample",
                                                  vscode.StatusBarAlignment.Right, 100);
@@ -706,6 +767,7 @@ async function activate(context) {
       if (document) await samples.editFlags(document);
     }),
     vscode.commands.registerCommand("astmatcher.revealBinding", (sel) => reveal(store, sel)),
+    vscode.commands.registerCommand("astmatcher.exploreRecord", exploreRecord),
     vscode.commands.registerCommand("astmatcher.toggleRoot", () => store.toggleRoot()),
     vscode.commands.registerCommand("astmatcher.toggleRoot.off", () => store.toggleRoot()),
     vscode.commands.registerCommand("astmatcher.clearResults", () => {

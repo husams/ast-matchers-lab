@@ -226,6 +226,33 @@ class NativeClient:
             raise NativeClientError("native matcher returned a non-object response")
         return reply, command, return_code, stderr
 
+    def inspect(self, request: dict, *, cwd: str, timeout: float) -> dict:
+        """Inspect a source-located record through the existing native server."""
+        if not math.isfinite(timeout) or not 0 < timeout <= 3600:
+            raise NativeClientError("native matcher timeout must be between 0 and 3600 seconds")
+        socket_path = self._ensure_server()
+        command = [self.binary, "inspect", "--socket", socket_path,
+                   "--timeout-ms", str(max(1, math.ceil(timeout * 1000)))]
+        try:
+            proc = subprocess.run(command, cwd=cwd, input=json.dumps(request).encode("utf-8"),
+                                  capture_output=True, timeout=timeout + 1, check=False)
+        except subprocess.TimeoutExpired as exc:
+            self.close()
+            raise NativeClientError(f"native matcher timed out after {timeout:g}s") from exc
+        except OSError as exc:
+            raise NativeClientError(f"cannot start native matcher client: {exc}") from exc
+        if proc.returncode:
+            message = proc.stderr.decode("utf-8", "replace").strip()[:2000]
+            raise NativeClientError(message or
+                                    f"native matcher client exited with code {proc.returncode}")
+        try:
+            reply = json.loads(proc.stdout)
+        except (ValueError, UnicodeDecodeError) as exc:
+            raise NativeClientError("native matcher returned invalid record data") from exc
+        if not isinstance(reply, dict):
+            raise NativeClientError("native matcher returned a non-object response")
+        return reply
+
     def _stop_locked(self) -> None:
         server = self._server
         if server is not None and server.poll() is None:
