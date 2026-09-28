@@ -59,8 +59,14 @@ result. `semanticKind` identifies declaration meaning (for example `struct`,
 `union`, `function`, or `method`) and is empty for non-declarations.
 
 When `runId` is supplied, the server also sends `astmatcher/queryProgress`
-notifications on the same LSP connection: one `kind: "start"` event with
-`totalFiles`, then a `kind: "file"` event after each source file finishes.
+notifications on the same LSP connection: `kind: "start"` gives `totalFiles`;
+`kind: "file-start"` identifies the current source file; `kind: "heartbeat"`
+reports that file's elapsed time while Clang is running; and `kind: "file"`
+carries results after each source file finishes. Every event carries overall
+elapsed time in `durationMs`; active-file events carry `file` and
+`completedFiles`/`totalFiles`. The native gRPC stream sends periodic
+`sourcePath`/`elapsedMs` updates for a translation unit and its final structured
+reply. Errors are logged with the translation-unit path, including timeouts.
 Each file event carries that file's queries, bindings, errors, cache delta,
 and `completedFiles`. Notifications include `runId` so clients can discard
 events from a cancelled or replaced run. The final response remains the full

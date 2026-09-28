@@ -11,6 +11,7 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <future>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -61,6 +62,59 @@ public:
     // for concurrent tooling invocations in one process.
     const std::lock_guard<std::mutex> guard(mutex_);
     *reply = astmatcher::native::run_match_request(*request);
+    return grpc::Status::OK;
+  }
+
+  grpc::Status RunWithProgress(
+      grpc::ServerContext *context,
+      const astmatcher::native::v1::RunRequest *request,
+      grpc::ServerWriter<astmatcher::native::v1::RunProgress> *writer) override {
+    using namespace std::chrono_literals;
+    using astmatcher::native::v1::RunProgress;
+    const std::lock_guard<std::mutex> guard(mutex_);
+    const auto started = std::chrono::steady_clock::now();
+    auto request_copy = *request;
+    std::promise<astmatcher::native::v1::RunReply> promise;
+    auto future = promise.get_future();
+    RunProgress initial;
+    initial.set_source_path(request->source_path());
+    initial.set_elapsed_ms(0);
+    bool connected = writer->Write(initial);
+    std::thread worker([request = std::move(request_copy),
+                        promise = std::move(promise)]() mutable {
+      promise.set_value(astmatcher::native::run_match_request(request));
+    });
+    auto next_report = started;
+    do {
+      if (future.wait_for(250ms) == std::future_status::ready) {
+        break;
+      }
+      const auto now = std::chrono::steady_clock::now();
+      if (connected && now >= next_report) {
+        RunProgress progress;
+        progress.set_source_path(request->source_path());
+        progress.set_elapsed_ms(std::chrono::duration_cast<std::chrono::milliseconds>(
+                                    now - started)
+                                    .count());
+        connected = writer->Write(progress);
+        next_report = now + 1s;
+      }
+    } while (true);
+    auto reply = future.get();
+    worker.join();
+    if (!connected || context->IsCancelled()) {
+      return grpc::Status(grpc::StatusCode::CANCELLED, "progress client disconnected");
+    }
+    RunProgress complete;
+    complete.set_source_path(request->source_path());
+    complete.set_elapsed_ms(std::chrono::duration_cast<std::chrono::milliseconds>(
+                                std::chrono::steady_clock::now() - started)
+                                .count());
+    complete.set_complete(true);
+    *complete.mutable_reply() = std::move(reply);
+    if (!writer->Write(complete)) {
+      return grpc::Status(grpc::StatusCode::CANCELLED, "progress client disconnected");
+    }
     return grpc::Status::OK;
   }
 
@@ -183,7 +237,7 @@ int serve(const std::string &socket_path, std::optional<pid_t> parent_pid) {
   return 0;
 }
 
-int query(const std::string &socket_path, uint32_t timeout_ms) {
+int query(const std::string &socket_path, uint32_t timeout_ms, bool progress_enabled) {
   const std::string input(std::istreambuf_iterator<char>(std::cin), {});
   astmatcher::native::v1::RunRequest request;
   const auto parse_status =
@@ -201,7 +255,30 @@ int query(const std::string &socket_path, uint32_t timeout_ms) {
   context.set_deadline(std::chrono::system_clock::now() +
                        std::chrono::milliseconds(timeout_ms));
   astmatcher::native::v1::RunReply reply;
-  const grpc::Status rpc_status = stub->Run(&context, request, &reply);
+  grpc::Status rpc_status;
+  if (progress_enabled) {
+    auto reader = stub->RunWithProgress(&context, request);
+    astmatcher::native::v1::RunProgress event;
+    while (reader->Read(&event)) {
+      if (event.complete()) {
+        reply = event.reply();
+        continue;
+      }
+      std::string progress_json;
+      google::protobuf::util::JsonPrintOptions progress_options;
+      include_default_json_fields(progress_options);
+      const auto progress_status = google::protobuf::util::MessageToJsonString(
+          event, &progress_json, progress_options);
+      if (!progress_status.ok()) {
+        context.TryCancel();
+        break;
+      }
+      std::cout << "{\"progress\":" << progress_json << "}\n" << std::flush;
+    }
+    rpc_status = reader->Finish();
+  } else {
+    rpc_status = stub->Run(&context, request, &reply);
+  }
   if (!rpc_status.ok()) {
     if (rpc_status.error_code() == grpc::StatusCode::DEADLINE_EXCEEDED) {
       std::cerr << "Matcher server request timed out after " << timeout_ms
@@ -271,46 +348,53 @@ int main(int argc, char **argv) {
                  "[--parent-pid PID]\n"
                  "       astmatcher-native ping --socket /absolute/path.sock\n"
                  "       astmatcher-native query --socket /absolute/path.sock "
-                 "[--timeout-ms 1..3600000]\n"
+                 "[--timeout-ms 1..3600000] [--progress]\n"
                  "       astmatcher-native capabilities < matcher-names.txt\n";
     return 2;
   };
   if (argc == 2 && std::string(argv[1]) == "capabilities") {
     return capabilities();
   }
-  if ((argc != 4 && argc != 6) || std::string(argv[2]) != "--socket") {
+  if (argc < 4 || std::string(argv[2]) != "--socket") {
     return usage();
   }
   const std::string command = argv[1];
-  if ((command != "serve" && command != "query" && command != "ping") ||
-      (argc == 6 &&
-       !((command == "query" && std::string(argv[4]) == "--timeout-ms") ||
-         (command == "serve" && std::string(argv[4]) == "--parent-pid")))) {
+  if (command != "serve" && command != "query" && command != "ping") {
     return usage();
   }
   uint32_t timeout_ms = kDefaultQueryTimeoutMs;
   std::optional<pid_t> parent_pid;
-  if (argc == 6 && command == "query") {
-    const std::string_view input(argv[5]);
-    const auto [end, error] =
-        std::from_chars(input.data(), input.data() + input.size(), timeout_ms);
-    if (error != std::errc{} || end != input.data() + input.size() ||
-        timeout_ms == 0 || timeout_ms > kMaximumQueryTimeoutMs) {
-      std::cerr << "--timeout-ms must be an integer from 1 to 3600000\n";
-      return 2;
+  bool progress_enabled = false;
+  for (int index = 4; index < argc; ++index) {
+    const std::string_view option(argv[index]);
+    if (command == "query" && option == "--progress") {
+      progress_enabled = true;
+      continue;
     }
-  } else if (argc == 6 && command == "serve") {
-    const std::string_view input(argv[5]);
-    uint64_t parsed_pid = 0;
-    const auto [end, error] =
-        std::from_chars(input.data(), input.data() + input.size(), parsed_pid);
-    if (error != std::errc{} || end != input.data() + input.size() ||
-        parsed_pid == 0 ||
-        parsed_pid > static_cast<uint64_t>(std::numeric_limits<pid_t>::max())) {
-      std::cerr << "--parent-pid must be a positive process ID\n";
-      return 2;
+    if (index + 1 >= argc) return usage();
+    const std::string_view input(argv[++index]);
+    if (command == "query" && option == "--timeout-ms") {
+      const auto [end, error] =
+          std::from_chars(input.data(), input.data() + input.size(), timeout_ms);
+      if (error != std::errc{} || end != input.data() + input.size() ||
+          timeout_ms == 0 || timeout_ms > kMaximumQueryTimeoutMs) {
+        std::cerr << "--timeout-ms must be an integer from 1 to 3600000\n";
+        return 2;
+      }
+    } else if (command == "serve" && option == "--parent-pid") {
+      uint64_t parsed_pid = 0;
+      const auto [end, error] =
+          std::from_chars(input.data(), input.data() + input.size(), parsed_pid);
+      if (error != std::errc{} || end != input.data() + input.size() ||
+          parsed_pid == 0 ||
+          parsed_pid > static_cast<uint64_t>(std::numeric_limits<pid_t>::max())) {
+        std::cerr << "--parent-pid must be a positive process ID\n";
+        return 2;
+      }
+      parent_pid = static_cast<pid_t>(parsed_pid);
+    } else {
+      return usage();
     }
-    parent_pid = static_cast<pid_t>(parsed_pid);
   }
   const std::string socket_path = argv[3];
   if (!valid_socket_path(socket_path)) {
@@ -319,6 +403,6 @@ int main(int argc, char **argv) {
   if (command == "serve") {
     return serve(socket_path, parent_pid);
   }
-  return command == "query" ? query(socket_path, timeout_ms)
+  return command == "query" ? query(socket_path, timeout_ms, progress_enabled)
                             : ping(socket_path);
 }

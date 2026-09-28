@@ -63,6 +63,9 @@ JSON
 `query` accepts `--timeout-ms N` after the socket path, with `N` from 1 to
 3600000. The default is 120000 ms. A gRPC deadline returns exit status 124
 and writes `Matcher server request timed out after N ms` to stderr.
+Adding `--progress` uses the server-streaming `RunWithProgress` RPC; the CLI
+prints JSON progress records (`sourcePath`, `elapsedMs`) before the final JSON
+reply. The Python bridge enables this option and forwards updates to the LSP.
 When `flags` is empty, Clang chooses the language and standard from the source
 file extension.
 

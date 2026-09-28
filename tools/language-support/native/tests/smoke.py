@@ -210,6 +210,29 @@ os.kill(os.getpid(), signal.SIGTERM)
             assert reply["diagnostics"][0]["commandIndex"] == 3, reply
             assert "noSuchMatcher" in reply["diagnostics"][0]["message"], reply
 
+            large_source = Path(directory) / "large.cpp"
+            large_source.write_text("".join(
+                f"int global_{index} = {index};\n" for index in range(40000)),
+                encoding="utf-8")
+            progress_result = subprocess.run(
+                [binary, "query", "--socket", socket, "--timeout-ms", "30000",
+                 "--progress"],
+                input=json.dumps({"sourcePath": str(large_source),
+                                 "workingDirectory": directory,
+                                 "flags": ["-std=c++23"], "maxMatches": 10,
+                                 "commands": [{"kind": "MATCH",
+                                               "expression": "varDecl()"}]}),
+                text=True, capture_output=True, timeout=35, check=False)
+            assert progress_result.returncode == 0, progress_result.stderr
+            records = [json.loads(line) for line in progress_result.stdout.splitlines()]
+            heartbeats = [record["progress"] for record in records
+                          if "progress" in record]
+            assert heartbeats, progress_result.stdout[:1000]
+            assert all(event["sourcePath"] == str(large_source)
+                       for event in heartbeats), heartbeats
+            assert all("elapsedMs" in event for event in heartbeats), heartbeats
+            assert records[-1]["queries"][0]["count"] == 40000, records[-1]
+
             no_root = run_query(binary, socket, {
                 "sourcePath": str(source),
                 "workingDirectory": directory,

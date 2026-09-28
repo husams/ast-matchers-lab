@@ -37,7 +37,7 @@ cmake --build tools/language-support/native/build --parallel
 
 # 4. VS Code
 cd tools/language-support/vscode && npm install && npx @vscode/vsce package
-code --install-extension astmatcher-dsl-1.8.0.vsix
+code --install-extension astmatcher-dsl-1.8.1.vsix
 ```
 
 `astmatcher-lsp --run` and VS Code **Run Query** send each translation unit to

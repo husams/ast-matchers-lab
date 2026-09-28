@@ -6,6 +6,7 @@ package astmatcher.native.v1;
 service MatcherService {
   rpc Ping(PingRequest) returns (PingReply);
   rpc Run(RunRequest) returns (RunReply);
+  rpc RunWithProgress(RunRequest) returns (stream RunProgress);
 }
 
 message PingRequest {}
@@ -82,4 +83,11 @@ message RunReply {
   repeated Diagnostic diagnostics = 2;
   string stderr = 3;
   bool truncated = 4;
+}
+
+message RunProgress {
+  string source_path = 1;
+  uint64 elapsed_ms = 2;
+  bool complete = 3;
+  RunReply reply = 4; // set only on the final event
 }

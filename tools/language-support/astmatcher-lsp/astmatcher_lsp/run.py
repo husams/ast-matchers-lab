@@ -365,6 +365,11 @@ def run_query(text: str, sample: str, flags: list[str] | None = None, *,
         hits_before = result["cache"]["hits"]
         misses_before = result["cache"]["misses"]
 
+        if on_progress:
+            on_progress({"kind": "file-start", "file": source,
+                         "completedFiles": file_index - 1, "totalFiles": len(files),
+                         "durationMs": int((time.monotonic() - started) * 1000)})
+
         def emit_file(queries: list[dict] | None = None, stderr: str = "") -> None:
             if not on_progress or (cancelled is not None and cancelled.is_set()):
                 return
@@ -461,8 +466,17 @@ def run_query(text: str, sample: str, flags: list[str] | None = None, *,
                        "maxMatches": max_matches - total_matches,
                        "commands": commands}
             try:
+                def native_progress(event: dict) -> None:
+                    if on_progress and (cancelled is None or not cancelled.is_set()):
+                        on_progress({"kind": "heartbeat", "file": source,
+                                     "completedFiles": file_index - 1,
+                                     "totalFiles": len(files),
+                                     "fileDurationMs": int(event.get("elapsedMs", 0)),
+                                     "durationMs": int((time.monotonic() - started) * 1000)})
+
                 reply, command, exit_code, client_stderr = client.run(
-                    request, cwd=effective_cwd, timeout=timeout, on_start=on_start)
+                    request, cwd=effective_cwd, timeout=timeout, on_start=on_start,
+                    on_progress=native_progress)
                 result["command"] = command
             except NativeClientError as exc:
                 if cancelled is not None and cancelled.is_set():
