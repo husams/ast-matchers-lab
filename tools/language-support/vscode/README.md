@@ -87,13 +87,13 @@ binding is hidden unless a match binds nothing else; *Show root* (checkbox in th
 panel, eye icon in the view title bars) brings it back.
 
 - **AST Matches** (bottom panel, next to Output/Terminal): a tree-table — foldable
-  rows for each source file, bind id, and node. Node columns are configurable:
+  rows for source files with matches, their bind ids, and nodes. Node columns are configurable:
   match, AST kind, declaration kind, summary, source text, and location. Click a header to
   sort, type in Filter to narrow; click a row (or <kbd>Enter</kbd>,
   <kbd>↑</kbd>/<kbd>↓</kbd>) to open the file and select exactly that node's text.
   Click a bind id (or press <kbd>Enter</kbd>) to select all its distinct matched
   regions in the source file; use the disclosure arrow to fold the group.
-- **AST Match Bindings** (Explorer sidebar): the same file and bind-id groups
+- **AST Match Bindings** (Explorer sidebar): the same matching-file and bind-id groups
   with node selection actions.
 - **Source files**: selecting a node or binding opens its source file and
   highlights its matched regions; enclosing nodes and other bindings are not included.

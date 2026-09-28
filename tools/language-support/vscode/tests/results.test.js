@@ -176,7 +176,7 @@ test("Explorer groups bindings under themed source-file parents with scoped sele
   store.result = { sample: file, files: [file, "/workspace/second.cpp"], errors: [] };
   const tree = new BindingsTree(store);
   const files = tree.getChildren();
-  assert.deepEqual(files.map((entry) => entry.file), [file, "/workspace/second.cpp"]);
+  assert.deepEqual(files.map((entry) => entry.file), [file]);
   const fileItem = tree.getTreeItem(files[0]);
   assert.equal(fileItem.label, "pair.cpp");
   assert.equal(fileItem.description, file);
@@ -217,4 +217,35 @@ test("streamed file batches appear before completion with globally correct selec
   assert.equal(store.binding({ q: 1, m: 0, b: 0 }).file, "/workspace/1.cpp");
   assert.deepEqual([store.result.cache.hits, store.result.cache.misses], [1, 1]);
   assert.equal(new BindingsTree(store).getChildren().length, 2);
+});
+
+test("scanned files without matches stay out of the results outline", () => {
+  const store = new ResultStore();
+  store.setRunning({ sample: "/workspace", scope: "workspace" });
+  store.startStreaming({ sample: "/workspace", totalFiles: 2 });
+  store.appendStreamingFile({ file: "/workspace/empty.cpp", completedFiles: 1,
+    totalFiles: 2, queries: [], bindings: {}, errors: [] });
+  assert.equal(store.running.completedFiles, 1);
+  assert.deepEqual(new BindingsTree(store).getChildren(), []);
+
+  const b = { id: "v", node: "0x1", kind: "VarDecl", file,
+    range: loc(0, 1), matches: [{ query: 0, match: 0, binding: 0, index: 1 }] };
+  store.appendStreamingFile({ file, completedFiles: 2, totalFiles: 2,
+    queries: [{ matcher: "varDecl()", count: 1, matches: [{ index: 1, bindings: [b] }] }],
+    bindings: { v: [b] }, errors: [] });
+  assert.equal(store.result.files.length, 2);
+  assert.deepEqual(new BindingsTree(store).getChildren().map((entry) => entry.file), [file]);
+});
+
+test("a matched translation unit remains listed without a visible binding group", () => {
+  const store = createStore();
+  store.groups = () => [{ id: "v", nodes: [{ b: first }] }];
+  store.result = { sample: file, files: [file, "/workspace/root-only.cpp", "/workspace/empty.cpp"],
+    queries: [
+      { translationUnit: file, count: 1, matches: [{}] },
+      { translationUnit: "/workspace/root-only.cpp", count: 1, matches: [{}] },
+      { translationUnit: "/workspace/empty.cpp", count: 0, matches: [] },
+    ], errors: [] };
+  assert.deepEqual(new BindingsTree(store).getChildren().map((entry) => entry.file),
+    [file, "/workspace/root-only.cpp"]);
 });

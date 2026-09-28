@@ -255,9 +255,10 @@ class BindingsTree {
         if (!groups.has(g.id)) groups.set(g.id, { id: g.id, nodes: [] });
         groups.get(g.id).nodes.push(n);
       }
-      for (const file of result.files || []) {
-        const filePath = typeof file === "string" ? file : file.path;
-        if (filePath && !byFile.has(filePath)) byFile.set(filePath, new Map());
+      for (const query of result.queries || []) {
+        const file = query.translationUnit;
+        if (file && (query.count > 0 || query.matches?.length) && !byFile.has(file))
+          byFile.set(file, new Map());
       }
       return [...errs, ...[...byFile].sort(([a], [b]) => a.localeCompare(b))
         .map(([file, groups]) => ({ type: "file", file, groups: [...groups.values()] }))];
