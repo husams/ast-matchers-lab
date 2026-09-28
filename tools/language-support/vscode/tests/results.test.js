@@ -249,3 +249,12 @@ test("a matched translation unit remains listed without a visible binding group"
   assert.deepEqual(new BindingsTree(store).getChildren().map((entry) => entry.file),
     [file, "/workspace/root-only.cpp"]);
 });
+
+test("run errors never become binding-outline rows", () => {
+  const store = createStore();
+  store.result = { sample: file, queries: [], errors: [
+    { file: "/workspace/broken.cpp", message: "Clang failed to parse the source file" },
+  ] };
+  store.groups = () => [];
+  assert.deepEqual(new BindingsTree(store).getChildren(), []);
+});

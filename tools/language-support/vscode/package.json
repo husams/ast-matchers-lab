@@ -2,7 +2,7 @@
   "name": "astmatcher-dsl",
   "displayName": "AST Matcher DSL (clang-query)",
   "description": "Syntax highlighting, completion, hover and diagnostics for Clang AST matcher scripts (.query).",
-  "version": "1.8.2",
+  "version": "1.8.3",
   "publisher": "ast-matchers-lab",
   "license": "MIT",
   "private": true,
@@ -116,6 +116,12 @@
         "title": "Clear Results",
         "category": "AST Matcher",
         "icon": "$(clear-all)"
+      },
+      {
+        "command": "astmatcher.showRunDiagnostics",
+        "title": "Show Run Diagnostics",
+        "category": "AST Matcher",
+        "icon": "$(error)"
       },
       {
         "command": "astmatcher.revealBinding",

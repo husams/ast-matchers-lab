@@ -49,6 +49,7 @@ test("activation starts the language client for saved and untitled matcher docum
     window: {
       activeTextEditor: undefined,
       createStatusBarItem: () => ({ hide() {}, show() {} }),
+      createOutputChannel: () => ({ clear() {}, append() {}, appendLine() {}, show() {}, dispose() {} }),
       registerWebviewViewProvider: () => disposable,
       createTreeView: () => disposable,
       onDidChangeActiveTextEditor: () => disposable,

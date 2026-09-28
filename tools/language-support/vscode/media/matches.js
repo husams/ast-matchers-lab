@@ -99,18 +99,6 @@
       `${Array.isArray(cache.warnings) && cache.warnings.length ? ` · ${cache.warnings.join("; ")}` : ""}`;
   }
 
-  function renderErrors() {
-    const r = state.result;
-    const errors = $("errors");
-    errors.hidden = !r || !r.errors || !r.errors.length;
-    errors.innerHTML = errors.hidden ? "" : r.errors.map((e) => {
-      const at = e.range ? `query line ${e.range.start.line + 1}: ` : "";
-      return `<div>✖ ${esc(at + e.message)}</div>`;
-    }).join("");
-    $("stderr").hidden = !r || !r.stderr;
-    $("stderr").textContent = (r && r.stderr) || "";
-  }
-
   function visibleNodes(group) {
     const needle = filter.toLowerCase();
     let nodes = group.nodes.filter((n) => !needle ||
@@ -130,13 +118,12 @@
 
   function render() {
     renderSummary();
-    renderErrors();
     const table = $("table");
     const r = state.result;
     if (!r) { table.hidden = true; $("no-results").hidden = true; return; }
     const totalMatches = (r.queries || []).reduce((n, q) => n + q.count, 0);
     const noResults = $("no-results");
-    noResults.hidden = !!state.running || totalMatches > 0 || !!(r.errors && r.errors.length);
+    noResults.hidden = !!state.running || totalMatches > 0;
     const activeColumns = columns();
     $("head").innerHTML = activeColumns.map((c) => {
       const arrow = sort.key === c.key ? (sort.dir > 0 ? " ▲" : " ▼") : "";

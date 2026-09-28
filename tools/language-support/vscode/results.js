@@ -246,7 +246,6 @@ class BindingsTree {
     const result = this.store.result;
     if (!result) return [];
     if (!node) {
-      const errs = (result.errors || []).map((e, i) => ({ type: "error", error: e, i }));
       const byFile = new Map();
       for (const g of this.store.groups()) for (const n of g.nodes) {
         const file = n.b.file || result.sample || "(unknown source)";
@@ -260,8 +259,8 @@ class BindingsTree {
         if (file && (query.count > 0 || query.matches?.length) && !byFile.has(file))
           byFile.set(file, new Map());
       }
-      return [...errs, ...[...byFile].sort(([a], [b]) => a.localeCompare(b))
-        .map(([file, groups]) => ({ type: "file", file, groups: [...groups.values()] }))];
+      return [...byFile].sort(([a], [b]) => a.localeCompare(b))
+        .map(([file, groups]) => ({ type: "file", file, groups: [...groups.values()] }));
     }
     if (node.type === "file") return node.groups.map((group) => ({
       type: "bind", group, file: node.file,
@@ -274,11 +273,6 @@ class BindingsTree {
 
   getTreeItem(node) {
     const C = vscode.TreeItemCollapsibleState;
-    if (node.type === "error") {
-      const item = new vscode.TreeItem(node.error.message, C.None);
-      item.iconPath = new vscode.ThemeIcon("error", new vscode.ThemeColor("errorForeground"));
-      return item;
-    }
     if (node.type === "file") {
       const name = require("path").basename(node.file);
       const item = new vscode.TreeItem(name, C.Expanded);
@@ -465,14 +459,12 @@ class MatchesView {
   </div>
 </header>
 <main id="results-screen">
-<section id="errors" hidden></section>
 <div id="cache-info" role="status" hidden></div>
 <div id="no-results" role="status" hidden>No matching bindings were found for this run.</div>
 <table id="table" hidden>
   <thead><tr id="head"></tr></thead>
   <tbody id="rows"></tbody>
 </table>
-<pre id="stderr" hidden></pre>
 </main>
 <main id="settings-screen" hidden>
   <form id="settings-form">

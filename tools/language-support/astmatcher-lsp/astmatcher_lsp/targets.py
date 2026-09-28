@@ -10,7 +10,7 @@ from pathlib import Path
 from pathlib import PurePosixPath
 import subprocess
 
-SOURCE_SUFFIXES = {".c", ".cc", ".cpp", ".cxx", ".c++", ".m", ".mm", ".cu"}
+SOURCE_SUFFIXES = {".cc", ".cpp", ".cxx", ".c++", ".cppm", ".ccm", ".cxxm", ".ixx"}
 def _glob_match(relative: str, pattern: str) -> bool:
     def regex(glob: str) -> str:
         out, i = ["^"], 0
