@@ -43,9 +43,10 @@
       if (!binds.has(g.id)) binds.set(g.id, { id: g.id, nodes: [] });
       binds.get(g.id).nodes.push(n);
     }
-    for (const entry of (state.result && state.result.files) || []) {
-      const file = typeof entry === "string" ? entry : entry.path;
-      if (file && !byFile.has(file)) byFile.set(file, new Map());
+    for (const query of (state.result && state.result.queries) || []) {
+      const file = query.translationUnit;
+      if (file && (query.count > 0 || query.matches?.length) && !byFile.has(file))
+        byFile.set(file, new Map());
     }
     return [...byFile].sort(([a], [b]) => a.localeCompare(b)).map(([file, binds]) => ({
       file, groups: [...binds.values()].sort((a, b) => a.id.localeCompare(b.id)),
