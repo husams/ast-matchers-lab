@@ -378,6 +378,66 @@ os.kill(os.getpid(), signal.SIGTERM)
             assert bounded["ok"] and bounded["truncated"], bounded
             assert len(bounded["nodes"]) <= 256 and len(bounded["edges"]) <= 512, bounded
 
+            multiple_source = Path(directory) / "multiple-records.cpp"
+            multiple_source.write_text(
+                "struct First { int first_field; int first_method() const { return first_field; } };\n"
+                "class Second { public: int second_field; int second_method() const { return second_field; } };\n"
+                "struct Multi : public First, private Second { int own_field; "
+                "int own_method() const { return own_field; } };\n",
+                encoding="utf-8")
+            multiple = run_inspect(binary, socket, {
+                "sourcePath": str(multiple_source), "workingDirectory": directory,
+                "flags": ["-std=c++23"], "file": str(multiple_source),
+                "position": {"line": 2, "character": 0}})
+            assert multiple["ok"] and not multiple["truncated"], multiple
+            multiple_nodes = {node["id"]: node for node in multiple["nodes"]}
+            assert multiple_nodes[multiple["recordId"]]["name"] == "Multi", multiple
+            multiple_edges = {(multiple_nodes[edge["from"]]["name"],
+                               multiple_nodes[edge["to"]]["name"], edge["kind"]): edge
+                              for edge in multiple["edges"]}
+            for parent in ("First", "Second"):
+                assert ("Multi", parent, "inherits") in multiple_edges, multiple
+            assert multiple_edges[("Multi", "First", "inherits")]["access"] == "public", multiple
+            assert multiple_edges[("Multi", "Second", "inherits")]["access"] == "private", multiple
+            for owner, field, method in (("First", "first_field", "first_method"),
+                                         ("Second", "second_field", "second_method"),
+                                         ("Multi", "own_field", "own_method")):
+                assert (owner, field, "field") in multiple_edges, multiple
+                assert (owner, method, "method") in multiple_edges, multiple
+
+            large_multiple_source = Path(directory) / "large-multiple-records.cpp"
+            large_multiple_lines = [
+                "struct Link {};",
+                "struct Huge { Link linked; int huge_method() const { return 0; }",
+                *(f"  int huge_field_{index};" for index in range(300)),
+                "};",
+                "struct Small { int small_field; int small_method() const { return small_field; } };",
+                "struct Multi : public Huge, private Small { int own_field; "
+                "int own_method() const { return own_field; } };",
+            ]
+            large_multiple_source.write_text("\n".join(large_multiple_lines) + "\n",
+                                             encoding="utf-8")
+            large_multiple = run_inspect(binary, socket, {
+                "sourcePath": str(large_multiple_source), "workingDirectory": directory,
+                "flags": ["-std=c++23"], "file": str(large_multiple_source),
+                "position": {"line": len(large_multiple_lines) - 1, "character": 0}})
+            assert large_multiple["ok"] and large_multiple["truncated"], large_multiple
+            assert len(large_multiple["nodes"]) == 256, len(large_multiple["nodes"])
+            assert len(large_multiple["edges"]) <= 512, len(large_multiple["edges"])
+            large_nodes = {node["id"]: node for node in large_multiple["nodes"]}
+            assert large_nodes[large_multiple["recordId"]]["name"] == "Multi", large_multiple
+            large_relations = {(large_nodes[edge["from"]]["name"],
+                                large_nodes[edge["to"]]["name"], edge["kind"])
+                               for edge in large_multiple["edges"]}
+            for parent in ("Huge", "Small"):
+                assert ("Multi", parent, "inherits") in large_relations, parent
+            for owner, field, method in (("Huge", "linked", "huge_method"),
+                                         ("Small", "small_field", "small_method"),
+                                         ("Multi", "own_field", "own_method")):
+                assert (owner, field, "field") in large_relations, owner
+                assert (owner, method, "method") in large_relations, owner
+            assert "Link" not in {node["name"] for node in large_nodes.values()}
+
             template_source = Path(directory) / "templates.cpp"
             template_source.write_text(
                 "template<class T> struct Box { T value; };\n"

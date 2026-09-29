@@ -798,10 +798,15 @@
       for (const id of graph.expandedRecordIds || []) pending.delete(id);
     }
     $("title").textContent = nameOf(root);
-    setNotice(graph.truncated ? "Graph limit reached; some relationships are omitted." : "",
+    setNotice(graph.truncated ? "Graph limit reached; some relationships may be omitted." : "",
       graph.truncated ? "warning" : "");
-    draw(true);
+    draw(!(message.background && !first));
     if (message.focusId && revealed.has(message.focusId)) selectRecord(message.focusId, true);
+    else if (message.background && selected?.kind === "member" && model.ownerOf.has(selected.id))
+      selectMember(selected.id);
+    else if (message.background && selected?.kind === "relation" &&
+        model.relations.some((relation) => relation.key === selected.key))
+      selectRelation(model.relations.find((relation) => relation.key === selected.key));
     else if (selected?.kind === "record" && model.byId.has(selected.id) && revealed.has(selected.id))
       selectRecord(selected.id, false);
     else selectRecord(rootId, false);
@@ -851,6 +856,9 @@
       pending.clear();
       setNotice(event.data.message || "Related classes could not be loaded.", "error");
       if (selected?.kind === "record") selectRecord(selected.id, false);
+    } else if (event.data?.type === "backgroundExpansionError") {
+      setNotice("Some parent members could not be loaded: " +
+        (event.data.message || "record inspection failed."), "warning");
     }
   });
   vscode.postMessage({ type: "ready" });

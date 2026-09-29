@@ -4,8 +4,9 @@ const crypto = require("crypto");
 const path = require("path");
 const vscode = require("vscode");
 
-const MAX_GRAPH_NODES = 256;
-const MAX_GRAPH_EDGES = 512;
+const MAX_GRAPH_NODES = 4096;
+const MAX_GRAPH_EDGES = 8192;
+const MAX_AUTO_BASE_INSPECTIONS = 8;
 
 function isRecordNode(node) {
   return !!node && (["class", "struct", "union"].includes(node.recordKind) ||
@@ -64,6 +65,27 @@ function inspectedRecordIds(graph, idMap) {
     }
   }
   return ids;
+}
+
+function inheritedBaseIds(graph) {
+  const bases = new Map();
+  for (const edge of graph.edges) {
+    if (edge.kind !== "inherits") continue;
+    if (!bases.has(edge.from)) bases.set(edge.from, []);
+    bases.get(edge.from).push(edge.to);
+  }
+  const result = [];
+  const seen = new Set([graph.recordId]);
+  const pending = [graph.recordId];
+  while (pending.length) {
+    for (const id of bases.get(pending.shift()) || []) {
+      if (seen.has(id)) continue;
+      seen.add(id);
+      result.push(id);
+      pending.push(id);
+    }
+  }
+  return result;
 }
 
 function mergeRecordGraphs(current, incoming, focusId) {
@@ -202,22 +224,36 @@ class RecordExplorer {
       });
     panel.webview.html = this.html(panel.webview);
     const session = { ready: false, disposed: false, expanding: false,
-      activeExpandId: undefined, expansionQueue: [],
+      activeExpandId: undefined, expansionQueue: [], autoInspectBases: false,
+      autoScheduled: new Set(),
       state: { status: "loading" }, graph: undefined };
     const post = (message) => {
       if (session.ready && !session.disposed) panel.webview.postMessage(message);
     };
     const postState = () => post({ type: "state", ...session.state });
     panel.onDidDispose?.(() => { session.disposed = true; });
+    const canExpand = (node) => isRecordNode(node) && node.definitionStatus === "defined" &&
+      !!sourceSpan(node);
+    const queueAutoBases = () => {
+      if (!session.autoInspectBases || session.disposed || !session.graph?.ok ||
+          !Array.isArray(session.graph.nodes) || !Array.isArray(session.graph.edges)) return;
+      const nodes = new Map(session.graph.nodes.map((node) => [node.id, node]));
+      for (const id of inheritedBaseIds(session.graph)) {
+        if (session.autoScheduled.size >= MAX_AUTO_BASE_INSPECTIONS) break;
+        if (session.autoScheduled.has(id) || session.graph.expandedRecordIds.includes(id) ||
+            !canExpand(nodes.get(id))) continue;
+        session.autoScheduled.add(id);
+        session.expansionQueue.push({ id, background: true });
+      }
+    };
     const processExpansions = async () => {
       if (session.expanding) return;
       session.expanding = true;
       try {
         while (session.expansionQueue.length && !session.disposed) {
-          const id = session.expansionQueue.shift();
+          const { id, background } = session.expansionQueue.shift();
           const node = session.graph?.nodes?.find((entry) => entry.id === id);
-          if (session.state.status !== "ready" || !isRecordNode(node) ||
-              node.definitionStatus !== "defined" || !sourceSpan(node) ||
+          if (session.state.status !== "ready" || !canExpand(node) ||
               session.graph.expandedRecordIds.includes(id)) continue;
           session.activeExpandId = id;
           try {
@@ -232,10 +268,13 @@ class RecordExplorer {
             }
             const graph = mergeRecordGraphs(session.graph, response, id);
             session.graph = graph;
-            session.state = { status: "ready", graph, focusId: id };
+            session.state = { status: "ready", graph,
+              ...(background ? { background: true } : { focusId: id }) };
             postState();
+            queueAutoBases();
           } catch (error) {
-            post({ type: "expansionError", message: error?.message || String(error) });
+            post({ type: background ? "backgroundExpansionError" : "expansionError",
+              message: error?.message || String(error) });
           } finally {
             session.activeExpandId = undefined;
           }
@@ -254,11 +293,12 @@ class RecordExplorer {
         if (node) await this.revealNode(node);
       } else if (message.type === "expand") {
         const node = session.graph?.nodes?.find((entry) => entry.id === message.id);
-        if (session.state.status !== "ready" || !isRecordNode(node) ||
-            node.definitionStatus !== "defined" || !sourceSpan(node) ||
+        if (session.state.status !== "ready" || !canExpand(node) ||
             session.graph.expandedRecordIds.includes(node.id)) return;
-        if (session.activeExpandId === node.id || session.expansionQueue.includes(node.id)) return;
-        session.expansionQueue.push(node.id);
+        if (session.activeExpandId === node.id) return;
+        const queued = session.expansionQueue.findIndex((entry) => entry.id === node.id);
+        if (queued >= 0) session.expansionQueue.splice(queued, 1);
+        session.expansionQueue.unshift({ id: node.id, background: false });
         await processExpansions();
       }
     });
@@ -277,6 +317,10 @@ class RecordExplorer {
       session.state = { status: "error", message: error.message || String(error) };
     }
     postState();
+    session.autoInspectBases = !!session.graph?.ok && !!session.graph.truncated &&
+      Array.isArray(session.graph.nodes) && Array.isArray(session.graph.edges);
+    queueAutoBases();
+    void processExpansions();
     return session.graph;
   }
 
