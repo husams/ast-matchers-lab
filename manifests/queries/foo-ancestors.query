@@ -1,0 +1,11 @@
+# All (transitive) ancestor classes of class foo.
+# Usage: clang-query -f foo-ancestors.query file.cpp -- -std=c++23
+set output diag
+set bind-root false
+match cxxRecordDecl(
+  isDefinition(),
+  unless(isImplicit()),
+  cxxRecordDecl().bind("ancestor"),
+  hasAncestor(translationUnitDecl(hasDescendant(
+    cxxRecordDecl(hasName("foo"), isDefinition(),
+                  isDerivedFrom(cxxRecordDecl(equalsBoundNode("ancestor"))))))))
