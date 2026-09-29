@@ -354,17 +354,24 @@ test("scanned files without matches stay out of the results outline", () => {
   assert.deepEqual(new BindingsTree(store).getChildren().map((entry) => entry.file), [file]);
 });
 
-test("a matched translation unit remains listed without a visible binding group", () => {
+test("a translation unit with matches in its header has no empty file row", () => {
   const store = createStore();
-  store.groups = () => [{ id: "v", nodes: [{ b: first }] }];
-  store.result = { sample: file, files: [file, "/workspace/root-only.cpp", "/workspace/empty.cpp"],
+  const header = "/workspace/include/deep.hpp";
+  const bound = { ...first, file: header };
+  store.groups = () => [{ id: "v", nodes: [{ b: bound, matches: ["1"],
+    sels: [{ q: 0, m: 0, b: 0 }] }] }];
+  store.result = { sample: file, files: [file, "/workspace/empty.cpp"],
     queries: [
       { translationUnit: file, count: 1, matches: [{}] },
-      { translationUnit: "/workspace/root-only.cpp", count: 1, matches: [{}] },
       { translationUnit: "/workspace/empty.cpp", count: 0, matches: [] },
     ], errors: [] };
-  assert.deepEqual(new BindingsTree(store).getChildren().map((entry) => entry.file),
-    [file, "/workspace/root-only.cpp"]);
+  const tree = new BindingsTree(store);
+  const files = tree.getChildren();
+  assert.deepEqual(files.map((entry) => entry.file), [header]);
+  const binding = tree.getChildren(files[0])[0];
+  assert.equal(tree.getChildren(binding)[0].node.b.file, header);
+  assert.deepEqual(store.result.files, [file, "/workspace/empty.cpp"],
+    "all scanned translation units remain in the run result");
 });
 
 test("run errors never become binding-outline rows", () => {
