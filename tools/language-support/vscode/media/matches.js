@@ -21,7 +21,7 @@
       value: (n) => n.b.range ? n.b.range.start.line * 1e6 + n.b.range.start.character : Number.MAX_SAFE_INTEGER,
       html: (n) => n.b.range ? `${n.b.range.start.line + 1}:${n.b.range.start.character + 1}` : '<span class="muted">—</span>' },
   ];
-  const DEFAULT_COLUMNS = ["match", "kind", "semanticKind", "detail", "location"];
+  const DEFAULT_COLUMNS = ["match", "kind", "summary", "text", "location"];
   const esc = (s) => String(s == null ? "" : s).replace(/&/g, "&amp;")
     .replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   const key = (sel) => sel ? `${sel.q}:${sel.m}:${sel.b}` : "";
@@ -32,6 +32,11 @@
   let sort = { key: "", dir: 1 };
   const collapsedFiles = new Set();
   const collapsedBindings = new Set();
+  const failureActions = {
+    "runtime-settings": "Open settings",
+    "select-target": "Select run target",
+    diagnostics: "Open diagnostics",
+  };
 
   function columns() {
     const visible = Array.isArray(settings.visibleColumns) ? settings.visibleColumns : DEFAULT_COLUMNS;
@@ -91,13 +96,18 @@
       return;
     }
     $("cancel-query").hidden = true;
-    if (!r) { s.textContent = "Run a query with ⌘↵ to see its matches here."; return; }
+    if (!r) {
+      s.textContent = state.failure ? "Query could not run" : "Run a query to see its matches here.";
+      $("cache-info").hidden = true;
+      return;
+    }
     const total = (r.queries || []).reduce((n, q) => n + q.count, 0);
     const base = (r.sample || "").split(/[\\/]/).pop() || "selected files";
     const cache = r.cache || r.cacheMetadata || {};
     const hit = cache.hits > 0 || cache.hit === true || r.cacheHit === true || cache.status === "hit";
     const cacheText = cache.enabled === false ? "cache off" : (hit ? "cache hit" : "cache miss");
-    s.innerHTML = `${r.cancelled ? '<strong>Cancelled · partial results</strong> · ' : ""}<b>${total}</b> match${total === 1 ? "" : "es"} across ` +
+    s.innerHTML = `${r.cancelled ? '<strong>Cancelled · partial results</strong> · ' :
+      state.failure ? '<strong>Incomplete · partial results</strong> · ' : ""}<b>${total}</b> match${total === 1 ? "" : "es"} across ` +
       `<span class="file-name">${esc(base)}</span> ` +
       `<span class="muted">${r.cancelled ? `${esc(r.completedFiles ?? 0)}/${esc(r.totalFiles ?? "?")} files completed · ` : ""}${esc((r.flags || []).join(" "))} · ${esc(r.durationMs)} ms · ${cacheText}` +
       `${r.truncated ? " · truncated" : ""}</span>`;
@@ -133,10 +143,17 @@
     renderSummary();
     const table = $("table");
     const r = state.result;
+    const failure = state.failure;
+    const error = $("run-error");
+    error.hidden = !failure;
+    $("run-error-message").textContent = failure?.message || "";
+    const action = $("run-error-action");
+    action.hidden = !failureActions[failure?.action];
+    action.textContent = failureActions[failure?.action] || "";
     if (!r) { table.hidden = true; $("no-results").hidden = true; return; }
     const totalMatches = (r.queries || []).reduce((n, q) => n + q.count, 0);
     const noResults = $("no-results");
-    noResults.hidden = !!state.running || totalMatches > 0;
+    noResults.hidden = !!state.running || !!failure || totalMatches > 0;
     const activeColumns = columns();
     $("head").innerHTML = activeColumns.map((c) => {
       const arrow = sort.key === c.key ? (sort.dir > 0 ? " ▲" : " ▼") : "";
@@ -145,12 +162,13 @@
     $("show-root").checked = !!state.showRoot;
     const html = [];
     const files = groupedFiles();
+    const showFileGroups = files.length > 1 || (r.target?.scope && r.target.scope !== "file");
     files.forEach(({ file, groups }) => {
       let visibleGroups = groups.map((g) => ({ ...g, nodes: visibleNodes(g) })).filter((g) => g.nodes.length);
       if (filter && !file.toLowerCase().includes(filter.toLowerCase()) && !visibleGroups.length) return;
-      const fileOpen = !collapsedFiles.has(file) || !!filter;
+      const fileOpen = !showFileGroups || !collapsedFiles.has(file) || !!filter;
       const total = visibleGroups.reduce((n, g) => n + g.nodes.length, 0);
-      html.push(`<tr class="file-group" tabindex="0" data-file="${esc(file)}" aria-expanded="${fileOpen}">` +
+      if (showFileGroups) html.push(`<tr class="file-group" tabindex="0" data-file="${esc(file)}" aria-expanded="${fileOpen}">` +
         `<td colspan="${activeColumns.length}"><span class="twisty">${fileOpen ? "▾" : "▸"}</span> ` +
         `<span class="file-name" title="${esc(file)}">${esc(file.split(/[\\/]/).pop())}</span> ` +
         `<span class="file-path">${esc(file)}</span><span class="muted"> · ${total} node${total === 1 ? "" : "s"}</span></td></tr>`);
@@ -277,9 +295,10 @@
   $("rerun").addEventListener("click", () => vscode.postMessage({ type: "command", command: "astmatcher.runQuery" }));
   $("cancel-query").addEventListener("click", () => vscode.postMessage({ type: "command", command: "astmatcher.cancelQuery" }));
   $("settings").addEventListener("click", () => vscode.postMessage({ type: "settings-open" }));
-  $("run-file").addEventListener("click", () => vscode.postMessage({ type: "command", command: "astmatcher.runFile" }));
-  $("run-directory").addEventListener("click", () => vscode.postMessage({ type: "command", command: "astmatcher.runDirectory" }));
-  $("run-workspace").addEventListener("click", () => vscode.postMessage({ type: "command", command: "astmatcher.runWorkspace" }));
+  $("run-error-action").addEventListener("click", () => {
+    if (failureActions[state.failure?.action])
+      vscode.postMessage({ type: "run-error-action", action: state.failure.action });
+  });
   $("settings-cancel").addEventListener("click", () => vscode.postMessage({ type: "settings-cancel" }));
   $("settings-save").addEventListener("click", saveSettings);
   $("select-target").addEventListener("click", () => vscode.postMessage({ type: "target-select" }));
@@ -367,5 +386,10 @@
     setScreen("results");
     render();
   });
+  if (typeof ResizeObserver !== "undefined") {
+    const bar = $("bar");
+    new ResizeObserver(() => document.documentElement.style.setProperty(
+      "--bar-height", `${bar.offsetHeight}px`)).observe(bar);
+  }
   vscode.postMessage({ type: "ready" });
 })();

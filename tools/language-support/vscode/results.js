@@ -41,6 +41,7 @@ class ResultStore {
   constructor() {
     this.result = undefined;
     this.running = false;
+    this.failure = undefined;
     this.showRoot = false;
     this.selected = undefined;          // { q, m, b } node selector or { id } group selector
     this.generation = 0;               // changes whenever selectors may refer to new results
@@ -48,18 +49,24 @@ class ResultStore {
     this.onDidChange = this.emitter.event;
   }
 
-  set(result) {
+  set(result, failure = undefined) {
     this.generation++;
     this.result = result;
     this.running = false;
+    this.failure = failure;
     this.selected = undefined;
     this.emitter.fire("result");
+  }
+
+  setFailure(failure) {
+    this.set(undefined, failure);
   }
 
   setRunning(info) {
     this.generation++;
     this.result = undefined;
     this.running = info;
+    this.failure = undefined;
     this.selected = undefined;
     this.emitter.fire("running");
   }
@@ -383,6 +390,14 @@ class MatchesView {
         sel: msg.sel, generation: msg.generation,
       });
       else if (msg.type === "command") vscode.commands.executeCommand(msg.command);
+      else if (msg.type === "run-error-action") {
+        if (msg.action === "runtime-settings")
+          vscode.commands.executeCommand("workbench.action.openSettings", "astmatcher");
+        else if (msg.action === "select-target")
+          vscode.commands.executeCommand("astmatcher.selectTarget");
+        else if (msg.action === "diagnostics")
+          vscode.commands.executeCommand("astmatcher.showRunDiagnostics");
+      }
       else if (msg.type === "settings-open") this.showSettings();
       else if (msg.type === "settings-load") this.loadSettings();
       else if (msg.type === "settings-save") this.saveSettings(msg.values);
@@ -468,7 +483,8 @@ class MatchesView {
     }
     this.view.webview.postMessage({
       type: why === "selection" ? "selection" : "state",
-      result: this.store.result, running: this.store.running, selected: this.store.selected,
+      result: this.store.result, running: this.store.running, failure: this.store.failure,
+      selected: this.store.selected,
       groups: this.store.groups(), showRoot: this.store.showRoot,
       generation: this.store.generation,
     });
@@ -493,18 +509,12 @@ class MatchesView {
 <body>
 <header id="bar">
   <div id="results-toolbar">
-    <span id="summary">Run a query with ⌘↵ to see its matches here.</span>
-    <span class="spacer"></span>
+    <span id="summary">Run a query to see its matches here.</span>
     <input id="filter" type="search" placeholder="Filter" aria-label="Filter matches">
     <label class="toggle" title="Also list clang-query's implicit root binding">
       <input id="show-root" type="checkbox"> Show root</label>
     <button id="sample" title="Choose the file the query runs against">Sample…</button>
     <button id="settings" title="Run scope, compiler, results and cache settings">Settings</button>
-    <div class="scope-menu" role="group" aria-label="Run scope">
-      <button id="run-file" title="Run against one source file">File</button>
-      <button id="run-directory" title="Run against a directory">Directory</button>
-      <button id="run-workspace" title="Run against the workspace">Workspace</button>
-    </div>
     <button id="cancel-query" title="Cancel the running query" hidden>Cancel Query</button>
     <button id="rerun" title="Run the query again">Run</button>
   </div>
@@ -516,6 +526,10 @@ class MatchesView {
 </header>
 <main id="results-screen">
 <div id="cache-info" role="status" hidden></div>
+<div id="run-error" role="alert" aria-live="assertive" hidden>
+  <span id="run-error-message"></span>
+  <button id="run-error-action" type="button" hidden></button>
+</div>
 <div id="no-results" role="status" hidden>No matching bindings were found for this run.</div>
 <table id="table" hidden>
   <thead><tr id="head"></tr></thead>

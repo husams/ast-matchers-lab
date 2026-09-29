@@ -8,6 +8,9 @@ const test = require("node:test");
 test("activation starts the language client for saved and untitled matcher documents", async () => {
   let clientOptions;
   let started = false;
+  let clientRunning = true;
+  let matchesShown = 0;
+  const diagnosticEntries = [];
   const registered = new Map();
   const notifications = [];
   const clientNotifications = new Map();
@@ -28,7 +31,7 @@ test("activation starts the language client for saved and untitled matcher docum
     constructor(_id, _name, _serverOptions, options) { clientOptions = options; }
     async start() { started = true; }
     async stop() {}
-    isRunning() { return true; }
+    isRunning() { return clientRunning; }
     onNotification(method, callback) { clientNotifications.set(method, callback); return disposable; }
     sendRequest(_method, params) {
       lastRunRequest = params;
@@ -59,7 +62,7 @@ test("activation starts the language client for saved and untitled matcher docum
         "server.python": "python3",
         "nativeServerPath": "tools/language-support/native/build/astmatcher-native",
         "flags": ["-std=c++23"], "traversal": "AsIs", "exclusions": [],
-        "visibleColumns": ["match", "kind", "semanticKind", "summary", "text", "location"],
+        "visibleColumns": ["match", "kind", "summary", "text", "location"],
         "cacheEnabled": false, "cacheLocation": "", "compileCommands": "", "scope": "file",
       })[key],
         update: async (key, value) => { stored[key] = value; },
@@ -77,7 +80,12 @@ test("activation starts the language client for saved and untitled matcher docum
       createStatusBarItem: () => { const item = { hide() {}, show() {} }; statusItems.push(item); return item; },
       withProgress: (_options, task) => task(),
       setStatusBarMessage() {},
-      createOutputChannel: () => ({ clear() {}, append() {}, appendLine() {}, show() {}, dispose() {} }),
+      createOutputChannel: () => ({
+        clear() { diagnosticEntries.length = 0; },
+        append(value) { diagnosticEntries.push(value); },
+        appendLine(value) { diagnosticEntries.push(value); },
+        show() {}, dispose() {},
+      }),
       registerWebviewViewProvider: () => disposable,
       createTreeView: () => disposable,
       onDidChangeActiveTextEditor: () => disposable,
@@ -108,17 +116,18 @@ test("activation starts the language client for saved and untitled matcher docum
       name, class { constructor() {} },
     ]),
   );
-  results.MatchesView = class { constructor() {} show() {} };
+  results.MatchesView = class { constructor() {} show() { matchesShown++; } };
   results.reveal = () => {};
   results.ResultStore = class {
     constructor() { this.generation = 2; this.result = { cwd: "/workspace", flags: ["-std=c++23"] }; this.appendCount = 0; resultStore = this; }
-    setRunning(info) { this.running = info; }
+    setRunning(info) { this.running = info; this.failure = undefined; }
     setCancellable(cancellable) { this.running.cancellable = cancellable; }
     startStreaming() {}
     appendStreamingFile() { this.appendCount = (this.appendCount || 0) + 1; }
     requestCancellation() { this.cancelRequested = true; }
     cancelRequestFailed() { this.cancelRequested = false; }
-    set(result) { this.result = result; this.running = false; }
+    set(result, failure) { this.result = result; this.running = false; this.failure = failure; }
+    setFailure(failure) { this.set(undefined, failure); }
     binding(sel) { return sel.q === 0 ? { kind: "CXXRecordDecl", file: "/workspace/source.cpp",
       range: { start: { line: 1, character: 0 }, end: { line: 4, character: 1 } } } : undefined; }
   };
@@ -237,7 +246,18 @@ test("activation starts the language client for saved and untitled matcher docum
     await running;
     assert.equal(resultStore.result.cancelled, true, "partial completion remains marked cancelled");
 
+    samplePath = "/workspace/missing.cpp";
+    await registered.get("astmatcher.runQuery")();
+    assert.match(resultStore.failure.message, /run target was not found/);
+    assert.equal(resultStore.failure.action, "select-target");
     samplePath = __filename;
+    clientRunning = false;
+    await registered.get("astmatcher.runQuery")();
+    assert.match(resultStore.failure.message, /language server is unavailable/);
+    assert.equal(resultStore.failure.action, "runtime-settings");
+    assert.ok(matchesShown >= 2, "preflight failures open the persistent matches panel");
+    clientRunning = true;
+
     const failingRun = registered.get("astmatcher.runQuery")();
     await new Promise(setImmediate);
     failCancellationNotification = true;
@@ -246,10 +266,37 @@ test("activation starts the language client for saved and untitled matcher docum
     assert.equal(resultStore.running.cancellable, true);
     failCancellationNotification = false;
     await registered.get("astmatcher.cancelQuery")();
-    rejectRequest(new Error("LSP disconnected"));
+    rejectRequest(new Error("LSP disconnected; token=examplecredential"));
     await failingRun;
-    assert.ok(errors.some((message) => message.includes("run failed: LSP disconnected")),
-      "a rejected query reports its actual transport failure after cancellation was requested");
+    assert.equal(resultStore.failure.action, "diagnostics");
+    assert.match(resultStore.failure.message, /query request failed/i);
+    assert.ok(errors.some((message) => message.includes("open AST Matcher Diagnostics")),
+      "a rejected query offers a persistent, actionable error after cancellation was requested");
+    assert.ok(errors.every((message) => !message.includes("LSP disconnected")),
+      "the notification stays concise while Diagnostics retains the backend detail");
+    assert.ok(diagnosticEntries.some((entry) => entry.includes("LSP disconnected")),
+      "Diagnostics preserves the actual transport failure");
+    assert.ok(diagnosticEntries.every((entry) => !entry.includes("examplecredential")),
+      "Diagnostics redacts token values from transport errors");
+
+    const errorResultRun = registered.get("astmatcher.runQuery")();
+    await new Promise(setImmediate);
+    resolveRequest({ ok: false, sample: __filename, flags: [], queries: [], bindings: {},
+      files: [], errors: [{ message: "native runner unavailable" }], durationMs: 1 });
+    await errorResultRun;
+    assert.equal(resultStore.failure.action, "diagnostics");
+    assert.equal(resultStore.result.errors.length, 1, "server diagnostics remain available");
+    const parseResultRun = registered.get("astmatcher.runQuery")();
+    await new Promise(setImmediate);
+    resolveRequest({ ok: false, sample: __filename, flags: [], queries: [], bindings: {},
+      files: [__filename], exitCode: 1,
+      errors: [{ file: __filename, message: "Clang failed to parse the source file" }], durationMs: 1 });
+    await parseResultRun;
+    assert.equal(resultStore.failure, undefined,
+      "ordinary source parse diagnostics stay in the status area without a panel error");
+    samplePath = "/workspace/missing.cpp";
+    await registered.get("astmatcher.runQuery")();
+    assert.equal(diagnosticEntries.length, 0, "a preflight error clears stale source diagnostics");
     await extension.deactivate();
   } finally {
     Module._load = originalLoad;

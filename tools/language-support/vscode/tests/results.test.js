@@ -230,6 +230,32 @@ test("result generation advances when selectors can be rebound", () => {
   assert.equal(store.generation, 3);
 });
 
+test("run failures persist until a new run, while the bindings outline stays empty", () => {
+  const store = new ResultStore();
+  const failure = { message: "The selected run target was not found.", action: "select-target" };
+  store.setFailure(failure);
+  assert.deepEqual(store.failure, failure);
+  assert.equal(store.result, undefined);
+  assert.equal(store.generation, 1);
+  assert.deepEqual(new BindingsTree(store).getChildren(), []);
+  store.setRunning({ sample: file });
+  assert.equal(store.failure, undefined);
+  store.set(undefined, failure);
+  store.set({ ok: true, queries: [], bindings: {} });
+  assert.equal(store.failure, undefined, "a successful run clears the prior error");
+});
+
+test("matches panel keeps compact controls, cross-platform welcome text, and accessible errors", () => {
+  const matches = new MatchesView({ extensionUri: { fsPath: "/extension" } }, createStore(), {});
+  const html = matches.html({ cspSource: "vscode-resource:", asWebviewUri: () => "vscode-resource:asset" });
+  assert.match(html, /id="run-error" role="alert"/);
+  assert.match(html, /id="run-error-action"/);
+  assert.match(html, /Run a query to see its matches here/);
+  assert.doesNotMatch(html, /⌘|id="run-file"|id="run-directory"|id="run-workspace"/);
+  for (const id of ["filter", "show-root", "sample", "settings", "cancel-query", "rerun"])
+    assert.match(html, new RegExp(`id="${id}"`));
+});
+
 test("matches webview carries result generation with Explore Record and source reveal actions", () => {
   const store = createStore();
   store.generation = 7;

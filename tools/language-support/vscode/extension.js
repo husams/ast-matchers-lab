@@ -108,6 +108,21 @@ function showRunDiagnostics() {
   runDiagnosticsOutput.show(true);
 }
 
+function safeRunError(error) {
+  return String(error?.message || error).replace(
+    /\b(?:glpat-|gh[pousr]_|sk-)[A-Za-z0-9_-]{8,}\b/g, "[redacted]").replace(
+    /\b(token|secret|password|api[_-]?key)(\s*[:=]\s*)(?:"[^"]*"|'[^']*'|\S+)/gi,
+    "$1$2[redacted]");
+}
+
+function showRunFailure(failure) {
+  if (store && !store.running) {
+    renderRunDiagnostics(undefined);
+    store.setFailure(failure);
+    matchesView.show();
+  }
+}
+
 /** Absolute path to the server launcher, or null when it cannot be found. */
 function findServer() {
   const configured = config().get("server.path");
@@ -157,7 +172,14 @@ async function startServer(context) {
   };
   client = new LanguageClient("astmatcher", "AST Matcher DSL", serverOptions, clientOptions);
   context.subscriptions.push(client);
-  await client.start();
+  try {
+    await client.start();
+  } catch {
+    client = undefined;
+    vscode.window.showWarningMessage(
+      "astmatcher: language server could not start. Check astmatcher.server.path and astmatcher.server.python.");
+    return;
+  }
   context.subscriptions.push(client.onNotification("astmatcher/queryProgress", (progress) => {
     if (!activeRunId || progress.runId !== activeRunId) return;
     if (progress.kind === "cancelled") {
@@ -239,7 +261,7 @@ function getRunSettings() {
     : scope === "workspace" ? ""
       : configuredPath || (sample && sample.absolute) || base;
   return {
-    visibleColumns: config().get("visibleColumns") || ["match", "kind", "semanticKind", "detail", "location"],
+    visibleColumns: config().get("visibleColumns") || ["match", "kind", "summary", "text", "location"],
     flags: sample ? sample.flags : (config().get("flags") || ["-std=c++23"]),
     compileCommands: config().get("compileCommands") || "",
     traversal: config().get("traversal") || "AsIs",
@@ -443,10 +465,15 @@ async function runQuery(arg) {
     ? await vscode.workspace.openTextDocument(arg)
     : queryDocument();
   if (!document) {
+    showRunFailure({ message: "Open a .query or .astmatcher file, then run the query." });
     vscode.window.showInformationMessage("astmatcher: open a .query file to run it.");
     return;
   }
   if (!client || !client.isRunning()) {
+    showRunFailure({
+      message: "The language server is unavailable. Check astmatcher.server.path and astmatcher.nativeServerPath, then restart the language server.",
+      action: "runtime-settings",
+    });
     vscode.window.showWarningMessage(
       "astmatcher: Run Query requires the language server and astmatcher-native. " +
       "Set astmatcher.server.path and astmatcher.nativeServerPath.");
@@ -457,9 +484,10 @@ async function runQuery(arg) {
   sample = await resolveSampleForTarget(sample, target);
   const checkedPath = target.scope === "file" ? sample.absolute : target.path;
   if (!fs.existsSync(checkedPath)) {
-    const choice = await vscode.window.showWarningMessage(
-      `astmatcher: run target not found: ${checkedPath}`, "Select Run Target…");
-    if (choice) await selectTarget();
+    showRunFailure({
+      message: "The selected run target was not found. Choose an existing source file or directory.",
+      action: "select-target",
+    });
     return;
   }
   const runningLabel = target.scope === "workspace"
@@ -501,10 +529,13 @@ async function runQuery(arg) {
     activeRunCancellationObserved = false;
     updateCancellationUi();
     runStatusItem.hide();
-    store.set(undefined);
+    store.setFailure({
+      message: "The query request failed. Check the language server and native runner, then retry.",
+      action: "diagnostics",
+    });
     renderRunDiagnostics({ sample: sample.absolute,
-      errors: [{ file: sample.absolute, message: err.message || String(err) }] });
-    vscode.window.showErrorMessage(`astmatcher: run failed: ${err.message || err}`);
+      errors: [{ file: sample.absolute, message: safeRunError(err) }] });
+    vscode.window.showErrorMessage("astmatcher: run failed; open AST Matcher Diagnostics for next steps.");
     return;
   }
   if (serial !== runSerial) return;
@@ -519,7 +550,12 @@ async function runQuery(arg) {
       completedFiles: result.completedFiles ?? store.running?.completedFiles ?? 0,
       totalFiles: result.totalFiles ?? store.running?.totalFiles };
   }
-  store.set(result);
+  const runtimeFailure = !result.ok && !result.cancelled && result.errors.length > 0 &&
+    (result.exitCode == null || result.errors.some((error) => !error.file));
+  store.set(result, runtimeFailure ? {
+    message: "The query did not complete successfully. Check the source and native runner in AST Matcher Diagnostics.",
+    action: "diagnostics",
+  } : undefined);
   renderRunDiagnostics(result);
   queryDiagnostics.set(document.uri, result.errors.filter((e) => e.range).map((e) => {
     const r = e.range;
