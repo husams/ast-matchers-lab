@@ -166,17 +166,17 @@ function shownEdges(view) { return view.edges().filter((edge) => !edge.className
 test("projects raw AST members into bounded UML record cards with source-backed edges", () => {
   const view = loadRecordView();
   view.sendGraph(fixture());
-  assert.deepEqual(cardIds(view), ["root", "base", "peer"]);
-  assert.equal(view.cards().length, 3, "field and method must not be graph vertices");
-  assert.equal(view.edges().length, 2, "only record-to-record relationships are drawn");
+  assert.deepEqual(cardIds(view), ["root", "base", "grand", "peer"]);
+  assert.equal(view.cards().length, 4, "the full base chain is visible without changing card types");
+  assert.equal(view.edges().length, 3, "only record-to-record relationships are drawn");
   assert.ok(view.element("graph").find((entry) => entry.attributes.id === "generalization"));
   assert.ok(view.element("graph").find((entry) => entry.className === "triangle"));
   const rows = Array.from(view.element("graph").querySelectorAll(".member-row"));
   assert.equal(rows.length, 2);
   assert.match(rows.find((row) => row.dataset.memberId === "field").textContent, /− next: Peer \*/);
   assert.match(rows.find((row) => row.dataset.memberId === "method").textContent, /# void run\(\)/);
-  assert.match(view.element("subtitle").textContent, /3 of 4 classes.*Translation unit only/);
-  assert.ok(!view.element("graph").textContent.includes("Grand"));
+  assert.match(view.element("subtitle").textContent, /4 of 4 classes.*Translation unit only/);
+  assert.ok(view.element("graph").textContent.includes("Grand"));
   assert.equal(buttonWithText(view.element("detail-content"), "Reveal related classes"), undefined,
     "an already expanded root with all known neighbors visible has no reveal action");
 });
@@ -218,7 +218,7 @@ test("explicit reveal requests expansion once and retains discoveries after the 
   graph.edges.push({ from: "grand", to: "great", kind: "inherits" });
   graph.expandedRecordIds = ["root", "base"];
   view.sendGraph(graph, "base");
-  assert.deepEqual(cardIds(view), ["root", "base", "grand", "peer"]);
+  assert.deepEqual(cardIds(view), ["root", "base", "grand", "peer", "great"]);
   view.cards().find((card) => card.dataset.id === "grand").fire("click");
   reveal().fire("click");
   assert.deepEqual(cardIds(view), ["root", "base", "grand", "peer", "great"]);
@@ -231,7 +231,7 @@ test("host expansion errors preserve the visible diagram and report the failure"
   view.sendGraph(fixture());
   view.sendExpansionError("Inspection timed out");
   assert.match(view.element("notice").textContent, /Inspection timed out/);
-  assert.deepEqual(cardIds(view), ["root", "base", "peer"]);
+  assert.deepEqual(cardIds(view), ["root", "base", "grand", "peer"]);
 });
 
 test("directional filters use the selected class and keep shown cards and keyboard focus", () => {
@@ -241,14 +241,14 @@ test("directional filters use the selected class and keep shown cards and keyboa
   bases.focus();
   bases.checked = false;
   bases.fire("change");
-  assert.equal(shownEdges(view).length, 1);
+  assert.equal(shownEdges(view).length, 2);
   assert.equal(view.document.activeElement, bases);
-  assert.deepEqual(cardIds(view), ["root", "base", "peer"]);
+  assert.deepEqual(cardIds(view), ["root", "base", "grand", "peer"]);
   assert.equal(view.edges().find((edge) => edge.className.includes("inherits"))
     .attributes["aria-hidden"], "true");
   view.cards().find((card) => card.dataset.id === "base").fire("click");
   assert.equal(shownEdges(view).length, 2,
-    "base-to-grand is unrevealed, while unrelated visible edges retain context");
+    "the base-to-grand edge is filtered, while unrelated visible edges retain context");
   const derived = filterInput(view, "Known derived");
   derived.checked = false;
   derived.fire("change");
@@ -260,17 +260,17 @@ test("directional filters use the selected class and keep shown cards and keyboa
   outgoing.checked = false;
   outgoing.fire("change");
   view.cards().find((card) => card.dataset.id === "root").fire("click");
-  assert.equal(shownEdges(view).length, 0, "both outgoing root relations are filtered");
+  assert.equal(shownEdges(view).length, 1, "the ancestor edge stays visible outside root's filters");
   view.cards().find((card) => card.dataset.id === "peer").fire("click");
-  assert.equal(shownEdges(view).length, 2, "the same association is known incoming at Peer");
+  assert.equal(shownEdges(view).length, 3, "the same association is known incoming at Peer");
   const incoming = filterInput(view, "Known incoming fields");
   incoming.checked = false;
   incoming.fire("change");
-  assert.equal(shownEdges(view).length, 1);
-  assert.deepEqual(cardIds(view), ["root", "base", "peer"]);
+  assert.equal(shownEdges(view).length, 2);
+  assert.deepEqual(cardIds(view), ["root", "base", "grand", "peer"]);
 });
 
-test("filtered directions constrain one-hop reveal and self links remain selectable by either direction", () => {
+test("base filtering preserves visible ancestors and self links remain selectable by either direction", () => {
   const view = loadRecordView();
   const graph = fixture();
   graph.nodes.push({ id: "self", kind: "FieldDecl", name: "self" });
@@ -282,14 +282,16 @@ test("filtered directions constrain one-hop reveal and self links remain selecta
   bases.fire("change");
   view.cards().find((card) => card.dataset.id === "base").fire("click");
   buttonWithText(view.element("detail-content"), "Reveal related classes").fire("click");
-  assert.ok(!cardIds(view).includes("grand"), "disabled base direction does not reveal a grandparent");
+  assert.ok(cardIds(view).includes("grand"), "a known grandparent remains visible");
+  const grandEdge = view.edges().find((edge) => edge.attributes["aria-label"].includes("Base inherits Grand"));
+  assert.ok(grandEdge.className.includes("filtered-out"), "the disabled base direction hides its edge");
   graph.expandedRecordIds = ["root", "base"];
   view.sendGraph(graph, "base");
   assert.equal(buttonWithText(view.element("detail-content"), "Reveal related classes"), undefined);
   bases.checked = true;
   bases.fire("change");
-  buttonWithText(view.element("detail-content"), "Reveal related classes").fire("click");
-  assert.ok(cardIds(view).includes("grand"));
+  assert.ok(!view.edges().find((edge) => edge.attributes["aria-label"].includes("Base inherits Grand"))
+    .className.includes("filtered-out"));
   view.cards().find((card) => card.dataset.id === "root").fire("click");
   const selfEdge = view.edges().find((edge) => edge.attributes["aria-label"].includes("Root.self"));
   assert.ok(selfEdge);
@@ -402,8 +404,8 @@ test("unresolved classes keep an explicit translation-unit status", () => {
   assert.match(card.attributes["aria-label"], /definition unavailable/);
   card.fire("click");
   assert.match(view.element("detail-content").textContent, /Unavailable in this translation unit/);
-  buttonWithText(view.element("detail-content"), "Reveal related classes").fire("click");
-  assert.ok(cardIds(view).includes("grand"), "already known neighbors remain discoverable");
+  assert.ok(cardIds(view).includes("grand"), "already known ancestors remain visible");
+  assert.equal(buttonWithText(view.element("detail-content"), "Reveal related classes"), undefined);
   assert.equal(view.messages.filter((message) => message.type === "expand").length, 0,
     "an unresolved definition cannot be expanded through the host");
 });
