@@ -133,6 +133,22 @@
     for (const related of neighbors(id)) revealed.add(related);
   }
 
+  function revealBaseChain(id) {
+    const seen = new Set();
+    const pendingBases = [id];
+    while (pendingBases.length) {
+      const current = pendingBases.pop();
+      if (seen.has(current)) continue;
+      seen.add(current);
+      revealed.add(current);
+      for (const relation of model.around.get(current) || []) {
+        if (relation.kind === "inherits" && relation.from === current) {
+          pendingBases.push(relation.to);
+        }
+      }
+    }
+  }
+
   function visibleRecords() {
     return model.records.filter((node) => revealed.has(node.id));
   }
@@ -771,10 +787,12 @@
       pending = new Set();
       compartments = new Map();
       revealNeighborhood(rootId);
+      revealBaseChain(rootId);
     } else {
       revealed.add(rootId);
       if (message.focusId && model.byId.has(message.focusId)) {
         revealNeighborhood(message.focusId);
+        revealBaseChain(message.focusId);
         pending.delete(message.focusId);
       }
       for (const id of graph.expandedRecordIds || []) pending.delete(id);
