@@ -1,7 +1,9 @@
 "use strict";
 
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
 const Module = require("node:module");
+const os = require("node:os");
 const path = require("node:path");
 const test = require("node:test");
 
@@ -18,11 +20,13 @@ test("activation starts the language client for saved and untitled matcher docum
   let lastRunRequest;
   let cancelWasEnabledAtEnqueue;
   let failCancellationNotification = false;
+  let onTextDocumentChange;
   let resultStore;
   let samplePath = __filename;
   const stored = {};
   const information = [];
   const explorerOpens = [];
+  let tempSourceDir;
 
   class LanguageClient {
     constructor(_id, _name, _serverOptions, options) { clientOptions = options; }
@@ -52,6 +56,7 @@ test("activation starts the language client for saved and untitled matcher docum
     StatusBarAlignment: { Right: 1 },
     workspace: {
       workspaceFolders: [{ uri: { fsPath: path.resolve(__dirname, "../../../../") } }],
+      textDocuments: [],
       getConfiguration: () => ({
         get: (key) => stored[key] ?? ({
         "server.enabled": true,
@@ -66,7 +71,7 @@ test("activation starts the language client for saved and untitled matcher docum
       }),
       getWorkspaceFolder: () => undefined,
       findFiles: async () => [{ fsPath: __filename }],
-      onDidChangeTextDocument: () => disposable,
+      onDidChangeTextDocument: (callback) => { onTextDocumentChange = callback; return disposable; },
       onDidChangeConfiguration: () => disposable,
     },
     window: {
@@ -101,7 +106,7 @@ test("activation starts the language client for saved and untitled matcher docum
       resolve() { return { absolute: samplePath, cwd: path.dirname(samplePath), flags: ["-std=c++23"], origin: "settings" }; }
       defaultFlags() { return ["-DVALUE=a b", "-Iinclude path"]; }
     },
-    SOURCE_EXTS: new Set([".cpp"]),
+    SOURCE_EXTS: new Set([".cpp", ".hpp"]),
   };
   const results = Object.fromEntries(
     ["ResultStore", "Highlighter", "BindingsTree", "MatchesView"].map((name) => [
@@ -132,7 +137,7 @@ test("activation starts the language client for saved and untitled matcher docum
     if (request === "./sample") return sample;
     if (request === "./results") return results;
     if (request === "./record-explorer") return { RecordExplorer: class {
-      async open(target) { explorerOpens.push(target); }
+      async open(target, options) { explorerOpens.push({ target, options }); }
     } };
     return originalLoad.call(this, request, parent, isMain);
   };
@@ -170,6 +175,59 @@ test("activation starts the language client for saved and untitled matcher docum
     assert.match(information.at(-1), /stale/);
     await registered.get("astmatcher.exploreRecord")({ sel: { q: 0, m: 0, b: 0 }, generation: 2 });
     assert.equal(explorerOpens.length, 1, "current generation may inspect the selected binding");
+    const header = "/workspace/include/inner.hpp";
+    const translationUnit = "/workspace/main.cpp";
+    const range = { start: { line: 6, character: 0 }, end: { line: 8, character: 1 } };
+    const headerBinding = { kind: "CXXRecordDecl", file: header, range,
+      translationUnit, qualifiedName: "app::Child", recordIdentity: "app::Child" };
+    resultStore.result = { cwd: "/workspace", flags: ["-std=c++23", "-DHEADER=1"],
+      bindings: { child: [headerBinding] } };
+    resultStore.selected = { q: 0, m: 0, b: 0, generation: 2 };
+    resultStore.binding = () => headerBinding;
+    const headerDocument = { uri: { fsPath: header }, languageId: "cpp", version: 1,
+      lineAt: (line) => ({ text: line === 7 ? "class Box {};" :
+        "class Child { class Nested {}; };" }) };
+    vscode.window.activeTextEditor = { document: headerDocument,
+      selection: { start: { ...range.start }, end: { ...range.end } } };
+    await registered.get("astmatcher.exploreRecord")();
+    assert.deepEqual(explorerOpens.at(-1).target, headerBinding,
+      "exploring an opened result retains its record identity and original translation unit");
+    assert.deepEqual(explorerOpens.at(-1).options.flags, ["-std=c++23", "-DHEADER=1"]);
+    assert.equal(explorerOpens.at(-1).options.cwd, "/workspace");
+    resultStore.selected = undefined;
+    vscode.window.activeTextEditor.selection = {
+      start: { line: 6, character: 8 }, end: { line: 6, character: 8 } };
+    await registered.get("astmatcher.exploreRecord")();
+    assert.deepEqual(explorerOpens.at(-1).target, headerBinding,
+      "a cursor on the matched record can recover unique query provenance");
+    vscode.window.activeTextEditor.selection = {
+      start: { line: 6, character: 26 }, end: { line: 6, character: 26 } };
+    await registered.get("astmatcher.exploreRecord")();
+    assert.equal(explorerOpens.at(-1).target.translationUnit, header,
+      "a cursor on a nested class must not reuse the outer record binding");
+    const templateBinding = { ...headerBinding,
+      range: { start: { line: 7, character: 0 }, end: { line: 7, character: 12 } },
+      qualifiedName: "app::Box<other::Type>", recordIdentity: "app::Box<other::Type>" };
+    resultStore.result.bindings = { box: [templateBinding] };
+    vscode.window.activeTextEditor.selection = {
+      start: { line: 7, character: 7 }, end: { line: 7, character: 7 } };
+    await registered.get("astmatcher.exploreRecord")();
+    assert.deepEqual(explorerOpens.at(-1).target, templateBinding,
+      "a namespace inside template arguments must not hide the record name");
+    vscode.window.activeTextEditor.selection = {
+      start: { line: 6, character: 8 }, end: { line: 6, character: 8 } };
+    resultStore.result.bindings = { child: [headerBinding,
+      { ...headerBinding, translationUnit: "/workspace/other.cpp" }] };
+    await registered.get("astmatcher.exploreRecord")();
+    assert.equal(explorerOpens.at(-1).target.translationUnit, header,
+      "ambiguous query provenance must not choose an arbitrary translation unit");
+    resultStore.result = { bindings: {} };
+    vscode.window.activeTextEditor.selection = {
+      start: { line: 12, character: 2 }, end: { line: 12, character: 2 } };
+    await registered.get("astmatcher.exploreRecord")();
+    assert.equal(explorerOpens.at(-1).target.translationUnit, header,
+      "an unrelated cursor keeps the original editor-only behavior");
+    assert.deepEqual(explorerOpens.at(-1).options.flags, ["-DVALUE=a b", "-Iinclude path"]);
     const settings = await registered.get("astmatcher.getRunSettings")();
     assert.deepEqual(Object.keys(settings).sort(), [
       "cacheEnabled", "cacheLocation", "compileCommands", "exclusions", "flags",
@@ -250,8 +308,50 @@ test("activation starts the language client for saved and untitled matcher docum
     await failingRun;
     assert.ok(errors.some((message) => message.includes("run failed: LSP disconnected")),
       "a rejected query reports its actual transport failure after cancellation was requested");
+    tempSourceDir = fs.mkdtempSync(path.join(os.tmpdir(), "astmatcher-editor-record-"));
+    const onDiskHeader = path.join(tempSourceDir, "inner.hpp");
+    fs.writeFileSync(onDiskHeader, "class Child {};\n");
+    const onDiskBinding = { ...headerBinding, file: onDiskHeader };
+    const onDiskDocument = { ...headerDocument, uri: { fsPath: onDiskHeader }, version: 1 };
+    vscode.workspace.textDocuments = [onDiskDocument];
+    const freshRun = registered.get("astmatcher.runQuery")();
+    await new Promise(setImmediate);
+    resolveRequest({ ok: true, sample: __filename, cwd: "/workspace",
+      flags: ["-std=c++23", "-DHEADER=1"], queries: [{ count: 1, matches: [] }],
+      bindings: { child: [onDiskBinding] }, files: [__filename], errors: [], durationMs: 1 });
+    await freshRun;
+    vscode.window.activeTextEditor = { document: onDiskDocument,
+      selection: { start: { ...range.start }, end: { ...range.end } } };
+    await registered.get("astmatcher.exploreRecord")();
+    assert.equal(explorerOpens.at(-1).target.translationUnit, translationUnit);
+    onDiskDocument.version = 2;
+    await registered.get("astmatcher.exploreRecord")();
+    assert.equal(explorerOpens.at(-1).target.translationUnit, onDiskHeader,
+      "an edited header invalidates the saved record identity even after the result selection");
+    onDiskDocument.version = 1;
+    onTextDocumentChange({ document: onDiskDocument });
+    await registered.get("astmatcher.exploreRecord")();
+    assert.equal(explorerOpens.at(-1).target.translationUnit, onDiskHeader,
+      "a document edit remains invalid after save or a version reset");
+    vscode.window.activeTextEditor = { document: { uri: { fsPath: "/workspace/query.astmatcher",
+      toString: () => "file:///workspace/query.astmatcher" }, languageId: "astmatcher" } };
+    const externalEditRun = registered.get("astmatcher.runQuery")();
+    await new Promise(setImmediate);
+    resolveRequest({ ok: true, sample: __filename, cwd: "/workspace",
+      flags: ["-std=c++23", "-DHEADER=1"], queries: [{ count: 1, matches: [] }],
+      bindings: { child: [onDiskBinding] }, files: [__filename], errors: [], durationMs: 1 });
+    await externalEditRun;
+    vscode.window.activeTextEditor = { document: onDiskDocument,
+      selection: { start: { ...range.start }, end: { ...range.end } } };
+    await registered.get("astmatcher.exploreRecord")();
+    assert.equal(explorerOpens.at(-1).target.translationUnit, translationUnit);
+    fs.appendFileSync(onDiskHeader, "// changed externally\n");
+    await registered.get("astmatcher.exploreRecord")();
+    assert.equal(explorerOpens.at(-1).target.translationUnit, onDiskHeader,
+      "an external file edit invalidates the saved record identity");
     await extension.deactivate();
   } finally {
+    if (tempSourceDir) fs.rmSync(tempSourceDir, { recursive: true, force: true });
     Module._load = originalLoad;
     delete require.cache[require.resolve("../extension")];
   }

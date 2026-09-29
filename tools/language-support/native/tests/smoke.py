@@ -73,6 +73,10 @@ def main() -> None:
                 assert server.poll() is None, server.stderr.read()
                 time.sleep(0.05)
             assert os.path.exists(socket), "Server socket was not created"
+            # gRPC publishes the socket before the server's post-bind chmod.
+            while stat.S_IMODE(os.stat(socket).st_mode) != 0o600 and time.monotonic() < deadline:
+                assert server.poll() is None, server.stderr.read()
+                time.sleep(0.01)
             assert stat.S_IMODE(os.stat(socket).st_mode) == 0o600
             ping = subprocess.run(
                 [binary, "ping", "--socket", socket],
@@ -437,6 +441,50 @@ os.kill(os.getpid(), signal.SIGTERM)
                 assert (owner, field, "field") in large_relations, owner
                 assert (owner, method, "method") in large_relations, owner
             assert "Link" not in {node["name"] for node in large_nodes.values()}
+
+            # Each focused inspection must fit its own 100 fields and 100 methods,
+            # even when a transitive header defines several large ancestors.
+            large_header = Path(directory) / "deep.hpp"
+            header_lines = ["#pragma once"]
+            class_lines = {}
+            class_names = ["Base0", "Base1", "Base2", "Child"]
+            for index, name in enumerate(class_names):
+                class_lines[name] = len(header_lines)
+                parent = f" : public {class_names[index - 1]}" if index else ""
+                header_lines.append(f"class {name}{parent} {{ public:")
+                header_lines.extend(f"  int field_{index}_{member};"
+                                    for member in range(100))
+                header_lines.extend(f"  int method_{index}_{member}() const {{ return {member}; }}"
+                                    for member in range(100))
+                header_lines.append("};")
+            large_header.write_text("\n".join(header_lines) + "\n", encoding="utf-8")
+            (Path(directory) / "middle.hpp").write_text(
+                '#include "deep.hpp"\n', encoding="utf-8")
+            large_main = Path(directory) / "large-main.cpp"
+            large_main.write_text('#include "middle.hpp"\n', encoding="utf-8")
+            for index, name in enumerate(class_names):
+                focused = run_inspect(binary, socket, {
+                    "sourcePath": str(large_main), "workingDirectory": directory,
+                    "flags": ["-std=c++23"], "file": str(large_header),
+                    "position": {"line": class_lines[name], "character": 0}})
+                assert focused["ok"], focused
+                focused_nodes = {node["id"]: node for node in focused["nodes"]}
+                assert focused_nodes[focused["recordId"]]["name"] == name, focused
+                assert len(focused_nodes) <= 256 and len(focused["edges"]) <= 512
+                focused_relations = {
+                    (focused_nodes[edge["from"]]["name"],
+                     focused_nodes[edge["to"]]["name"], edge["kind"])
+                    for edge in focused["edges"]}
+                for member in range(100):
+                    assert (name, f"field_{index}_{member}", "field") in focused_relations
+                    assert (name, f"method_{index}_{member}", "method") in focused_relations
+                for parent_index in range(index):
+                    parent = class_names[parent_index]
+                    assert (class_names[parent_index + 1], parent,
+                            "inherits") in focused_relations
+                    assert (parent, f"field_{parent_index}_0", "field") in focused_relations
+                    assert (parent, f"method_{parent_index}_0", "method") in focused_relations
+                assert focused.get("truncated", False) == (index > 0), focused
 
             template_source = Path(directory) / "templates.cpp"
             template_source.write_text(
