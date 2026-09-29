@@ -11,6 +11,10 @@ from pathlib import PurePosixPath
 import subprocess
 
 SOURCE_SUFFIXES = {".cc", ".cpp", ".cxx", ".c++", ".cppm", ".ccm", ".cxxm", ".ixx"}
+HEADER_SUFFIXES = {".h", ".hh", ".hpp", ".hxx"}
+TARGET_SUFFIXES = SOURCE_SUFFIXES | HEADER_SUFFIXES
+
+
 def _glob_match(relative: str, pattern: str) -> bool:
     def regex(glob: str) -> str:
         out, i = ["^"], 0
@@ -84,6 +88,20 @@ def _ignored(path: Path, base: Path) -> bool:
     return ignored
 
 
+def _excluded_parent(path: Path, root: Path, exclusions: list[str] | None) -> bool:
+    """Keep an explicitly selected header out of excluded directories."""
+    for parent in path.parents:
+        if parent == root:
+            break
+        relative = parent.relative_to(root).as_posix()
+        for glob in exclusions or []:
+            pattern = glob.rstrip("/")
+            if (_glob_match(relative, pattern) or
+                    ("/" not in pattern and _glob_match(parent.name, pattern))):
+                return True
+    return False
+
+
 def _git_ignored(paths: list[Path], root: Path) -> set[Path] | None:
     """Use Git's own ignore implementation when a repository is available."""
     try:
@@ -103,13 +121,18 @@ def _git_ignored(paths: list[Path], root: Path) -> set[Path] | None:
 
 def discover_target(target: dict | None, sample: str, cwd: str,
                     exclusions: list[str] | None = None) -> tuple[dict, list[str]]:
-    """Return normalized target metadata and sorted translation-unit paths."""
+    """Return target metadata and sorted C++ TUs, plus a selected header in scope.
+
+    Directory/workspace scans leave other headers alone: they may require
+    definitions supplied by a source file and fail when parsed by themselves.
+    """
     target = dict(target or {})
     scope = target.get("scope", "file")
     if scope not in {"file", "directory", "workspace"}:
         raise ValueError("target.scope must be file, directory, or workspace")
     raw_path = target.get("path") or sample
     path = Path(raw_path if os.path.isabs(raw_path) else os.path.join(cwd, raw_path)).absolute()
+    selected_sample = Path(sample if os.path.isabs(sample) else os.path.join(cwd, sample)).absolute()
     roots = target.get("roots") or ([str(path)] if scope != "workspace" else [str(path)])
     roots = [str(Path(p if os.path.isabs(p) else os.path.join(cwd, p)).absolute())
              for p in roots]
@@ -135,10 +158,14 @@ def discover_target(target: dict | None, sample: str, cwd: str,
                                    for glob in exclusions or [])]
                 candidates.extend(current_path / name for name in names
                                   if (current_path / name).suffix.lower() in SOURCE_SUFFIXES)
+            if (selected_sample.is_relative_to(root) and selected_sample.is_file() and
+                    selected_sample.suffix.lower() in HEADER_SUFFIXES and
+                    not _excluded_parent(selected_sample, root, exclusions)):
+                candidates.append(selected_sample)
             ignored_by_git = _git_ignored(candidates + [p for c in candidates for p in c.parents
                                                         if p.is_dir() and p.is_relative_to(root)], root)
             for candidate in candidates:
-                if not candidate.is_file() or candidate.suffix.lower() not in SOURCE_SUFFIXES:
+                if not candidate.is_file() or candidate.suffix.lower() not in TARGET_SUFFIXES:
                     continue
                 rel = candidate.relative_to(root)
                 if any((_glob_match(rel.as_posix(), glob) or

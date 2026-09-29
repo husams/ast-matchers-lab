@@ -41,15 +41,116 @@ class TestBackendTargets(unittest.TestCase):
             self.assertTrue(result["ok"], result["errors"])
             self.assertEqual(result["files"], [str(root / "a.cpp")])
 
-    def test_directory_discovery_keeps_cpp_translation_units_only(self):
+    def test_directory_discovery_adds_only_the_selected_sample(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             for name in ("main.cpp", "legacy.c", "screen.m", "screen.mm",
-                         "kernel.cu", "model.hpp", "module.ixx"):
+                         "kernel.cu", "model.h", "model.hh", "model.hpp",
+                         "model.hxx", "module.ixx"):
                 (root / name).write_text("struct Item {};\n")
-            _, files = discover_target({"scope": "directory", "path": str(root)},
-                                       str(root), str(root))
-            self.assertEqual([Path(file).name for file in files], ["main.cpp", "module.ixx"])
+            target = {"scope": "directory", "path": str(root)}
+            for selected in ("model.h", "model.hh", "model.hpp", "model.hxx"):
+                with self.subTest(selected=selected):
+                    _, files = discover_target(target, str(root / selected), str(root))
+                    self.assertEqual([Path(file).name for file in files],
+                                     sorted(["main.cpp", "module.ixx", selected]))
+            _, files = discover_target(target, str(root / "legacy.c"), str(root))
+            self.assertEqual([Path(file).name for file in files],
+                             ["main.cpp", "module.ixx"])
+
+    def test_directory_header_only_runs_matcher_in_header(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            header = root / "pair.hpp"
+            header.write_text("struct Pair {};\n")
+            for scope in ("directory", "workspace"):
+                with self.subTest(scope=scope):
+                    target = {"scope": scope, "path": str(root), "roots": [str(root)]}
+                    result = run_query(
+                        'match cxxRecordDecl(hasName("Pair"), isDefinition()).bind("record")',
+                        str(header), ["-std=c++23"], target=target)
+                    self.assertTrue(result["ok"], result["errors"])
+                    self.assertEqual(result["files"], [str(header)])
+                    self.assertEqual(len(result["bindings"]["record"]), 1)
+                    self.assertEqual(result["bindings"]["record"][0]["file"],
+                                     str(header.resolve()))
+
+    def test_selected_h_header_uses_explicit_cpp_language_in_file_and_directory(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            header = root / "pair.h"
+            header.write_text("struct Pair {};\n")
+            query = 'match cxxRecordDecl(hasName("Pair"), isDefinition()).bind("record")'
+            flags = ["-x", "c++", "-std=c++23"]
+            file_result = run_query(query, str(header), flags)
+            directory_result = run_query(
+                query, str(header), flags,
+                target={"scope": "directory", "path": str(root)})
+            for result in (file_result, directory_result):
+                self.assertTrue(result["ok"], result["errors"])
+                self.assertEqual(result["files"], [str(header)])
+                self.assertEqual(len(result["bindings"]["record"]), 1)
+                self.assertEqual(result["bindings"]["record"][0]["file"],
+                                 str(header.resolve()))
+
+    def test_directory_selected_header_matches_after_cpp_only_run_does_not(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            header = root / "model.hpp"
+            source = root / "main.cpp"
+            header.write_text("struct FromHeader {};\n")
+            source.write_text('#include "model.hpp"\nstruct Local {};\n')
+            query = 'match cxxRecordDecl(hasName("FromHeader"), isDefinition()).bind("record")'
+            target = {"scope": "directory", "path": str(root)}
+            before = run_query(query, str(source), ["-std=c++23"], target=target)
+            self.assertTrue(before["ok"], before["errors"])
+            self.assertEqual(before["files"], [str(source)])
+            self.assertEqual(before["queries"][0]["count"], 0)
+
+            result = run_query(query, str(header), ["-std=c++23"], target=target)
+            self.assertTrue(result["ok"], result["errors"])
+            self.assertEqual(result["files"], [str(source), str(header)])
+            records = result["bindings"]["record"]
+            self.assertEqual(len(records), 1)
+            self.assertEqual((records[0]["summary"], records[0]["file"],
+                              records[0]["translationUnit"]),
+                             ("FromHeader", str(header.resolve()), str(header)))
+
+    def test_directory_ignores_excluded_or_gitignored_selected_header(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "keep.cpp").write_text("int keep;\n")
+            ignored = root / "ignored"
+            ignored.mkdir()
+            (ignored / "hidden.hpp").write_text("struct Hidden {};\n")
+            (root / ".gitignore").write_text("ignored/\n")
+            excluded = root / "skip.hpp"
+            excluded.write_text("struct Skip {};\n")
+            excluded_dir = root / "exclude"
+            excluded_dir.mkdir()
+            (excluded_dir / "nested.hpp").write_text("struct Nested {};\n")
+            target = {"scope": "directory", "path": str(root)}
+            for sample, exclusions in ((ignored / "hidden.hpp", None),
+                                       (excluded, ["*.hpp"]),
+                                       (excluded_dir / "nested.hpp", ["exclude/"])):
+                with self.subTest(sample=sample):
+                    _, files = discover_target(target, str(sample), str(root), exclusions)
+                    self.assertEqual(files, [str(root / "keep.cpp")])
+
+    def test_unselected_non_self_contained_header_does_not_break_directory_run(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            header = root / "requires_setup.hpp"
+            header.write_text("#ifndef READY\n#error requires setup\n#endif\n")
+            source = root / "main.cpp"
+            source.write_text('#define READY 1\n#include "requires_setup.hpp"\nint answer = 42;\n')
+            result = run_query('match varDecl(hasName("answer")).bind("v")',
+                               str(source), ["-std=c++23"],
+                               target={"scope": "directory", "path": str(root)})
+            self.assertTrue(result["ok"], result["errors"])
+            self.assertEqual(result["files"], [str(source)])
+            self.assertEqual(len(result["bindings"]["v"]), 1)
+            self.assertNotIn("requires setup", result["stderr"])
 
     def test_results_exclude_matches_spelled_in_included_headers(self):
         with tempfile.TemporaryDirectory() as temporary:
