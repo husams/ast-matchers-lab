@@ -277,12 +277,12 @@ os.kill(os.getpid(), signal.SIGTERM)
             record_source = Path(directory) / "records.cpp"
             record_source.write_text(
                 "struct Root { int id; };\n"
-                "struct Other {};\n"
+                "struct Extra { int data; void touch() {} }; struct Other { Extra extra; void ping() const {} };\n"
                 "struct Mid : virtual public Root {};\n"
                 "class Leaf : public Mid {\n"
                 "public:\n"
-                "  Other other;\n"
-                "  int compute(int value) const { return value; }\n"
+                "  Other other; Other* shared;\n"
+                "  int compute(int value) const { other.ping(); return value; }\n"
                 "private:\n"
                 "  int hidden;\n"
                 "};\n"
@@ -315,7 +315,18 @@ os.kill(os.getpid(), signal.SIGTERM)
             assert ("Mid", "Root", "inherits") in relations, inspection
             assert ("Leaf", "other", "field") in relations, inspection
             assert ("other", "Other", "fieldType") in relations, inspection
+            assert ("shared", "Other", "fieldType") in relations, inspection
+            assert ("Other", "extra", "field") in relations, inspection
+            assert ("Other", "ping", "method") in relations, inspection
+            assert ("extra", "Extra", "fieldType") in relations, inspection
+            assert ("Extra", "data", "field") in relations, inspection
+            assert ("Extra", "touch", "method") in relations, inspection
             assert ("Leaf", "compute", "method") in relations, inspection
+            assert ("compute", "ping", "calls") in relations, inspection
+            field_edges = {(nodes[edge["from"]]["name"], nodes[edge["to"]]["name"]): edge
+                           for edge in inspection["edges"] if edge["kind"] == "fieldType"}
+            assert field_edges[("other", "Other")]["ownership"] == "value", inspection
+            assert field_edges[("shared", "Other")]["ownership"] == "indirect", inspection
             member_edges = {(nodes[edge["from"]]["name"], nodes[edge["to"]]["name"]): edge
                             for edge in inspection["edges"] if edge["kind"] in {"field", "method"}}
             assert member_edges[("Leaf", "other")]["access"] == "public", inspection

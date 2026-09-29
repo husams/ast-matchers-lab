@@ -101,7 +101,10 @@ class TestNativeBridge(unittest.TestCase):
                           {"id": "n2", "kind": "CXXRecordDecl", "name": "Base",
                            "definitionStatus": "unresolved"}],
                 "edges": [{"from": "n1", "to": "n2", "kind": "inherits",
-                           "access": "public", "isVirtual": True}],
+                           "access": "public", "isVirtual": True},
+                          {"from": "n1", "to": "n2", "kind": "fieldType",
+                           "ownership": "indirect"},
+                          {"from": "n1", "to": "n2", "kind": "calls"}],
                 "diagnostics": [], "stderr": ""}
             result = inspect_record(str(source), str(source),
                                     {"start": {"line": 1, "character": 10},
@@ -118,6 +121,8 @@ class TestNativeBridge(unittest.TestCase):
             self.assertEqual(result["nodes"][0]["uri"], source.resolve().as_uri())
             self.assertEqual(result["nodes"][1]["definitionStatus"], "unresolved")
             self.assertEqual(result["edges"][0]["virtual"], True)
+            self.assertEqual(result["edges"][1]["ownership"], "indirect")
+            self.assertEqual(result["edges"][2]["kind"], "calls")
             self.assertFalse(inspect_record(str(source), str(source),
                                            {"start": {"line": -1, "character": 0}},
                                            cwd=temporary, client=client)["ok"])

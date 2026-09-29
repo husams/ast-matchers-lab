@@ -17,6 +17,7 @@
   let pending = new Set();
   let compartments = new Map();
   let filters = { bases: true, derived: true, outgoingFields: true, incomingFields: true,
+    outgoingCalls: true, incomingCalls: true,
     instantiates: true, instantiatedBy: true, specializes: true, specializedBy: true };
   let bounds = { x: -400, y: -300, w: 800, h: 600 };
   let view = { ...bounds };
@@ -103,6 +104,10 @@
         relations.push({ key: "fieldType:" + index, kind: "fieldType",
           from: ownerOf.get(edge.from), to: edge.to, memberId: edge.from,
           evidenceId: edge.from, edge });
+      } else if (edge.kind === "calls" && ownerOf.has(edge.from) && ownerOf.has(edge.to)) {
+        relations.push({ key: "calls:" + index, kind: "calls",
+          from: ownerOf.get(edge.from), to: ownerOf.get(edge.to), memberId: edge.from,
+          calleeId: edge.to, evidenceId: edge.from, edge });
       }
     });
     const around = new Map(records.map((node) => [node.id, []]));
@@ -133,6 +138,10 @@
       const incoming = relation.kind === "instantiates" ? "instantiatedBy" : "specializedBy";
       if (relation.from === id && relation.to === id) return filters[outgoing] || filters[incoming];
       return relation.from === id ? filters[outgoing] : filters[incoming];
+    }
+    if (relation.kind === "calls") {
+      if (relation.from === id && relation.to === id) return filters.outgoingCalls || filters.incomingCalls;
+      return relation.from === id ? filters.outgoingCalls : filters.incomingCalls;
     }
     if (relation.from === id && relation.to === id) {
       return filters.outgoingFields || filters.incomingFields;
@@ -309,6 +318,12 @@
     if (relation.kind === "inherits") return nameOf(from) + " inherits " + nameOf(to);
     if (relation.kind === "instantiates") return nameOf(from) + " instantiates " + nameOf(to);
     if (relation.kind === "specializes") return nameOf(from) + " specializes " + nameOf(to);
+    if (relation.kind === "calls") {
+      const caller = model.byId.get(relation.memberId);
+      const callee = model.byId.get(relation.calleeId);
+      return nameOf(from) + "." + (caller?.name || "method") + " calls " +
+        nameOf(to) + "." + (callee?.name || "method");
+    }
     const field = model.byId.get(relation.memberId);
     return nameOf(from) + "." + (field?.name || "field") + " uses " + nameOf(to);
   }
@@ -330,13 +345,26 @@
       group.append(svgEl("path", { d: geometry.d, class: "edge-line",
         ...(relation.kind === "inherits" ? { "marker-end": "url(#generalization)" } : {}),
         ...(relation.kind === "instantiates" ? { "marker-end": "url(#instantiation-arrow)" } : {}),
-        ...(relation.kind === "specializes" ? { "marker-end": "url(#specialization-arrow)" } : {}) }));
+        ...(relation.kind === "specializes" ? { "marker-end": "url(#specialization-arrow)" } : {}),
+        ...(relation.kind === "calls" ? { "marker-end": "url(#call-arrow)" } : {}),
+        ...(relation.kind === "fieldType" && relation.edge.ownership === "indirect"
+          ? { "marker-start": "url(#aggregation)" } : {}),
+        ...(relation.kind === "fieldType" && relation.edge.ownership === "value"
+          ? { "marker-start": "url(#composition)" } : {}) }));
       group.append(svgEl("path", { d: geometry.d, class: "edge-hit" }));
       if (relation.kind === "fieldType") {
         const field = model.byId.get(relation.memberId);
         const label = svgEl("text", { x: geometry.x, y: geometry.y,
           class: "edge-label", "text-anchor": "middle" });
-        label.textContent = short(field?.name || "field", 24);
+        const symbol = relation.edge.ownership === "value" ? "◆ "
+          : relation.edge.ownership === "indirect" ? "◇ " : "";
+        label.textContent = symbol + short(field?.name || "field", 24);
+        group.append(label);
+      } else if (relation.kind === "calls") {
+        const callee = model.byId.get(relation.calleeId);
+        const label = svgEl("text", { x: geometry.x, y: geometry.y,
+          class: "edge-label", "text-anchor": "middle" });
+        label.textContent = short(callee?.name || "calls", 24);
         group.append(label);
       } else if (relation.kind === "instantiates" || relation.kind === "specializes") {
         const label = svgEl("text", { x: geometry.x, y: geometry.y,
@@ -369,9 +397,12 @@
   function memberText(member, kind) {
     const node = member.node;
     const prefix = visibility(member.edge.access);
+    const signature = String(node.signature || "");
+    const marker = (node.name || "") + "(";
+    const methodStart = marker.length > 1 ? signature.indexOf(marker) : -1;
     const label = kind === "field"
       ? (node.name || nameOf(node)) + (node.type ? ": " + node.type : "")
-      : node.signature || node.name || nameOf(node);
+      : methodStart >= 0 ? signature.slice(methodStart) : node.name || signature || nameOf(node);
     return (prefix ? prefix + " " : "") + label;
   }
 
@@ -655,6 +686,8 @@
             ? (relation.from === id ? "Instantiates template: " : "Instance: ")
             : relation.kind === "specializes"
               ? (relation.from === id ? "Specializes template: " : "Specialization: ")
+              : relation.kind === "calls"
+                ? (relation.from === id ? "Calls method in: " : "Called by method in: ")
               : (relation.from === id ? "Field type: " : "Used by field in: ");
         const item = el("li");
         const button = el("button", "relation", direction + nameOf(other));
@@ -701,6 +734,7 @@
     const evidence = model.byId.get(relation.evidenceId);
     const detail = beginDetail(relationName(relation));
     const relationLabel = { inherits: "Inheritance", fieldType: "Field type association",
+      calls: "Method call",
       instantiates: "Template instantiation", specializes: "Template specialization" }[relation.kind];
     addDetail(detail.dl, "Relation", relationLabel || relation.kind);
     addDetail(detail.dl, "From", nameOf(from));
@@ -712,12 +746,22 @@
       detail.content.append(el("p", "muted", relation.kind === "instantiates"
         ? "This class instantiates the template pattern shown at the arrowhead."
         : "This class specializes the template pattern shown at the arrowhead."));
+    } else if (relation.kind === "calls") {
+      const caller = model.byId.get(relation.memberId);
+      const callee = model.byId.get(relation.calleeId);
+      addDetail(detail.dl, "Caller", caller?.signature || caller?.name);
+      addDetail(detail.dl, "Callee", callee?.signature || callee?.name);
+      detail.content.append(el("p", "muted",
+        "This link comes from a direct method call in the caller's body."));
     } else {
       const field = model.byId.get(relation.memberId);
       addDetail(detail.dl, "Evidence", (field?.name || "field") +
         (field?.type ? ": " + field.type : ""));
-      detail.content.append(el("p", "muted",
-        "This link comes from a record-typed field; ownership and cardinality are not inferred."));
+      detail.content.append(el("p", "muted", relation.edge.ownership === "value"
+        ? "By-value field: the filled diamond marks composition."
+        : relation.edge.ownership === "indirect"
+          ? "Pointer or reference field: the hollow diamond marks structural aggregation; ownership is not inferred."
+          : "This link comes from a record-typed field; ownership and cardinality are not inferred."));
     }
     addDetail(detail.dl, "Source", locationOf(evidence));
     sourceAction(detail.content, evidence, relation.evidenceId);
@@ -747,6 +791,17 @@
       markerUnits: "userSpaceOnUse", orient: "auto" });
     specializationArrow.append(svgEl("path", { d: "M 0 0 L 10 5 L 0 10 Z", class: "specialization-arrow" }));
     defs.append(specializationArrow);
+    const callArrow = svgEl("marker", { id: "call-arrow", viewBox: "0 0 10 10",
+      refX: 9, refY: 5, markerWidth: 10, markerHeight: 10,
+      markerUnits: "userSpaceOnUse", orient: "auto" });
+    callArrow.append(svgEl("path", { d: "M 0 0 L 10 5 L 0 10 Z", class: "call-arrow" }));
+    defs.append(callArrow);
+    for (const [id, className] of [["aggregation", "aggregation"], ["composition", "composition"]]) {
+      const diamond = svgEl("marker", { id, viewBox: "0 0 18 12", refX: 1, refY: 6,
+        markerWidth: 18, markerHeight: 12, markerUnits: "userSpaceOnUse", orient: "auto" });
+      diamond.append(svgEl("path", { d: "M 1 6 L 9 1 L 17 6 L 9 11 Z", class: className }));
+      defs.append(diamond);
+    }
     svg.append(defs);
     drawEdges(relations);
     drawCards(records);
@@ -779,6 +834,8 @@
       ["derived", "Known derived", "inherits"],
       ["outgoingFields", "Field types", "fieldType"],
       ["incomingFields", "Known incoming fields", "fieldType"],
+      ["outgoingCalls", "Method calls", "calls"],
+      ["incomingCalls", "Known callers", "calls"],
       ["instantiates", "Instantiates template", "instantiates"],
       ["instantiatedBy", "Known instances", "instantiates"],
       ["specializes", "Specializes template", "specializes"],
@@ -858,6 +915,18 @@
   }
 
   makeFilters();
+  const optionsButton = $("toggle-options");
+  const optionsPanel = $("legend");
+  optionsButton.addEventListener("click", () => {
+    optionsPanel.hidden = !optionsPanel.hidden;
+    optionsButton.setAttribute("aria-expanded", String(!optionsPanel.hidden));
+  });
+  optionsPanel.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    optionsPanel.hidden = true;
+    optionsButton.setAttribute("aria-expanded", "false");
+    optionsButton.focus();
+  });
   $("zoom-in").addEventListener("click", () => zoom(0.8));
   $("zoom-out").addEventListener("click", () => zoom(1.25));
   $("fit").addEventListener("click", fit);

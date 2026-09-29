@@ -23,6 +23,7 @@
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/PrettyPrinter.h"
+#include "clang/AST/RecursiveASTVisitor.h"
 #include "clang/AST/Type.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/ASTMatchers/Dynamic/Diagnostics.h"
@@ -479,6 +480,19 @@ const clang::RecordDecl *field_record_type(clang::QualType type) {
   return nullptr;
 }
 
+class MethodCallCollector final : public clang::RecursiveASTVisitor<MethodCallCollector> {
+public:
+  bool VisitCallExpr(clang::CallExpr *call) {
+    if (const auto *method = llvm::dyn_cast_or_null<clang::CXXMethodDecl>(
+            call->getDirectCallee())) {
+      callees.push_back(method->getCanonicalDecl());
+    }
+    return true;
+  }
+
+  std::vector<const clang::CXXMethodDecl *> callees;
+};
+
 class RecordGraph final {
 public:
   RecordGraph(v1::InspectRecordReply &reply, const clang::ASTContext &context,
@@ -495,6 +509,20 @@ public:
     add_template_relationships(records);
     add_members(records);
     add_field_types();
+    add_calls(records);
+    std::unordered_set<const clang::RecordDecl *> populated(records.begin(), records.end());
+    size_t next_record = 0;
+    while (next_record < record_nodes_.size()) {
+      std::vector<const clang::RecordDecl *> related;
+      while (next_record < record_nodes_.size()) {
+        const auto *visible = record_nodes_[next_record++];
+        if (populated.insert(visible).second) related.push_back(visible);
+      }
+      if (related.empty()) continue;
+      add_members(related);
+      add_field_types();
+      add_calls(related);
+    }
     reply_.set_ok(true);
   }
 
@@ -517,6 +545,9 @@ private:
     }
     const std::string id = "n" + std::to_string(reply_.nodes_size() + 1);
     ids_[decl] = id;
+    if (const auto *record = llvm::dyn_cast<clang::RecordDecl>(decl)) {
+      record_nodes_.push_back(record);
+    }
     auto *node = reply_.add_nodes();
     node->set_id(id);
     const auto *named = llvm::cast<clang::NamedDecl>(decl);
@@ -544,7 +575,7 @@ private:
 
   void add_edge(const std::string &from, const std::string &to,
                 llvm::StringRef kind, llvm::StringRef access = {},
-                bool is_virtual = false) {
+                bool is_virtual = false, llvm::StringRef ownership = {}) {
     if (from.empty() || to.empty()) return;
     const auto key = std::make_tuple(from, to, kind.str());
     if (!edges_.insert(key).second) return;
@@ -558,6 +589,7 @@ private:
     edge->set_kind(kind.str());
     edge->set_access(access.str());
     edge->set_is_virtual(is_virtual);
+    edge->set_ownership(ownership.str());
   }
 
   void collect_topology(const clang::RecordDecl *root,
@@ -680,7 +712,12 @@ private:
                access_name(member.decl->getAccess()));
       if (const auto *field = llvm::dyn_cast<clang::FieldDecl>(member.decl)) {
         if (const auto *target = field_record_type(field->getType())) {
-          field_types_.emplace_back(member_id, target);
+          clang::QualType type = field->getType().getCanonicalType();
+          while (const auto *array = llvm::dyn_cast<clang::ArrayType>(type.getTypePtr())) {
+            type = array->getElementType();
+          }
+          const bool indirect = type->isPointerType() || type->isReferenceType();
+          field_types_.push_back({member_id, target, indirect ? "indirect" : "value"});
         }
       }
       return true;
@@ -711,12 +748,38 @@ private:
   }
 
   void add_field_types() {
-    for (const auto &[field_id, target] : field_types_) {
+    while (next_field_type_ < field_types_.size()) {
       if (reply_.edges_size() >= static_cast<int>(kMaximumGraphEdges)) {
         reply_.set_truncated(true);
         return;
       }
-      add_edge(field_id, add_node(target), "fieldType");
+      const auto &[field_id, target, ownership] = field_types_[next_field_type_++];
+      add_edge(field_id, add_node(target), "fieldType", {}, false, ownership);
+    }
+  }
+
+  void add_calls(const std::vector<const clang::RecordDecl *> &records) {
+    for (const auto *record : records) {
+      const auto *cxx = llvm::dyn_cast<clang::CXXRecordDecl>(record);
+      if (!cxx) continue;
+      for (const auto *method : cxx->methods()) {
+        const auto caller = ids_.find(method);
+        if (caller == ids_.end()) continue;
+        const std::string caller_id = caller->second;
+        const auto *definition = method->getDefinition();
+        if (!definition || !definition->hasBody()) continue;
+        MethodCallCollector calls;
+        calls.TraverseStmt(definition->getBody());
+        for (const auto *callee : calls.callees) {
+          const auto *owner = record_definition(callee->getParent());
+          if (!owner) continue;
+          const std::string owner_id = add_node(owner);
+          const std::string callee_id = add_node(callee);
+          if (owner_id.empty() || callee_id.empty()) return;
+          add_edge(owner_id, callee_id, "method", access_name(callee->getAccess()));
+          add_edge(caller_id, callee_id, "calls");
+        }
+      }
     }
   }
 
@@ -724,9 +787,16 @@ private:
   const clang::ASTContext &context_;
   fs::path working_directory_;
   std::unordered_map<const clang::Decl *, std::string> ids_;
+  std::vector<const clang::RecordDecl *> record_nodes_;
   std::unordered_set<const clang::RecordDecl *> expanded_;
   std::set<std::tuple<std::string, std::string, std::string>> edges_;
-  std::vector<std::pair<std::string, const clang::RecordDecl *>> field_types_;
+  struct FieldType {
+    std::string field_id;
+    const clang::RecordDecl *target;
+    const char *ownership;
+  };
+  std::vector<FieldType> field_types_;
+  size_t next_field_type_ = 0;
 };
 
 class RecordCollector final : public am::MatchFinder::MatchCallback {

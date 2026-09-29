@@ -94,7 +94,8 @@ test("record explorer sends source locators and opens only graph-owned source no
     assert.equal(opened.length, 0);
     await receive({ type: "navigate", id: "b" });
     assert.equal(opened[0].uri.fsPath, "/project/base.h");
-    assert.equal(opened[0].options.viewColumn, vscode.ViewColumn.Beside);
+    assert.equal(opened[0].options.viewColumn, vscode.ViewColumn.Active);
+    assert.equal(opened[0].options.preserveFocus, false);
     assert.deepEqual(opened[0].selection.start, range.start);
   } finally {
     Module._load = originalLoad;
