@@ -9,6 +9,17 @@ test("activation starts the language client for saved and untitled matcher docum
   let clientOptions;
   let started = false;
   const registered = new Map();
+  const notifications = [];
+  const clientNotifications = new Map();
+  const statusItems = [];
+  const errors = [];
+  let resolveRequest;
+  let rejectRequest;
+  let lastRunRequest;
+  let cancelWasEnabledAtEnqueue;
+  let failCancellationNotification = false;
+  let resultStore;
+  let samplePath = __filename;
   const stored = {};
   const information = [];
   const explorerOpens = [];
@@ -18,7 +29,16 @@ test("activation starts the language client for saved and untitled matcher docum
     async start() { started = true; }
     async stop() {}
     isRunning() { return true; }
-    onNotification() { return disposable; }
+    onNotification(method, callback) { clientNotifications.set(method, callback); return disposable; }
+    sendRequest(_method, params) {
+      lastRunRequest = params;
+      cancelWasEnabledAtEnqueue = statusItems.find((item) => item.name === "AST Matcher Query Progress")?.command === "astmatcher.cancelQuery";
+      return new Promise((resolve, reject) => { resolveRequest = resolve; rejectRequest = reject; });
+    }
+    async sendNotification(method, params) {
+      notifications.push({ method, params });
+      if (failCancellationNotification) throw new Error("notification transport failed");
+    }
   }
 
   class EventEmitter {
@@ -52,7 +72,11 @@ test("activation starts the language client for saved and untitled matcher docum
     window: {
       activeTextEditor: undefined,
       showInformationMessage: (message) => { information.push(message); },
-      createStatusBarItem: () => ({ hide() {}, show() {} }),
+      showErrorMessage: (message) => { errors.push(message); },
+      showWarningMessage: async () => undefined,
+      createStatusBarItem: () => { const item = { hide() {}, show() {} }; statusItems.push(item); return item; },
+      withProgress: (_options, task) => task(),
+      setStatusBarMessage() {},
       createOutputChannel: () => ({ clear() {}, append() {}, appendLine() {}, show() {}, dispose() {} }),
       registerWebviewViewProvider: () => disposable,
       createTreeView: () => disposable,
@@ -62,15 +86,19 @@ test("activation starts the language client for saved and untitled matcher docum
       createDiagnosticCollection: () => ({ ...disposable, delete() {}, set() {}, clear() {} }),
     },
     ConfigurationTarget: { Workspace: 2 },
-    commands: { registerCommand: (name, callback) => { registered.set(name, callback); return disposable; } },
+    ProgressLocation: { Window: 1 },
+    commands: { executeCommand() {}, registerCommand: (name, callback) => { registered.set(name, callback); return disposable; } },
     MarkdownString: class MarkdownString {},
     RelativePattern: class RelativePattern { constructor(base, pattern) { this.base = base; this.pattern = pattern; } },
-    Uri: { file: (fsPath) => ({ fsPath, toString: () => `file://${fsPath}` }) },
+    Uri: class Uri {
+      static file(fsPath) { return { fsPath, toString: () => `file://${fsPath}` }; }
+    },
   };
 
   const sample = {
     Samples: class Samples {
       constructor() { this.onDidChange = () => disposable; }
+      resolve() { return { absolute: samplePath, cwd: path.dirname(samplePath), flags: ["-std=c++23"], origin: "settings" }; }
       defaultFlags() { return ["-DVALUE=a b", "-Iinclude path"]; }
     },
     SOURCE_EXTS: new Set([".cpp"]),
@@ -80,9 +108,17 @@ test("activation starts the language client for saved and untitled matcher docum
       name, class { constructor() {} },
     ]),
   );
+  results.MatchesView = class { constructor() {} show() {} };
   results.reveal = () => {};
   results.ResultStore = class {
-    constructor() { this.generation = 2; this.result = { cwd: "/workspace", flags: ["-std=c++23"] }; }
+    constructor() { this.generation = 2; this.result = { cwd: "/workspace", flags: ["-std=c++23"] }; this.appendCount = 0; resultStore = this; }
+    setRunning(info) { this.running = info; }
+    setCancellable(cancellable) { this.running.cancellable = cancellable; }
+    startStreaming() {}
+    appendStreamingFile() { this.appendCount = (this.appendCount || 0) + 1; }
+    requestCancellation() { this.cancelRequested = true; }
+    cancelRequestFailed() { this.cancelRequested = false; }
+    set(result) { this.result = result; this.running = false; }
     binding(sel) { return sel.q === 0 ? { kind: "CXXRecordDecl", file: "/workspace/source.cpp",
       range: { start: { line: 1, character: 0 }, end: { line: 4, character: 1 } } } : undefined; }
   };
@@ -120,6 +156,7 @@ test("activation starts the language client for saved and untitled matcher docum
       "astmatcher.runFile", "astmatcher.runDirectory", "astmatcher.runWorkspace",
       "astmatcher.selectTarget", "astmatcher.getRunSettings", "astmatcher.saveRunSettings",
       "astmatcher.openSettings", "astmatcher.createAndRunQuery", "astmatcher.exploreRecord",
+      "astmatcher.cancelQuery",
     ]) assert.equal(registered.has(command), true, `missing command ${command}`);
     vscode.window.activeTextEditor = { document: { uri: { fsPath: "/workspace/source.cpp" },
       languageId: "cpp" }, selection: {
@@ -179,6 +216,40 @@ test("activation starts the language client for saved and untitled matcher docum
     });
     assert.equal((await registered.get("astmatcher.getRunSettings")()).targetPath, __filename,
       "a selected file replaces a stale path and relative paths resolve from the workspace root");
+    vscode.window.activeTextEditor = { document: { uri: { fsPath: "/workspace/query.astmatcher",
+      toString: () => "file:///workspace/query.astmatcher" }, languageId: "astmatcher" } };
+    const running = registered.get("astmatcher.runQuery")();
+    await new Promise(setImmediate);
+    const runId = lastRunRequest.runId;
+    assert.equal(cancelWasEnabledAtEnqueue, false, "the request is enqueued before the status bar can cancel it");
+    assert.equal(resultStore.running.cancellable, true);
+    samplePath = "/workspace/missing.cpp";
+    await registered.get("astmatcher.runQuery")();
+    await registered.get("astmatcher.cancelQuery")();
+    await registered.get("astmatcher.cancelQuery")();
+    assert.deepEqual(notifications, [{ method: "astmatcher/cancelQuery", params: { runId } }]);
+    clientNotifications.get("astmatcher/queryProgress")({ kind: "file", runId,
+      file: "/workspace/late.cpp", queries: [], bindings: {}, errors: [] });
+    assert.equal(resultStore.cancelRequested, true);
+    assert.equal(resultStore.appendCount, 0, "progress arriving after cancellation is ignored");
+    resolveRequest({ ok: false, cancelled: true, sample: __filename, flags: [], queries: [],
+      bindings: {}, files: [__filename], errors: [], durationMs: 1 });
+    await running;
+    assert.equal(resultStore.result.cancelled, true, "partial completion remains marked cancelled");
+
+    samplePath = __filename;
+    const failingRun = registered.get("astmatcher.runQuery")();
+    await new Promise(setImmediate);
+    failCancellationNotification = true;
+    await registered.get("astmatcher.cancelQuery")();
+    assert.equal(resultStore.cancelRequested, false, "failed cancel notification permits retry");
+    assert.equal(resultStore.running.cancellable, true);
+    failCancellationNotification = false;
+    await registered.get("astmatcher.cancelQuery")();
+    rejectRequest(new Error("LSP disconnected"));
+    await failingRun;
+    assert.ok(errors.some((message) => message.includes("run failed: LSP disconnected")),
+      "a rejected query reports its actual transport failure after cancellation was requested");
     await extension.deactivate();
   } finally {
     Module._load = originalLoad;

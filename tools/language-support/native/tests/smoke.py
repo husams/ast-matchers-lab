@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import selectors
 import signal
 import stat
 import subprocess
@@ -58,8 +59,10 @@ def main() -> None:
         socket = str(Path(directory) / "m.sock")
         source = Path(directory) / "main.cpp"
         source.write_text("int main() { return 1; }\n", encoding="utf-8")
+        path_env = os.environ.copy()
+        path_env["PATH"] = str(Path(binary).parent) + os.pathsep + path_env.get("PATH", "")
         server = subprocess.Popen(
-            [binary, "serve", "--socket", socket],
+            [Path(binary).name, "serve", "--socket", socket], env=path_env,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.PIPE,
             text=True,
@@ -217,6 +220,55 @@ os.kill(os.getpid(), signal.SIGTERM)
             assert explicit["text"] == "int main() { return 1; }", reply
             assert reply["diagnostics"][0]["commandIndex"] == 3, reply
             assert "noSuchMatcher" in reply["diagnostics"][0]["message"], reply
+
+            # A terminated CLI bridge must cancel its gRPC call so the server
+            # kills and reaps the Clang worker blocked opening this FIFO.
+            cancel_header = Path(directory) / "cancel.h"
+            os.mkfifo(cancel_header)
+            cancel_source = Path(directory) / "cancel.cpp"
+            cancel_source.write_text(
+                '#include "cancel.h"\nint main() { return 0; }\n',
+                encoding="utf-8")
+            cancel_process = subprocess.Popen(
+                [binary, "query", "--socket", socket, "--timeout-ms", "30000",
+                 "--progress"],
+                stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE, text=True)
+            cancel_process.stdin.write(json.dumps({
+                "sourcePath": str(cancel_source), "workingDirectory": directory,
+                "flags": ["-std=c++23"], "commands": [{"kind": "MATCH",
+                "expression": "functionDecl()"}]}))
+            cancel_process.stdin.close()
+            cancel_process.stdin = None
+            with selectors.DefaultSelector() as selector:
+                selector.register(cancel_process.stdout, selectors.EVENT_READ)
+                deadline = time.monotonic() + 10
+                saw_heartbeat = False
+                while time.monotonic() < deadline:
+                    events = selector.select(timeout=0.2)
+                    if not events:
+                        if cancel_process.poll() is not None:
+                            break
+                        continue
+                    line = cancel_process.stdout.readline()
+                    if not line:
+                        break
+                    record = json.loads(line)
+                    if int(record.get("progress", {}).get("elapsedMs", 0)) > 0:
+                        saw_heartbeat = True
+                        break
+                assert saw_heartbeat, "Blocked Clang worker did not emit progress"
+            cancel_started = time.monotonic()
+            cancel_process.send_signal(signal.SIGTERM)
+            cancel_stdout, cancel_stderr = cancel_process.communicate(timeout=5)
+            assert cancel_process.returncode == 1, (cancel_process.returncode,
+                                                     cancel_stdout, cancel_stderr)
+            assert time.monotonic() - cancel_started < 3, cancel_stderr
+            recovered = run_query(binary, socket, {
+                "sourcePath": str(source), "workingDirectory": directory,
+                "flags": ["-std=c++23"], "commands": [{"kind": "MATCH",
+                "expression": 'functionDecl(hasName("main"))'}]})
+            assert recovered["queries"][0]["count"] == 1, recovered
 
             record_source = Path(directory) / "records.cpp"
             record_source.write_text(

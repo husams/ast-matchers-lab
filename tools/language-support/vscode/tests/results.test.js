@@ -304,6 +304,38 @@ test("streamed file batches appear before completion with globally correct selec
   assert.equal(new BindingsTree(store).getChildren().length, 2);
 });
 
+test("cancellation keeps completed-file matches and records partial completion", () => {
+  const store = new ResultStore();
+  store.setRunning({ sample: "workspace", scope: "workspace" });
+  store.startStreaming({ sample: "/workspace", totalFiles: 4 });
+  store.appendStreamingFile({ file: "/workspace/one.cpp", completedFiles: 1,
+    totalFiles: 4, queries: [{ translationUnit: "/workspace/one.cpp", count: 1, matches: [{}] }],
+    bindings: { v: [{ ...first, matches: [{ query: 0, match: 0, binding: 0 }] }] }, errors: [] });
+  store.requestCancellation({ completedFiles: 1, totalFiles: 4 });
+  assert.equal(store.running.cancelRequested, true);
+  assert.equal(store.running.completedFiles, 1);
+  store.finishCancelled();
+  assert.equal(store.running, false);
+  assert.equal(store.result.cancelled, true);
+  assert.equal(store.result.ok, false);
+  assert.equal(store.result.completedFiles, 1);
+  assert.equal(store.result.totalFiles, 4);
+  assert.equal(store.result.files.length, 1);
+  assert.equal(store.result.queries[0].count, 1);
+  assert.equal(store.groups()[0].nodes.length, 1);
+});
+
+test("cancellation before the first file reports zero completed files", () => {
+  const store = new ResultStore();
+  store.setRunning({ sample: "workspace", scope: "workspace" });
+  store.startStreaming({ sample: "/workspace", totalFiles: 4 });
+  store.requestCancellation({ completedFiles: 0, totalFiles: 4 });
+  store.finishCancelled();
+  assert.equal(store.result.completedFiles, 0);
+  assert.equal(store.result.totalFiles, 4);
+  assert.equal(store.result.files.length, 0);
+});
+
 test("scanned files without matches stay out of the results outline", () => {
   const store = new ResultStore();
   store.setRunning({ sample: "/workspace", scope: "workspace" });

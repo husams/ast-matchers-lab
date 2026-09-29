@@ -74,24 +74,32 @@
       const done = state.running.completedFiles || 0;
       const total = state.running.totalFiles;
       const matches = (r?.queries || []).reduce((n, q) => n + q.count, 0);
+      const cancel = $("cancel-query");
+      const cancelRequested = !!state.running.cancelRequested;
+      const phase = cancelRequested ? "Cancellation requested" :
+        state.running.cancellable ? "Running" : "Preparing";
+      cancel.hidden = !state.running.cancellable;
+      cancel.disabled = !state.running.cancellable || cancelRequested;
+      cancel.textContent = cancelRequested ? "Cancelling…" : "Cancel Query";
       const progressText = total == null ? "Scanning files…" :
         `Scanning ${done}/${total} files · ${matches} match${matches === 1 ? "" : "es"}`;
       s.textContent = total == null
-        ? `Running against ${state.running.sample || "selected scope"}…`
-        : `${matches} match${matches === 1 ? "" : "es"} · ${done}/${total} files scanned · ${state.running.sample}`;
+        ? `${phase} against ${state.running.sample || "selected scope"}…`
+        : `${cancelRequested ? "Cancellation requested · " : ""}${matches} match${matches === 1 ? "" : "es"} · ${done}/${total} files scanned · ${state.running.sample}`;
       $("cache-info").hidden = false;
-      $("cache-info").textContent = progressText;
+      $("cache-info").textContent = cancelRequested ? `Stopping after ${done}/${total ?? "?"} completed files…` : progressText;
       return;
     }
+    $("cancel-query").hidden = true;
     if (!r) { s.textContent = "Run a query with ⌘↵ to see its matches here."; return; }
     const total = (r.queries || []).reduce((n, q) => n + q.count, 0);
     const base = (r.sample || "").split(/[\\/]/).pop() || "selected files";
     const cache = r.cache || r.cacheMetadata || {};
     const hit = cache.hits > 0 || cache.hit === true || r.cacheHit === true || cache.status === "hit";
     const cacheText = cache.enabled === false ? "cache off" : (hit ? "cache hit" : "cache miss");
-    s.innerHTML = `<b>${total}</b> match${total === 1 ? "" : "es"} across ` +
+    s.innerHTML = `${r.cancelled ? '<strong>Cancelled · partial results</strong> · ' : ""}<b>${total}</b> match${total === 1 ? "" : "es"} across ` +
       `<span class="file-name">${esc(base)}</span> ` +
-      `<span class="muted">${esc((r.flags || []).join(" "))} · ${esc(r.durationMs)} ms · ${cacheText}` +
+      `<span class="muted">${r.cancelled ? `${esc(r.completedFiles ?? 0)}/${esc(r.totalFiles ?? "?")} files completed · ` : ""}${esc((r.flags || []).join(" "))} · ${esc(r.durationMs)} ms · ${cacheText}` +
       `${r.truncated ? " · truncated" : ""}</span>`;
     const info = $("cache-info");
     const cacheMeta = r.cacheMetadata || r.cache;
@@ -267,6 +275,7 @@
   $("show-root").addEventListener("change", () => vscode.postMessage({ type: "command", command: "astmatcher.toggleRoot" }));
   $("sample").addEventListener("click", () => vscode.postMessage({ type: "command", command: "astmatcher.selectSample" }));
   $("rerun").addEventListener("click", () => vscode.postMessage({ type: "command", command: "astmatcher.runQuery" }));
+  $("cancel-query").addEventListener("click", () => vscode.postMessage({ type: "command", command: "astmatcher.cancelQuery" }));
   $("settings").addEventListener("click", () => vscode.postMessage({ type: "settings-open" }));
   $("run-file").addEventListener("click", () => vscode.postMessage({ type: "command", command: "astmatcher.runFile" }));
   $("run-directory").addEventListener("click", () => vscode.postMessage({ type: "command", command: "astmatcher.runDirectory" }));

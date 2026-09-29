@@ -144,7 +144,8 @@ class NativeClient:
 
     def run(self, request: dict, *, cwd: str, timeout: float,
             on_start: Callable[[subprocess.Popen], None] | None = None,
-            on_progress: Callable[[dict], None] | None = None
+            on_progress: Callable[[dict], None] | None = None,
+            cancelled: threading.Event | None = None
             ) -> tuple[dict, list[str], int, str]:
         if not math.isfinite(timeout) or not 0 < timeout <= 3600:
             raise NativeClientError("native matcher timeout must be between 0 and 3600 seconds")
@@ -171,6 +172,17 @@ class NativeClient:
             proc.stdin.close()
             deadline = time.monotonic() + timeout + 1.0
             while selector.get_map():
+                if cancelled is not None and cancelled.is_set():
+                    proc.terminate()
+                    try:
+                        proc.wait(timeout=1.0)
+                    except subprocess.TimeoutExpired:
+                        proc.kill()
+                        proc.wait()
+                    if proc.stdout and not proc.stdout.closed:
+                        proc.stdout.close()
+                    stderr_file.close()
+                    raise NativeClientError("native matcher query cancelled")
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
                     raise TimeoutError

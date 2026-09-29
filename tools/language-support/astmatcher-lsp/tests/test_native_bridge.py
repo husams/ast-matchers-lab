@@ -25,7 +25,7 @@ from astmatcher_lsp.native_client import (NativeClient, NativeClientError,  # no
                                           close_global, get_client, native_binary_path)
 from astmatcher_lsp.cli import main  # noqa: E402
 from astmatcher_lsp.run import inspect_record, run_query  # noqa: E402
-from astmatcher_lsp.server import Server  # noqa: E402
+from astmatcher_lsp.server import Server, TextDocument  # noqa: E402
 from astmatcher_lsp.targets import translation_unit_dependencies  # noqa: E402
 
 
@@ -41,7 +41,7 @@ class FakeClient:
         self.inspect_requests: list[dict] = []
 
     def run(self, request: dict, *, cwd: str, timeout: float, on_start=None,
-            on_progress=None):
+            on_progress=None, cancelled=None):
         self.requests.append(request)
         if self.progress_event and on_progress:
             on_progress(self.progress_event)
@@ -438,31 +438,272 @@ class TestNativeBridge(unittest.TestCase):
                         client.run({}, cwd=temporary, timeout=0.25)
             close.assert_called_once()
 
-    def test_cancel_active_rpc_restarts_owned_server(self):
-        class RunningProcess:
-            killed = False
-
-            def poll(self):
-                return None
-
-            def kill(self):
-                self.killed = True
-
+    def test_cancel_run_is_scoped_to_active_run_id(self):
         server = Server(stdin=io.BytesIO(), stdout=io.BytesIO())
-        process = RunningProcess()
-        server._proc = process
         server._cancel_event = threading.Event()
-        with patch("astmatcher_lsp.server.close_global") as close:
-            server._cancel_run()
-        self.assertTrue(process.killed)
+        server._active_run_id = "run-2"
+        self.assertFalse(server._cancel_run("run-1"))
+        self.assertFalse(server._cancel_event.is_set())
+        self.assertTrue(server._cancel_run("run-2"))
         self.assertTrue(server._cancel_event.is_set())
-        close.assert_called_once()
+        self.assertFalse(server._cancel_run("run-2"))
 
     def test_cancel_idle_run_keeps_owned_server(self):
         server = Server(stdin=io.BytesIO(), stdout=io.BytesIO())
-        with patch("astmatcher_lsp.server.close_global") as close:
-            server._cancel_run()
-        close.assert_not_called()
+        self.assertFalse(server._cancel_run("completed-run"))
+
+    def test_cancel_query_preserves_partial_response_and_allows_followup(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary) / "sample.cpp"
+            source.write_text("int value;\n")
+            uri = source.with_suffix(".query").as_uri()
+            output = io.BytesIO()
+            server = Server(stdin=io.BytesIO(), stdout=output)
+            server.documents[uri] = TextDocument(uri, "match varDecl()")
+            entered = threading.Event()
+
+            def query(text, sample, flags, **kwargs):
+                if sample == "slow":
+                    entered.set()
+                    self.assertTrue(kwargs["cancelled"].wait(timeout=5))
+                    return {"ok": False, "cancelled": True, "completedFiles": 1,
+                            "files": ["a.cpp", "b.cpp"],
+                            "queries": [{"translationUnit": "a.cpp", "count": 1}],
+                            "bindings": {"v": ["partial"]}, "durationMs": 15}
+                return {"ok": True, "files": ["a.cpp"], "queries": [], "bindings": {},
+                        "durationMs": 2}
+
+            with patch("astmatcher_lsp.server.run_query", side_effect=query):
+                server._request_id = 1
+                server.on_astmatcher_runQuery({"textDocument": {"uri": uri},
+                                               "sample": "slow", "runId": "run-1"})
+                self.assertTrue(entered.wait(timeout=3))
+                server.on_astmatcher_cancelQuery({"runId": "stale-run"})
+                self.assertFalse(server._cancel_event.is_set())
+                server.on_astmatcher_cancelQuery({"runId": "run-1"})
+                self.assertTrue(server._cancel_event.is_set())
+                server.on_astmatcher_cancelQuery({"runId": "run-1"})
+                server._worker.join(timeout=3)
+                self.assertFalse(server._worker.is_alive())
+
+                server._request_id = 2
+                server.on_astmatcher_runQuery({"textDocument": {"uri": uri},
+                                               "sample": "fast", "runId": "run-2"})
+                server._worker.join(timeout=3)
+                self.assertFalse(server._worker.is_alive())
+                server.on_astmatcher_cancelQuery({"runId": "run-2"})
+                self.assertIsNone(server._cancel_event)
+
+            raw = output.getvalue()
+            messages = []
+            while raw:
+                header, _, body = raw.partition(b"\r\n\r\n")
+                length = int(header.split(b":")[1])
+                messages.append(json.loads(body[:length]))
+                raw = body[length:]
+            responses = [message["result"] for message in messages if "result" in message]
+            self.assertTrue(responses[0]["cancelled"])
+            self.assertFalse(responses[0]["ok"])
+            self.assertEqual(responses[0]["bindings"], {"v": ["partial"]})
+            self.assertTrue(responses[1]["ok"])
+            cancelled = [message["params"] for message in messages
+                         if message.get("method") == "astmatcher/queryProgress" and
+                         message["params"].get("kind") == "cancelled"]
+            self.assertEqual(cancelled, [{"runId": "run-1", "kind": "cancelled",
+                                          "completedFiles": 1, "totalFiles": 2,
+                                          "durationMs": 15}])
+
+    def test_native_cli_bridge_terminates_when_cancel_event_is_set(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            cli = Path(temporary) / "native-cli"
+            cli.write_text("#!/usr/bin/env python3\nimport time\ntime.sleep(30)\n")
+            cli.chmod(0o700)
+            client = NativeClient(str(cli))
+            cancelled = threading.Event()
+            with patch.object(client, "_ensure_server", return_value="/tmp/am-test/s"):
+                timer = threading.Timer(0.15, cancelled.set)
+                timer.start()
+                try:
+                    with self.assertRaisesRegex(NativeClientError, "cancelled"):
+                        client.run({}, cwd=temporary, timeout=10, cancelled=cancelled)
+                finally:
+                    timer.cancel()
+
+    def test_run_query_keeps_completed_file_when_bridge_is_cancelled(self):
+        class CancellingClient(FakeClient):
+            def __init__(self):
+                super().__init__({"queries": [{"commandIndex": 1, "matcher": "varDecl()",
+                                                "count": 1, "matches": []}],
+                                  "diagnostics": [], "stderr": "", "truncated": False})
+                self.started_second = threading.Event()
+                self.run_count = 0
+
+            def run(self, request, *, cwd, timeout, on_start=None, on_progress=None,
+                    cancelled=None):
+                self.run_count += 1
+                if self.run_count == 2:
+                    self.started_second.set()
+                    if cancelled is None or not cancelled.wait(timeout=5):
+                        raise AssertionError("run cancellation was not signalled")
+                    raise NativeClientError("native matcher query cancelled")
+                return super().run(request, cwd=cwd, timeout=timeout,
+                                   on_start=on_start, on_progress=on_progress,
+                                   cancelled=cancelled)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "a.cpp").write_text("int first;\n")
+            (root / "b.cpp").write_text("int second;\n")
+            client = CancellingClient()
+            cancelled = threading.Event()
+            results = []
+
+            def run():
+                results.append(run_query("match varDecl()", str(root / "a.cpp"),
+                                          flags=["-std=c++23"],
+                                          target={"scope": "directory", "path": str(root)},
+                                          client=client, cancelled=cancelled))
+
+            worker = threading.Thread(target=run)
+            worker.start()
+            self.assertTrue(client.started_second.wait(timeout=5))
+            cancelled.set()
+            worker.join(timeout=5)
+            self.assertFalse(worker.is_alive())
+            result = results[0]
+            self.assertTrue(result["cancelled"])
+            self.assertFalse(result["ok"])
+            self.assertEqual(len(result["queries"]), 1)
+            self.assertEqual(Path(result["queries"][0]["translationUnit"]).name, "a.cpp")
+
+    def test_cancel_after_native_reply_counts_completed_file_without_progress(self):
+        class ReplyThenCancelClient(FakeClient):
+            def __init__(self, reply, cancel_event):
+                super().__init__(reply)
+                self.cancel_event = cancel_event
+
+            def run(self, request, *, cwd, timeout, on_start=None, on_progress=None,
+                    cancelled=None):
+                result = super().run(request, cwd=cwd, timeout=timeout, on_start=on_start,
+                                     on_progress=on_progress, cancelled=cancelled)
+                self.cancel_event.set()
+                return result
+
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary) / "sample.cpp"
+            source.write_text("int value;\n")
+            cancelled = threading.Event()
+            events = []
+            root = source.parent
+            cache_dir = root / "cache"
+            with patch("astmatcher_lsp.run.translation_unit_dependencies",
+                       return_value=[str(source)]):
+                result = run_query(
+                    "match varDecl()", str(source),
+                    client=ReplyThenCancelClient(reply_for(source), cancelled),
+                    cancelled=cancelled, on_progress=events.append,
+                    cache={"enabled": True, "location": str(cache_dir)})
+            self.assertTrue(result["cancelled"])
+            self.assertFalse(result["ok"])
+            self.assertEqual(result["completedFiles"], 1)
+            self.assertEqual(len(result["queries"]), 2)
+            self.assertEqual([event["kind"] for event in events], ["start", "file-start"])
+            self.assertFalse(cache_dir.exists())
+
+    def test_run_query_returns_cancelled_while_discovering_workspace(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            cancelled = threading.Event()
+            walking = threading.Event()
+            results = []
+
+            def slow_walk(path):
+                walking.set()
+                cancelled.wait(timeout=5)
+                yield str(path), [], ["late.cpp"]
+
+            def run():
+                results.append(run_query(
+                    "match varDecl()", str(root / "sample.cpp"),
+                    target={"scope": "workspace", "path": str(root)},
+                    cancelled=cancelled))
+
+            with patch("astmatcher_lsp.targets.os.walk", side_effect=slow_walk):
+                worker = threading.Thread(target=run)
+                worker.start()
+                self.assertTrue(walking.wait(timeout=3))
+                cancelled.set()
+                worker.join(timeout=3)
+
+            self.assertFalse(worker.is_alive())
+            result = results[0]
+            self.assertTrue(result["cancelled"])
+            self.assertFalse(result["ok"])
+            self.assertEqual(result["completedFiles"], 0)
+            self.assertEqual(result["files"], [])
+            self.assertEqual(result["errors"], [])
+
+    def test_cache_dependency_discovery_terminates_and_reaps_on_cancel(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "sample.cpp"
+            source.write_text("int value;\n")
+            pid_file = root / "compiler.pid"
+            compiler = root / "slow-compiler"
+            compiler.write_text("#!/usr/bin/env python3\n"
+                                "import os, time\n"
+                                f"open({str(pid_file)!r}, 'w').write(str(os.getpid()))\n"
+                                "time.sleep(30)\n")
+            compiler.chmod(0o700)
+            cancelled = threading.Event()
+            outcome = {}
+            started = time.monotonic()
+            worker = threading.Thread(target=lambda: outcome.setdefault(
+                "dependencies", translation_unit_dependencies(
+                    str(source), [], temporary, str(compiler), cancelled=cancelled)))
+            worker.start()
+            deadline = time.monotonic() + 3
+            while not pid_file.exists() and time.monotonic() < deadline:
+                time.sleep(0.01)
+            self.assertTrue(pid_file.exists(), "fake compiler did not start")
+            cancelled.set()
+            worker.join(timeout=3)
+            self.assertFalse(worker.is_alive())
+            dependencies = outcome["dependencies"]
+            self.assertIsNone(dependencies)
+            self.assertLess(time.monotonic() - started, 2)
+            child_pid = int(pid_file.read_text())
+            with self.assertRaises(ProcessLookupError):
+                os.kill(child_pid, 0)
+
+    def test_cache_hashing_stops_between_dependency_files_on_cancel(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            first = root / "aaa.hpp"
+            second = root / "bbb.hpp"
+            source = root / "z.cpp"
+            first.write_text("struct First {};\n")
+            second.write_text("struct Second {};\n")
+            source.write_text("int value;\n")
+            cancelled = threading.Event()
+            original_read_bytes = Path.read_bytes
+
+            def cancel_after_first_dependency(path):
+                content = original_read_bytes(path)
+                if path == first:
+                    cancelled.set()
+                return content
+
+            client = FakeClient({})
+            with patch("astmatcher_lsp.run.translation_unit_dependencies",
+                       return_value=[str(first), str(second)]), \
+                    patch.object(Path, "read_bytes", cancel_after_first_dependency):
+                result = run_query("match varDecl()", str(source), client=client,
+                                   cache={"enabled": True, "location": str(root / "cache")},
+                                   cancelled=cancelled)
+            self.assertTrue(result["cancelled"])
+            self.assertFalse(result["ok"])
+            self.assertEqual(client.requests, [])
 
     def test_native_startup_error_includes_server_stderr(self):
         with tempfile.TemporaryDirectory() as temporary:
