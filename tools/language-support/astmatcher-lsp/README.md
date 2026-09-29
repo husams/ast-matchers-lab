@@ -34,6 +34,7 @@ in [`../README.md`](../README.md).
 | `textDocument/definition` | jumps to a `let` definition |
 | `textDocument/semanticTokens/full` | custom `nodeMatcher` / `narrowingMatcher` / `traversalMatcher` / `literal` types, `let` names, bound ids |
 | `astmatcher/runQuery` (custom) | runs the document through the native matcher server, answers with the matches as JSON (below) |
+| `astmatcher/cancelQuery` (notification) | cancels only the active query whose `runId` matches |
 | `astmatcher/inspectRecord` (custom) | finds the innermost explicit record at a source position and returns its relationship graph |
 
 ### `astmatcher/runQuery`
@@ -41,7 +42,7 @@ in [`../README.md`](../README.md).
 Params: `{textDocument: {uri}, sample, flags?, target?, exclusions?, compileCommands?, traversal?, cache?, nativeServerPath?, cwd?, timeout?, runId?}`.
 The document's current text (saved or not) is run through a native C++ gRPC
 server on a private Unix socket against
-the selected file, directory, or workspace roots; a new request kills a run
+the selected file, directory, or workspace roots; a new request cancels a run
 still in progress. `target` is `{scope: "file"|"directory"|"workspace",
 path, roots?}`. Directory/workspace discovery applies `.gitignore` files and
 the `exclusions` glob list. `compileCommands` accepts a compilation database
@@ -74,9 +75,15 @@ elapsed time in `durationMs`; active-file events carry `file` and
 `sourcePath`/`elapsedMs` updates for a translation unit and its final structured
 reply. Errors are logged with the translation-unit path, including timeouts.
 Each file event carries that file's queries, bindings, errors, cache delta,
-and `completedFiles`. Notifications include `runId` so clients can discard
-events from a cancelled or replaced run. The final response remains the full
-result for clients that do not consume progress notifications.
+and `completedFiles`. Send `astmatcher/cancelQuery` with `{runId}` to cancel
+that exact active run; stale, repeated, and completed run IDs are ignored. A
+cancelled run emits a terminal progress event with `kind: "cancelled"`,
+`completedFiles`, `totalFiles`, and `durationMs`. Its final response sets
+`cancelled: true` and `ok: false` while retaining results from completed files;
+the active translation unit may have no partial results. Notifications include
+`runId` so clients can discard events from a cancelled or replaced run. The
+final response remains the full result for clients that do not consume progress
+notifications.
 
 ```jsonc
 {

@@ -64,6 +64,38 @@ class ResultStore {
     this.emitter.fire("running");
   }
 
+  setCancellable(cancellable) {
+    if (!this.running) return;
+    this.running = { ...this.running, cancellable };
+    this.emitter.fire("running");
+  }
+
+  requestCancellation(progress = {}) {
+    if (!this.running) return;
+    this.running = { ...this.running, cancelRequested: true,
+      completedFiles: progress.completedFiles ?? this.running.completedFiles,
+      totalFiles: progress.totalFiles ?? this.running.totalFiles };
+    this.emitter.fire("running");
+  }
+
+  cancelRequestFailed() {
+    if (!this.running) return;
+    this.running = { ...this.running, cancelRequested: false };
+    this.emitter.fire("running");
+  }
+
+  finishCancelled() {
+    const current = this.result || { queries: [], bindings: {}, files: [], errors: [],
+      sample: this.running && this.running.sample };
+    this.result = { ...current, ok: false, cancelled: true,
+      completedFiles: this.running && this.running.completedFiles,
+      totalFiles: this.running && this.running.totalFiles };
+    this.running = false;
+    this.selected = undefined;
+    this.generation++;
+    this.emitter.fire("result");
+  }
+
   startStreaming(progress) {
     this.generation++;
     this.result = {
@@ -473,6 +505,7 @@ class MatchesView {
       <button id="run-directory" title="Run against a directory">Directory</button>
       <button id="run-workspace" title="Run against the workspace">Workspace</button>
     </div>
+    <button id="cancel-query" title="Cancel the running query" hidden>Cancel Query</button>
     <button id="rerun" title="Run the query again">Run</button>
   </div>
   <div id="settings-toolbar" hidden>

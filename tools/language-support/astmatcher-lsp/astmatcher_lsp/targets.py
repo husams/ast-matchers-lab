@@ -9,6 +9,7 @@ import shlex
 from pathlib import Path
 from pathlib import PurePosixPath
 import subprocess
+import time
 
 SOURCE_SUFFIXES = {".cc", ".cpp", ".cxx", ".c++", ".cppm", ".ccm", ".cxxm", ".ixx"}
 HEADER_SUFFIXES = {".h", ".hh", ".hpp", ".hxx"}
@@ -120,7 +121,8 @@ def _git_ignored(paths: list[Path], root: Path) -> set[Path] | None:
 
 
 def discover_target(target: dict | None, sample: str, cwd: str,
-                    exclusions: list[str] | None = None) -> tuple[dict, list[str]]:
+                    exclusions: list[str] | None = None,
+                    cancelled=None) -> tuple[dict, list[str]]:
     """Return target metadata and sorted C++ TUs, plus a selected header in scope.
 
     Directory/workspace scans leave other headers alone: they may require
@@ -136,6 +138,11 @@ def discover_target(target: dict | None, sample: str, cwd: str,
     roots = target.get("roots") or ([str(path)] if scope != "workspace" else [str(path)])
     roots = [str(Path(p if os.path.isabs(p) else os.path.join(cwd, p)).absolute())
              for p in roots]
+    def is_cancelled() -> bool:
+        return cancelled is not None and cancelled.is_set()
+
+    if is_cancelled():
+        return {"scope": scope, "path": str(path), "roots": roots}, []
     if scope == "file":
         files = ([str(path)] if path.is_file() and not _ignored(path, path.parent) and not any(
             _glob_match(path.name, glob) or _glob_match(path.as_posix(), glob)
@@ -146,25 +153,59 @@ def discover_target(target: dict | None, sample: str, cwd: str,
         base = Path(scan_roots[0])
         files = []
         for root_name in scan_roots:
+            if is_cancelled():
+                return {"scope": scope, "path": str(path), "roots": roots}, []
             root = Path(root_name)
             if not root.is_dir():
                 continue
             candidates: list[Path] = []
             for current, dirs, names in os.walk(root):
+                if is_cancelled():
+                    return {"scope": scope, "path": str(path), "roots": roots}, []
                 current_path = Path(current)
-                dirs[:] = [name for name in dirs if name != ".git" and
-                           not any((_glob_match((current_path / name).relative_to(root).as_posix(), glob)
-                                    or ("/" not in glob and _glob_match(name, glob)))
-                                   for glob in exclusions or [])]
-                candidates.extend(current_path / name for name in names
-                                  if (current_path / name).suffix.lower() in SOURCE_SUFFIXES)
+                kept_dirs = []
+                for name in dirs:
+                    if is_cancelled():
+                        return {"scope": scope, "path": str(path), "roots": roots}, []
+                    if name == ".git":
+                        continue
+                    relative_dir = (current_path / name).relative_to(root).as_posix()
+                    if any((_glob_match(relative_dir, glob) or
+                            ("/" not in glob and _glob_match(name, glob)))
+                           for glob in exclusions or []):
+                        continue
+                    kept_dirs.append(name)
+                dirs[:] = kept_dirs
+                for name in names:
+                    if is_cancelled():
+                        return {"scope": scope, "path": str(path), "roots": roots}, []
+                    candidate = current_path / name
+                    if candidate.suffix.lower() in SOURCE_SUFFIXES:
+                        candidates.append(candidate)
             if (selected_sample.is_relative_to(root) and selected_sample.is_file() and
                     selected_sample.suffix.lower() in HEADER_SUFFIXES and
                     not _excluded_parent(selected_sample, root, exclusions)):
                 candidates.append(selected_sample)
-            ignored_by_git = _git_ignored(candidates + [p for c in candidates for p in c.parents
-                                                        if p.is_dir() and p.is_relative_to(root)], root)
+            if is_cancelled():
+                return {"scope": scope, "path": str(path), "roots": roots}, []
+            ignore_paths = list(candidates)
+            seen_ignore_paths = set(ignore_paths)
             for candidate in candidates:
+                if is_cancelled():
+                    return {"scope": scope, "path": str(path), "roots": roots}, []
+                for parent in candidate.parents:
+                    if is_cancelled():
+                        return {"scope": scope, "path": str(path), "roots": roots}, []
+                    if (parent not in seen_ignore_paths and parent.is_dir() and
+                            parent.is_relative_to(root)):
+                        seen_ignore_paths.add(parent)
+                        ignore_paths.append(parent)
+            if is_cancelled():
+                return {"scope": scope, "path": str(path), "roots": roots}, []
+            ignored_by_git = _git_ignored(ignore_paths, root)
+            for candidate in candidates:
+                if is_cancelled():
+                    return {"scope": scope, "path": str(path), "roots": roots}, []
                 if not candidate.is_file() or candidate.suffix.lower() not in TARGET_SUFFIXES:
                     continue
                 rel = candidate.relative_to(root)
@@ -177,6 +218,8 @@ def discover_target(target: dict | None, sample: str, cwd: str,
                         (ignored_by_git is None and _ignored(candidate, root))):
                     continue
                 files.append(str(candidate.absolute()))
+    if is_cancelled():
+        return {"scope": scope, "path": str(path), "roots": roots}, []
     files = sorted(set(files))
     return {"scope": scope, "path": str(path), "roots": roots}, files
 
@@ -326,7 +369,8 @@ def compile_flags(database: str | None, source: str, explicit: list[str], cwd: s
 
 
 def translation_unit_dependencies(source: str, flags: list[str], cwd: str,
-                                  compiler: str | None = None) -> list[str] | None:
+                                  compiler: str | None = None,
+                                  cancelled=None) -> list[str] | None:
     """Ask Clang for the full include dependency set; None means caching is unsafe."""
     import shutil
     import subprocess
@@ -335,17 +379,44 @@ def translation_unit_dependencies(source: str, flags: list[str], cwd: str,
     if not compiler:
         return None
     cmd = [compiler, "-M", "-MT", "astmatcher-cache", *flags, source]
+    process = None
     try:
-        result = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True,
-                                timeout=30, check=False)
-    except (OSError, subprocess.TimeoutExpired):
+        process = subprocess.Popen(cmd, cwd=cwd, stdout=subprocess.PIPE,
+                                  stderr=subprocess.PIPE, text=True)
+        deadline = time.monotonic() + 30
+        while True:
+            if cancelled is not None and cancelled.is_set():
+                process.terminate()
+                try:
+                    process.communicate(timeout=1)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.communicate()
+                return None
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                process.kill()
+                process.communicate()
+                return None
+            try:
+                stdout, _ = process.communicate(timeout=min(0.1, remaining))
+                break
+            except subprocess.TimeoutExpired:
+                continue
+    except OSError:
         return None
-    if result.returncode:
+    finally:
+        if process is not None and process.poll() is None:
+            process.kill()
+            process.wait()
+    if (cancelled is not None and cancelled.is_set()) or process.returncode:
         return None
-    dep_text = result.stdout.replace("\\\n", " ")
+    dep_text = stdout.replace("\\\n", " ")
     _, _, deps = dep_text.partition(":")
     paths = []
     for dep in shlex.split(deps):
+        if cancelled is not None and cancelled.is_set():
+            return None
         path = Path(dep)
         if not path.is_absolute():
             path = Path(cwd) / path

@@ -2,7 +2,7 @@
   "name": "astmatcher-dsl",
   "displayName": "AST Matcher DSL (clang-query)",
   "description": "Syntax highlighting, completion, hover and diagnostics for Clang AST matcher scripts (.query).",
-  "version": "1.9.2",
+  "version": "1.9.3",
   "publisher": "ast-matchers-lab",
   "license": "MIT",
   "private": true,
@@ -68,6 +68,13 @@
         "title": "Run Query",
         "category": "AST Matcher",
         "icon": "$(play)"
+      },
+      {
+        "command": "astmatcher.cancelQuery",
+        "title": "Cancel Query",
+        "category": "AST Matcher",
+        "icon": "$(debug-stop)",
+        "enablement": "astmatcher.queryCancellable"
       },
       { "command": "astmatcher.runFile", "title": "Run on File", "category": "AST Matcher", "icon": "$(file-code)" },
       { "command": "astmatcher.runDirectory", "title": "Run on Directory", "category": "AST Matcher", "icon": "$(folder)" },
@@ -183,6 +190,7 @@
         { "command": "astmatcher.runWorkspace", "when": "view == astmatcher.matches", "group": "navigation@0" },
         { "command": "astmatcher.selectTarget", "when": "view == astmatcher.matches", "group": "navigation@0" },
         { "command": "astmatcher.openSettings", "when": "view == astmatcher.matches", "group": "navigation@0" },
+        { "command": "astmatcher.cancelQuery", "when": "view == astmatcher.matches && astmatcher.queryCancellable", "group": "navigation@0" },
         {
           "command": "astmatcher.runQuery",
           "when": "view == astmatcher.bindings || view == astmatcher.matches",

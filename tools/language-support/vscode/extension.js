@@ -32,6 +32,42 @@ let targets;
 let recordExplorer;
 let runSerial = 0;
 let activeRunId;
+let activeRunCancelRequested = false;
+let activeRunRequestSent = false;
+let activeRunCancellationObserved = false;
+
+function setCancellationContext(enabled) {
+  vscode.commands.executeCommand("setContext", "astmatcher.queryCancellable", enabled);
+}
+
+function updateCancellationUi() {
+  const cancellable = !!activeRunId && activeRunRequestSent && !activeRunCancelRequested;
+  setCancellationContext(cancellable);
+  if (!activeRunId) return;
+  runStatusItem.command = cancellable ? "astmatcher.cancelQuery" : undefined;
+  runStatusItem.tooltip = cancellable ? "Cancel the running AST Matcher query" :
+    "Cancelling the AST Matcher query…";
+}
+
+async function cancelQuery() {
+  if (!client || !activeRunId || !activeRunRequestSent || activeRunCancelRequested) return;
+  const runId = activeRunId;
+  activeRunCancelRequested = true;
+  updateCancellationUi();
+  if (store) store.requestCancellation();
+  runStatusItem.text = "$(sync~spin) AST Matcher · cancelling";
+  try {
+    await client.sendNotification("astmatcher/cancelQuery", { runId });
+  } catch (err) {
+    if (activeRunId === runId && !activeRunCancellationObserved) {
+      activeRunCancelRequested = false;
+      if (store) store.cancelRequestFailed();
+      updateCancellationUi();
+      runStatusItem.text = "$(sync~spin) AST Matcher · cancellation request failed";
+    }
+    vscode.window.showErrorMessage(`astmatcher: could not request cancellation: ${err.message || err}`);
+  }
+}
 
 const RELATIVE_SERVER = path.join(
   "tools", "language-support", "astmatcher-lsp", "bin", "astmatcher-lsp");
@@ -124,6 +160,18 @@ async function startServer(context) {
   await client.start();
   context.subscriptions.push(client.onNotification("astmatcher/queryProgress", (progress) => {
     if (!activeRunId || progress.runId !== activeRunId) return;
+    if (progress.kind === "cancelled") {
+      activeRunCancellationObserved = true;
+      activeRunCancelRequested = true;
+      updateCancellationUi();
+      if (store) store.requestCancellation(progress);
+      const done = progress.completedFiles || 0;
+      const total = progress.totalFiles || 0;
+      runStatusItem.text = `$(debug-stop) AST Matcher · cancelled ${done}/${total}`;
+      runStatusItem.show();
+      return;
+    }
+    if (activeRunCancelRequested) return;
     if (progress.kind === "start") {
       store.startStreaming(progress);
       renderRunDiagnostics(undefined);
@@ -140,6 +188,7 @@ async function startServer(context) {
       const total = progress.totalFiles || 0;
       runStatusItem.text = `$(sync~spin) AST Matcher ${done}/${total} · ${file} · ${time}`;
       runStatusItem.tooltip = progress.file || "Preparing source files";
+      runStatusItem.command = "astmatcher.cancelQuery";
       runStatusItem.show();
     }
   }));
@@ -390,8 +439,6 @@ async function runWithScope(scope, uri) {
 
 /** Menus pass the clicked resource; run that query file if it is one. */
 async function runQuery(arg) {
-  const serial = ++runSerial;
-  activeRunId = undefined;
   const document = arg instanceof vscode.Uri && QUERY_EXTS.has(path.extname(arg.fsPath))
     ? await vscode.workspace.openTextDocument(arg)
     : queryDocument();
@@ -417,23 +464,42 @@ async function runQuery(arg) {
   }
   const runningLabel = target.scope === "workspace"
     ? "all workspace folders" : path.basename(target.path);
+  const serial = ++runSerial;
+  activeRunId = undefined;
+  activeRunCancelRequested = false;
+  activeRunRequestSent = false;
+  activeRunCancellationObserved = false;
+  setCancellationContext(false);
   const runId = crypto.randomUUID();
   activeRunId = runId;
+  activeRunRequestSent = false;
+  activeRunCancellationObserved = false;
   renderRunDiagnostics(undefined);
   runStatusItem.text = "$(sync~spin) AST Matcher · preparing";
+  runStatusItem.command = undefined;
+  runStatusItem.tooltip = "Cancel the running AST Matcher query";
   runStatusItem.show();
   store.setRunning({ sample: runningLabel, scope: target.scope,
                      targetPath: target.path });
   matchesView.show();
   let result;
   try {
+    const request = client.sendRequest("astmatcher/runQuery",
+      { ...createRunRequest(document, sample, target), runId });
+    activeRunRequestSent = true;
+    updateCancellationUi();
+    if (store) store.setCancellable(true);
+    runStatusItem.command = "astmatcher.cancelQuery";
     result = await vscode.window.withProgress(
       { location: vscode.ProgressLocation.Window, title: "AST Matcher" },
-      () => client.sendRequest("astmatcher/runQuery",
-        { ...createRunRequest(document, sample, target), runId }));
+      () => request);
   } catch (err) {
     if (serial !== runSerial) return;
     activeRunId = undefined;
+    activeRunCancelRequested = false;
+    activeRunRequestSent = false;
+    activeRunCancellationObserved = false;
+    updateCancellationUi();
     runStatusItem.hide();
     store.set(undefined);
     renderRunDiagnostics({ sample: sample.absolute,
@@ -443,7 +509,16 @@ async function runQuery(arg) {
   }
   if (serial !== runSerial) return;
   activeRunId = undefined;
+  activeRunCancelRequested = false;
+  activeRunRequestSent = false;
+  activeRunCancellationObserved = false;
+  updateCancellationUi();
   runStatusItem.hide();
+  if (result.cancelled) {
+    result = { ...result,
+      completedFiles: result.completedFiles ?? store.running?.completedFiles ?? 0,
+      totalFiles: result.totalFiles ?? store.running?.totalFiles };
+  }
   store.set(result);
   renderRunDiagnostics(result);
   queryDiagnostics.set(document.uri, result.errors.filter((e) => e.range).map((e) => {
@@ -747,6 +822,7 @@ async function activate(context) {
       if (e.affectsConfiguration("astmatcher")) updateStatus();
     }),
     vscode.commands.registerCommand("astmatcher.runQuery", runQuery),
+    vscode.commands.registerCommand("astmatcher.cancelQuery", cancelQuery),
     vscode.commands.registerCommand("astmatcher.showRunDiagnostics", showRunDiagnostics),
     vscode.commands.registerCommand("astmatcher.runFile", (uri) => runWithScope("file", uri)),
     vscode.commands.registerCommand("astmatcher.runDirectory", (uri) => runWithScope("directory", uri)),

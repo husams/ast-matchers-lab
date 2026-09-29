@@ -143,13 +143,18 @@ run it immediately. The Matches toolbar can run the active query on a file, a
 directory, or every workspace root; **Select Run Target…** stores the scope and
 path so the current target stays visible in run settings.
 For directory and workspace runs, matches appear as each file completes, with
-a live scanned-file count; the final response reconciles the full result.
+a live scanned-file count; the final response reconciles the full result. While
+a query is running, **Cancel Query** is available in AST Matches, its toolbar,
+the running status bar item, and the command palette. Cancellation keeps matches
+from completed files and labels the result as partial; a new query can run
+immediately afterward.
 
 ## Commands
 
 | Command | Default key | What it does |
 |---------|-------------|--------------|
 | AST Matcher: Run Query | <kbd>⌘↵</kbd> / <kbd>Ctrl↵</kbd> | runs the query through the server; results in the panel, tree and editor |
+| AST Matcher: Cancel Query | Matches panel / running status bar | stops the active query and retains completed-file results |
 | AST Matcher: Run Query in Terminal | <kbd>⇧⌘↵</kbd> / <kbd>Ctrl⇧↵</kbd> | saves and runs `clang-query -f <file> <sample> -- <flags>` in a terminal for hands-on lab work; this path supports file scope and compiler flags |
 | AST Matcher: Select Sample File… | status bar | choose the translation unit for this query file |
 | AST Matcher: Run Query on This Target… | — | from a C/C++ file or directory: pick a query and run it on that target |

@@ -94,6 +94,8 @@ class Server:
         self._proc: subprocess.Popen | None = None
         self._worker: threading.Thread | None = None
         self._cancel_event: threading.Event | None = None
+        self._active_run_id: str | None = None
+        self._run_state_lock = threading.Lock()
 
     # -- transport ---------------------------------------------------------
     def _read(self) -> dict | None:
@@ -303,13 +305,25 @@ class Server:
         run_id = params.get("runId")
         self._cancel_run()
         cancel_event = threading.Event()
-        self._cancel_event = cancel_event
+        with self._run_state_lock:
+            self._cancel_event = cancel_event
+            self._active_run_id = run_id if isinstance(run_id, str) and run_id else None
+        completed_files = 0
 
         def work() -> None:
+            nonlocal completed_files
             with self._run_lock:
                 try:
                     def progress(event: dict) -> None:
-                        if not cancel_event.is_set():
+                        nonlocal completed_files
+                        if event.get("kind") == "file":
+                            completed_files = max(completed_files,
+                                                  int(event.get("completedFiles", 0)))
+                        with self._run_state_lock:
+                            active = (self._cancel_event is cancel_event and
+                                      self._active_run_id == run_id)
+                        if active and (not cancel_event.is_set() or
+                                       event.get("kind") == "cancelled"):
                             self._notify("astmatcher/queryProgress", {"runId": run_id, **event})
 
                     result = run_query(
@@ -325,6 +339,25 @@ class Server:
                         timeout=float(params.get("timeout") or 120),
                         on_start=self._started,
                         on_progress=progress if isinstance(run_id, str) and run_id else None)
+                    with self._run_state_lock:
+                        was_cancelled = cancel_event.is_set()
+                        if self._cancel_event is cancel_event:
+                            self._proc = None
+                            self._cancel_event = None
+                            self._active_run_id = None
+                    if was_cancelled:
+                        result["cancelled"] = True
+                        result["ok"] = False
+                        if isinstance(run_id, str) and run_id:
+                            self._notify("astmatcher/queryProgress", {
+                                "runId": run_id, "kind": "cancelled",
+                                "completedFiles": max(
+                                    completed_files,
+                                    result.get("completedFiles", 0)
+                                    if isinstance(result.get("completedFiles", 0), int)
+                                    else 0),
+                                "totalFiles": len(result.get("files", [])),
+                                "durationMs": result.get("durationMs", 0)})
                     for error in result.get("errors", []):
                         log.error("runQuery error file=%s runId=%s: %s",
                                   error.get("file") or params.get("sample", "<unknown>"),
@@ -337,7 +370,11 @@ class Server:
                     self._respond(request_id, error={"code": -32603,
                                                      "message": traceback.format_exc()})
                 finally:
-                    self._proc = None
+                    with self._run_state_lock:
+                        if self._cancel_event is cancel_event:
+                            self._proc = None
+                            self._cancel_event = None
+                            self._active_run_id = None
 
         self._worker = threading.Thread(target=work, daemon=True)
         self._worker.start()
@@ -368,17 +405,25 @@ class Server:
         return DEFERRED
 
     def _started(self, proc: subprocess.Popen) -> None:
-        self._proc = proc
+        with self._run_state_lock:
+            self._proc = proc
 
-    def _cancel_run(self) -> None:
-        if self._cancel_event is not None:
-            self._cancel_event.set()
-        proc = self._proc
-        if proc is not None and proc.poll() is None:
-            proc.kill()
-            # A synchronous Clang run may keep the gRPC server's mutex after
-            # its client disappears. This server belongs only to this LSP.
-            close_global()
+    def _cancel_run(self, run_id: str | None = None) -> bool:
+        with self._run_state_lock:
+            event = self._cancel_event
+            if event is None or (run_id is not None and run_id != self._active_run_id):
+                return False
+            if event.is_set():
+                return False
+            event.set()
+        return True
+
+    def on_astmatcher_cancelQuery(self, params: dict) -> None:
+        """Cancel only the currently active query identified by runId."""
+        run_id = params.get("runId")
+        if isinstance(run_id, str) and run_id:
+            self._cancel_run(run_id)
+        return None
 
     def on_textDocument_diagnostic(self, params: dict) -> dict:
         doc = self._document(params)

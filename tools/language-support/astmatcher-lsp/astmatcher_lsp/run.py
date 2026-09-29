@@ -401,7 +401,8 @@ def run_query(text: str, sample: str, flags: list[str] | None = None, *,
     flags = list(flags or [])
     cwd = cwd or os.getcwd()
     try:
-        normalized_target, files = discover_target(target, sample, cwd, exclusions)
+        normalized_target, files = discover_target(target, sample, cwd, exclusions,
+                                                  cancelled=cancelled)
     except (OSError, ValueError, TypeError) as exc:
         return {"ok": False, "command": [], "cwd": cwd, "sample": sample,
                 "flags": flags, "exitCode": None, "durationMs": 0, "truncated": False,
@@ -417,8 +418,14 @@ def run_query(text: str, sample: str, flags: list[str] | None = None, *,
                     "flags": flags, "exitCode": None, "durationMs": 0,
                     "truncated": False, "errors": [], "stderr": "", "queries": [],
                     "bindings": {}, "files": files, "target": normalized_target,
+                    "completedFiles": 0,
                     "cache": {"enabled": bool((cache or {}).get("enabled", False)),
                               "hits": 0, "misses": 0, "location": None}}
+    if cancelled is not None and cancelled.is_set():
+        result["cancelled"] = True
+        result["durationMs"] = 0
+        result["bindings"] = {}
+        return result
     if traversal not in (None, "AsIs", "IgnoreUnlessSpelledInSource"):
         result["errors"].append({"message": "traversal must be AsIs or IgnoreUnlessSpelledInSource"})
         return result
@@ -475,6 +482,7 @@ def run_query(text: str, sample: str, flags: list[str] | None = None, *,
                          "durationMs": int((time.monotonic() - started) * 1000)})
 
         def emit_file(queries: list[dict] | None = None, stderr: str = "") -> None:
+            result["completedFiles"] = max(result["completedFiles"], file_index)
             if not on_progress or (cancelled is not None and cancelled.is_set()):
                 return
             current = queries if queries is not None else result["queries"][query_start:]
@@ -511,8 +519,11 @@ def run_query(text: str, sample: str, flags: list[str] | None = None, *,
                 except OSError:
                     pass
             deps = (translation_unit_dependencies(source, tu_flags, effective_cwd,
-                                                  compiler_path)
+                                                  compiler_path, cancelled=cancelled)
                     if compiler_identity is not None else None)
+            if cancelled is not None and cancelled.is_set():
+                result["cancelled"] = True
+                break
             if deps is not None:
                 import hashlib
                 h = hashlib.sha256()
@@ -528,12 +539,17 @@ def run_query(text: str, sample: str, flags: list[str] | None = None, *,
                 except OSError:
                     h.update(client.binary.encode())
                 for dep in sorted(set(deps + [source])):
+                    if cancelled is not None and cancelled.is_set():
+                        result["cancelled"] = True
+                        break
                     try:
                         h.update(dep.encode())
                         h.update(Path(dep).read_bytes())
                     except OSError:
                         deps = None
                         break
+                if result.get("cancelled"):
+                    break
                 if deps is not None:
                     key = h.hexdigest()
         cache_file = cache_dir / f"{key}.json" if key else None
@@ -580,7 +596,7 @@ def run_query(text: str, sample: str, flags: list[str] | None = None, *,
 
                 reply, command, exit_code, client_stderr = client.run(
                     request, cwd=effective_cwd, timeout=timeout, on_start=on_start,
-                    on_progress=native_progress)
+                    on_progress=native_progress, cancelled=cancelled)
                 result["command"] = command
             except NativeClientError as exc:
                 if cancelled is not None and cancelled.is_set():
@@ -605,7 +621,8 @@ def run_query(text: str, sample: str, flags: list[str] | None = None, *,
             total_matches += sum(len(q["matches"]) for q in parsed)
             result["errors"].extend(dict(e, file=source) for e in diagnostics)
             if (cache_file and exit_code == 0 and not diagnostics and
-                    script_error is None and not result["truncated"]):
+                    script_error is None and not result["truncated"] and
+                    (cancelled is None or not cancelled.is_set())):
                 try:
                     cache_dir.mkdir(parents=True, exist_ok=True)
                     with tempfile.NamedTemporaryFile("w", dir=cache_dir, suffix=".tmp",
