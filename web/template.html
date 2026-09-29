@@ -605,6 +605,91 @@ details.explain > summary:hover { background: rgba(255,255,255,.02); }
 .ex-gone > span { font-size: 11.5px; color: var(--faint); margin-right: 2px; }
 .ex-loc.out { text-decoration: line-through; opacity: .55; border-color: rgba(247,118,142,.35); color: var(--bad); }
 
+/* ---------- AST explorer ---------- */
+@media (min-width: 901px) { body.wide #app { grid-template-columns: var(--sw) minmax(0,1fr) 0; } }
+body.wide #toc { display: none; }
+body.wide #content { max-width: 1320px; }
+.xp-intro { color: var(--text-2); margin: 12px 0 0; max-width: 760px; }
+.xp { display: grid; grid-template-columns: 300px minmax(0,1fr); gap: 22px; align-items: start; }
+.xp-tree { position: sticky; top: calc(var(--top-h) + 14px); display: flex; flex-direction: column; height: calc(100vh - var(--top-h) - 28px); border: 1px solid var(--border); border-radius: 12px; background: var(--bg-2); overflow: hidden; }
+.xp-tabs { display: flex; gap: 2px; padding: 8px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.xp-tabs button { flex: 1; padding: 6px 4px; border-radius: 7px; border: 1px solid transparent; background: none; color: var(--muted); font: 600 12px var(--mono); cursor: pointer; }
+.xp-tabs button:hover { color: var(--text); background: var(--surface); }
+.xp-tabs button.on { color: var(--accent-2); background: var(--accent-bg); border-color: rgba(122,162,247,.3); }
+.xp-filter, .xp-pf { margin: 8px; padding: 8px 11px; border-radius: 8px; border: 1px solid var(--border-2); background: var(--surface); color: var(--text); font: 13px var(--mono); outline: none; }
+.xp-filter:focus, .xp-pf:focus { border-color: var(--accent); }
+.xp-list { flex: 1; overflow: auto; padding: 0 6px 14px; }
+.xr { display: flex; align-items: center; gap: 6px; padding: 3px 8px 3px calc(8px + var(--d) * 14px); border-radius: 6px; cursor: pointer; font: 12.5px/1.6 var(--mono); color: var(--text-2); white-space: nowrap; }
+.xr:hover { background: var(--surface); color: var(--text); }
+.xr:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.xr.on { background: var(--accent-bg); color: #fff; }
+.xr.abs .xr-n { font-style: italic; color: var(--muted); }
+.xr .dot { width: 6px; height: 6px; opacity: .8; }
+.xr-tw { width: 16px; height: 16px; flex: none; display: grid; place-items: center; border: 0; background: none; color: var(--faint); cursor: pointer; font-size: 10px; padding: 0; transition: transform .12s; }
+.xr-tw.open { transform: rotate(90deg); }
+.xr-tw:hover { color: var(--text); }
+.xr-g { font: 600 9.5px var(--sans); letter-spacing: .05em; text-transform: uppercase; color: var(--faint); width: 52px; flex: none; }
+.xp-detail { min-width: 0; }
+.xp-card { padding: 18px 20px; border: 1px solid var(--border); border-radius: 12px; background: linear-gradient(180deg, var(--bg-2), var(--bg)); }
+.xp-chain { font: 12px var(--mono); color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.xp-chain .sep { color: var(--faint); }
+.xp-chain b { color: var(--text); }
+.xp-title { display: flex; align-items: center; gap: 10px; margin: 8px 0 12px; flex-wrap: wrap; }
+#content .xp-title h2 { margin: 0; padding: 0; border: 0; font: 700 26px var(--mono); letter-spacing: -.01em; }
+.xp-tag { font: 600 10.5px var(--sans); letter-spacing: .07em; text-transform: uppercase; padding: 3px 8px; border-radius: 5px; color: var(--warn); background: var(--warn-bg); }
+.xp-tag.g { color: var(--accent); background: var(--accent-bg); }
+.xp-k { font: 600 10.5px var(--sans); letter-spacing: .07em; text-transform: uppercase; color: var(--faint); margin-right: 4px; }
+.xp-nm { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.xp-nm .tip-links { margin: 0; }
+.xp-doc { margin: 10px 0 0; color: var(--text-2); font-size: 14.5px; }
+.xp-kids { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 14px; }
+.xp-kids a.cls:hover { text-decoration: none; }
+.xp-reach { margin: 12px 0 0; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-2); }
+.xp-reach summary { padding: 9px 14px; cursor: pointer; font-size: 13.5px; color: var(--text-2); list-style: none; }
+.xp-reach summary span { font: 12px var(--mono); color: var(--muted); margin-left: 6px; }
+.xp-reach-b { display: flex; flex-wrap: wrap; gap: 8px 14px; padding: 4px 14px 14px; }
+.xp-rc { display: inline-flex; gap: 6px; align-items: baseline; font-size: 12.5px; }
+.xp-rc code { font-size: 12px; }
+.xp-sec { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 26px 0 10px; }
+#content .xp-sec h3 { margin: 0; }
+.xp-sec .xp-pf { margin: 0 0 0 auto; width: 240px; }
+.xp-grp { margin: 0 0 14px; border: 1px solid var(--border); border-radius: 11px; overflow: hidden; }
+.xp-gh { display: flex; align-items: center; gap: 8px; padding: 8px 14px; background: var(--surface); font-size: 13px; color: var(--muted); border-bottom: 1px solid var(--border); }
+.xp-gh b { font-family: var(--mono); color: var(--text); font-weight: 600; }
+.xp-gh span { margin-left: auto; font: 12px var(--mono); }
+.xp-p { display: grid; grid-template-columns: minmax(0,1fr) auto auto; gap: 2px 10px; align-items: center; padding: 8px 14px; border-top: 1px solid var(--border); }
+.xp-p:first-of-type { border-top: 0; }
+.xp-p:hover { background: rgba(255,255,255,.015); }
+.xp-p label { display: flex; align-items: baseline; gap: 8px; cursor: pointer; min-width: 0; flex-wrap: wrap; }
+.xp-p input[type=checkbox] { accent-color: var(--accent); width: 15px; height: 15px; align-self: center; margin: 0; }
+.xp-pn { background: none; border: 0; padding: 0; font-size: 13px; font-weight: 600; }
+.xp-sig { font: 11.5px var(--mono); color: var(--faint); overflow-wrap: anywhere; }
+.xp-i { width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--border-2); background: var(--surface); color: var(--muted); font: italic 700 11px Georgia, serif; cursor: pointer; }
+.xp-i:hover { color: var(--text); border-color: var(--accent); }
+.xp-sum { grid-column: 1 / -1; padding-left: 23px; font-size: 13px; color: var(--muted); }
+.xp-more { grid-column: 1 / -1; padding: 6px 0 4px 23px; }
+.xp-more .tip-doc { max-height: 260px; }
+.xp-build { position: sticky; bottom: 12px; z-index: 6; margin-top: 18px; border: 1px solid rgba(122,162,247,.45); border-radius: 12px; background: rgba(18,22,29,.96); backdrop-filter: blur(10px); box-shadow: 0 -10px 40px rgba(0,0,0,.45); }
+.xb-h { display: flex; align-items: center; gap: 10px; padding: 9px 12px 9px 16px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.xb-h b { color: var(--accent-2); font-size: 13.5px; }
+.xb-h select { margin-left: auto; padding: 5px 8px; border-radius: 7px; border: 1px solid var(--border-2); background: var(--surface); color: var(--text); font: 12px var(--mono); }
+.xb-sel { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 14px 0; max-height: 150px; overflow: auto; }
+.xb-p { display: inline-flex; align-items: center; gap: 2px; padding: 4px 4px 4px 9px; border-radius: 8px; border: 1px solid var(--border-2); background: var(--surface); font: 12.5px var(--mono); color: var(--text-2); }
+.xb-p code { background: none; border: 0; padding: 0; font-size: 12.5px; }
+.xb-a { font: 12.5px var(--mono); color: var(--t-str); background: var(--code-bg); border: 1px solid var(--border-2); border-radius: 5px; padding: 2px 5px; min-width: 4ch; max-width: 40ch; outline: none; }
+.xb-a:focus { border-color: var(--accent); }
+.xb-x { margin-left: 4px; width: 20px; height: 20px; border-radius: 5px; border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 15px; line-height: 1; }
+.xb-x:hover { background: var(--bad-bg); color: var(--bad); }
+.xb-expr { margin: 10px 14px 14px; padding: 10px 14px; border-radius: 8px; background: var(--code-bg); border: 1px solid var(--border); font: 13px/1.6 var(--mono); color: #cdd6e3; overflow: auto; max-height: 180px; }
+.xb-expr code { background: none; border: 0; padding: 0; font: inherit; }
+.xb-warn { padding: 8px 14px 0; color: var(--warn); }
+.xb-h .cb-btn:disabled { opacity: .45; cursor: not-allowed; }
+@media (max-width: 900px) {
+  .xp { grid-template-columns: minmax(0,1fr); }
+  .xp-tree { position: static; height: 340px; }
+  .xp-sec .xp-pf { width: 100%; margin: 0; }
+}
+
 /* responsive */
 @media (max-width: 1240px) {
   #app { grid-template-columns: var(--sw) minmax(0,1fr); }
@@ -682,6 +767,8 @@ const DATA = /*__LAB_DATA__*/null;
 const docs = DATA.docs, bySlug = {}, byFile = {};
 docs.forEach((d, i) => { d.idx = i; bySlug[d.slug] = d; byFile[d.file] = d; });
 const parts = docs.filter(d => d.slug.startsWith("part-"));
+const EXPLORER = { slug: "explorer", title: "AST explorer", md: "", file: "explorer" };
+bySlug.explorer = EXPLORER;
 parts.forEach(d => {
   d.num = +d.slug.slice(5);
   d.short = d.title.replace(/^Part \d+\s*[—-]\s*/, "");
@@ -1494,6 +1581,207 @@ function explainHtml(key, sample) {
     <div class="ex-h">Built up one piece at a time <span class="dg-note">(real clang-query counts on ${esc(file.split("/").pop())})</span></div><ol class="ex-steps">${stepsHtml}</ol></div></details>`;
 }
 
+/* ================= AST explorer (appendix) ================= */
+// Class hierarchies come from scripts/ast_hierarchy.json (LLVM headers); every
+// catalog row whose Matcher<T> is the class or one of its bases applies to it.
+const HIER = {}, XP_GROUPS = ["Decl", "Stmt", "Type", "TypeLoc", "Other"];
+const NODE_OF = {};
+const XP_GENERIC = new Set(["allOf", "anyOf", "anything", "unless", "eachOf", "forEachDescendant", "forEach", "hasAncestor", "hasDescendant", "has", "hasParent", "optionally"]);
+for (const [name, rows] of Object.entries(DATA.catalog)) for (const r of rows) if (r.s === "node" && r.ok) NODE_OF[innerType(r.p)] ||= name;
+(function buildHier() {
+  const H = (DATA.hier && DATA.hier.groups) || {};
+  for (const [g, v] of Object.entries(H)) {
+    HIER[v.root] = { group: g, parent: null, kids: [], abstract: true };
+    for (const [c] of Object.entries(v.parent)) HIER[c] = { group: g, parent: v.parent[c], kids: [], abstract: v.abstract.includes(c) };
+  }
+  // node kinds outside the four big hierarchies
+  const seen = new Set();
+  for (const rows of Object.values(DATA.catalog)) for (const r of rows) for (const t of [innerType(r.r), innerType(r.p)]) if (t && !t.includes("|")) seen.add(t);
+  for (const t of seen) {
+    if (HIER[t]) continue;
+    if (/^OMP\w+Clause$/.test(t) && t !== "OMPClause") HIER[t] = { group: "Other", parent: "OMPClause", kids: [] };
+    else if (NODE_OF[t] || t === "OMPClause") HIER[t] = { group: "Other", parent: null, kids: [] };
+  }
+  if (HIER.OMPClause) HIER.OMPClause.parent = null;
+  for (const [c, h] of Object.entries(HIER)) if (h.parent && HIER[h.parent]) HIER[h.parent].kids.push(c);
+  for (const h of Object.values(HIER)) h.kids.sort();
+})();
+const xpRoots = g => Object.keys(HIER).filter(c => HIER[c].group === g && !HIER[c].parent).sort();
+const ancestors = c => { const out = []; for (let p = HIER[c] && HIER[c].parent; p; p = HIER[p] && HIER[p].parent) out.push(p); return out; };
+const descCount = c => HIER[c].kids.reduce((a, k) => a + 1 + descCount(k), 0);
+function matcherFor(c) {
+  for (const k of [c, ...ancestors(c)]) if (NODE_OF[k]) return { name: NODE_OF[k], cls: k };
+  return null;
+}
+function predicatesFor(c) {
+  const chain = [c, ...ancestors(c)], best = {};
+  for (const [name, rows] of Object.entries(DATA.catalog)) for (const r of rows) {
+    if (r.s === "node" || !r.ok) continue;
+    const t = innerType(r.r);
+    let rank = chain.indexOf(t), via = t;
+    if (rank < 0 && r.r === "Matcher<*>" && XP_GENERIC.has(name)) { rank = 999; via = "*"; }
+    if (rank < 0) continue;
+    if (!best[name] || rank < best[name].rank) best[name] = { name, row: r, via, rank };
+  }
+  return Object.values(best).sort((a, b) => a.rank - b.rank || a.row.s.localeCompare(b.row.s) || a.name.localeCompare(b.name));
+}
+function reachedFrom(c) {
+  const chain = new Set([c, ...ancestors(c)]), out = {};
+  for (const [name, rows] of Object.entries(DATA.catalog)) for (const r of rows) {
+    if (r.s !== "traversal" || !r.ok) continue;
+    const ps = [...(r.p || "").matchAll(/Matcher<(\w+)>/g)].map(m => m[1]);
+    if (ps.some(p => chain.has(p))) (out[name] ||= new Set()).add(innerType(r.r) || "*");
+  }
+  return Object.entries(out).sort((a, b) => a[0].localeCompare(b[0]));
+}
+function splitParams(p) {
+  const parts = []; let depth = 0, cur = "";
+  for (const ch of p || "") {
+    if (ch === "<") depth++;
+    if (ch === ">") depth--;
+    if (ch === "," && !depth) { parts.push(cur.trim()); cur = ""; } else cur += ch;
+  }
+  if (cur.trim()) parts.push(cur.trim());
+  return parts.filter(x => x && x !== "..." && !x.includes("="));
+}
+function paramDefault(x) {
+  const m = x.match(/Matcher<(\w+)>/);
+  if (m) return NODE_OF[m[1]] ? NODE_OF[m[1]] + "()" : "anything()";
+  if (/Matcher<\*>/.test(x)) return "";
+  if (/\bbool\b/.test(x)) return "true";
+  if (/double|float|APFloat/.test(x)) return "0.0";
+  if (/unsigned|\bint\b|size_t|\bN\b/.test(x)) return "0";
+  if (/StringRef|std::string|std::string_view|char\s*\*/.test(x)) return '""';
+  return "";
+}
+
+const xp = { group: "Decl", cls: null, open: new Set(["Decl", "Stmt", "ValueStmt", "Expr", "Type", "TypeLoc"]), sel: [], filter: "", pfilter: "", sample: null };
+const xpSamples = () => {
+  const seen = new Map();
+  for (const d of parts) {
+    for (const m of d.md.matchAll(/^\*\*Sample:\*\*\s*`([^`]+)`\s*·\s*flags:\s*`([^`]*)`/gm)) if (!seen.has(m[1])) seen.set(m[1], m[2]);
+    for (const m of d.md.matchAll(/^# sample:\s*(\S+)\s*(.*)$/gm)) if (!seen.has(m[1])) seen.set(m[1], m[2]);
+  }
+  return [...seen].map(([file, flags]) => ({ file, flags }));
+};
+
+function renderExplorer() {
+  content.innerHTML = `<header class="doc-head"><div class="eyebrow">Appendix</div><h1 id="explorer">AST explorer</h1>
+    <p class="xp-intro">Clang's node class hierarchies (from the LLVM ${esc((DATA.hier && DATA.hier.llvm) || "")} headers). Pick a class to see its node matcher and every narrowing and traversal matcher that applies to it — including the ones inherited from its base classes — then tick predicates to compose a matcher.</p></header>
+    <div class="xp"><aside class="xp-tree"><div class="xp-tabs">${XP_GROUPS.map(g => `<button data-xg="${g}">${g}</button>`).join("")}</div>
+      <input class="xp-filter" id="xp-filter" aria-label="Filter AST classes" placeholder="Filter classes…" spellcheck="false" autocomplete="off"><div class="xp-list" id="xp-list"></div></aside>
+      <section class="xp-detail" id="xp-detail"></section></div>`;
+  $("#xp-filter").addEventListener("input", e => { xp.filter = e.target.value.trim().toLowerCase(); xpList(); });
+}
+function xpList() {
+  document.querySelectorAll("[data-xg]").forEach(b => b.classList.toggle("on", b.dataset.xg === xp.group && !xp.filter));
+  const row = (c, depth, tw) => {
+    const h = HIER[c], has = !!NODE_OF[c];
+    return `<div class="xr${c === xp.cls ? " on" : ""}${h.abstract ? " abs" : ""}" data-cls="${c}" role="button" tabindex="0" aria-label="Explore ${esc(c)}" style="--d:${depth}">${tw}<span class="xr-n">${esc(c)}</span>${has ? '<i class="dot node" title="has a node matcher"></i>' : ""}</div>`;
+  };
+  let html = "";
+  if (xp.filter) {
+    const hits = Object.keys(HIER).filter(c => c.toLowerCase().includes(xp.filter)).sort((a, b) => a.length - b.length).slice(0, 200);
+    html = hits.map(c => row(c, 0, `<span class="xr-g">${HIER[c].group}</span>`)).join("") || '<div class="res-empty">No class matches.</div>';
+  } else {
+    const walk = (c, depth) => {
+      const h = HIER[c], open = xp.open.has(c);
+      const tw = h.kids.length ? `<button class="xr-tw${open ? " open" : ""}" data-xt="${c}" aria-label="${open ? "Collapse" : "Expand"} ${esc(c)}">▸</button>` : '<span class="xr-tw"></span>';
+      html += row(c, depth, tw);
+      if (open) h.kids.forEach(k => walk(k, depth + 1));
+    };
+    xpRoots(xp.group).forEach(r => walk(r, 0));
+  }
+  const list = $("#xp-list");
+  list.innerHTML = html;
+  const on = list.querySelector(".xr.on");
+  if (on) { const r = on.getBoundingClientRect(), lr = list.getBoundingClientRect(); if (r.top < lr.top || r.bottom > lr.bottom) on.scrollIntoView({ block: "center" }); }
+}
+
+function xpSelect(c) {
+  if (!HIER[c]) c = "Decl";
+  if (c !== xp.cls) { xp.sel = []; xp.pfilter = ""; }
+  xp.cls = c; xp.group = HIER[c].group;
+  ancestors(c).forEach(a => xp.open.add(a));
+  xpList(); xpDetail();
+  document.title = `${c} — AST explorer — AST Matchers Lab`;
+  updateCrumbs();
+}
+function xpDetail() {
+  const c = xp.cls, h = HIER[c], chain = ancestors(c).reverse();
+  const nm = matcherFor(c), preds = predicatesFor(c);
+  const nodeRow = NODE_OF[c] && pickRow(NODE_OF[c], null);
+  const ent = nm && ENTRIES[nm.name];
+  const entLinks = e => (e || []).slice(0, 4).map(x => `<a href="#/${x.doc.slug}/${x.id}">Part ${x.doc.num}${x.sec && x.sec.sec ? " §" + x.sec.sec : ""} →</a>`).join("");
+  const head = `<div class="xp-card">
+    <div class="xp-chain">${chain.map(a => `<a href="#/explorer/${a}">${esc(a)}</a><span class="sep">›</span>`).join("")}<b>${esc(c)}</b></div>
+    <div class="xp-title"><h2>${esc(c)}</h2>${h.abstract ? '<span class="xp-tag">abstract</span>' : ""}<span class="xp-tag g">${h.group}</span></div>
+    ${nm ? `<div class="xp-nm"><span class="xp-k">node matcher</span><code class="dg-code">${toksHtml(hlCQ(nm.name + "()"))}</code>${nm.cls !== c ? `<span class="dg-note">no <code>${esc(c)}</code> node matcher of its own — the closest base is <b>${esc(nm.cls)}</b>; narrow it down with the predicates below</span>` : ""}<span class="tip-links">${entLinks(ent)}</span></div>` : '<div class="dg-note">No node matcher reaches this class.</div>'}
+    ${nodeRow ? `<p class="xp-doc">${esc(summaryOf(nodeRow.d))}.</p>` : ""}
+    ${h.kids.length ? `<div class="xp-kids"><span class="xp-k">subclasses (${descCount(c)})</span>${h.kids.map(k => `<a class="cls${NODE_OF[k] ? " has-m" : ""}" href="#/explorer/${k}">${esc(k)}</a>`).join("")}</div>` : ""}
+  </div>`;
+  const groups = {};
+  for (const p of preds) (groups[p.via] ||= []).push(p);
+  const nN = preds.filter(p => p.row.s === "narrowing").length, nT = preds.length - nN;
+  const selKeys = new Set(xp.sel.map(s => s.name));
+  const predHtml = Object.entries(groups).map(([via, ps]) => `<div class="xp-grp" data-via="${esc(via)}"><div class="xp-gh">${via === "*" ? "any node" : `from <b>${esc(via)}</b>`}<span>${ps.length}</span></div>${ps.map(p => {
+    const ents = ENTRIES[p.name];
+    return `<div class="xp-p" data-pn="${esc(p.name)}"><label><input type="checkbox" data-pick="${esc(p.name)}"${selKeys.has(p.name) ? " checked" : ""}><code class="xp-pn ${catCls(p.row.s)}" data-m="${esc(p.name)}">${esc(p.name)}</code><span class="xp-sig">(${esc(p.row.p || "")})</span></label><span class="cat-tag ${p.row.s}">${p.row.s}</span><button class="xp-i" data-info="${esc(p.name)}" title="Details">i</button>
+      <div class="xp-sum">${esc(summaryOf(p.row.d))}</div><div class="xp-more" hidden><pre class="tip-doc">${esc(p.row.d)}</pre><div class="tip-links">${entLinks(ents)}</div></div></div>`;
+  }).join("")}</div>`).join("");
+  const rf = reachedFrom(c);
+  const reach = rf.length ? `<details class="xp-reach"><summary>Reached from — traversal matchers that accept a <code>Matcher&lt;${esc(c)}&gt;</code> or a base <span>${rf.length}</span></summary><div class="xp-reach-b">${rf.map(([n, srcs]) =>
+    `<span class="xp-rc"><code class="t-trav" data-m="${esc(n)}">${esc(n)}</code><span class="dg-note">on ${[...srcs].slice(0, 4).map(s => s === "*" ? "any node" : `<a href="#/explorer/${s}">${esc(s)}</a>`).join(", ")}${srcs.size > 4 ? " …" : ""}</span></span>`).join("")}</div></details>` : "";
+  if (!xp.sample) xp.sample = xpSamples()[0];
+  $("#xp-detail").innerHTML = head + reach +
+    `<div class="xp-sec"><h3>Predicates</h3><span class="dg-note">${nN} narrowing · ${nT} traversal — tick to add to the matcher</span><input class="xp-pf" id="xp-pf" aria-label="Filter predicates" placeholder="Filter predicates…" value="${esc(xp.pfilter)}" spellcheck="false"></div>
+     <div class="xp-preds">${predHtml}</div>
+     <div class="xp-build" id="xp-build"></div>`;
+  $("#xp-pf").addEventListener("input", e => { xp.pfilter = e.target.value.trim().toLowerCase(); xpFilterPreds(); });
+  xpFilterPreds(); xpBuild();
+}
+function xpFilterPreds() {
+  const q = xp.pfilter;
+  document.querySelectorAll(".xp-p").forEach(p => p.hidden = !!q && !p.dataset.pn.toLowerCase().includes(q) && !p.textContent.toLowerCase().includes(q));
+  document.querySelectorAll(".xp-grp").forEach(g => g.hidden = ![...g.querySelectorAll(".xp-p")].some(p => !p.hidden));
+}
+function xpExpr() {
+  const nm = matcherFor(xp.cls);
+  if (!nm) return "";
+  const args = xp.sel.map(s => `${s.name}(${s.args.map((a, i) => a.trim() || `/* enter ${s.specs[i]} */`).join(", ")})`);
+  return `${nm.name}(${args.length > 1 ? "\n    " + args.join(",\n    ") : args.join("")})`;
+}
+function xpBuild() {
+  const b = $("#xp-build");
+  if (!b) return;
+  const samples = xpSamples();
+  const expr = xpExpr();
+  const incomplete = xp.sel.some(s => s.args.some(a => !a.trim()));
+  const sel = xp.sel.map((s, i) => `<div class="xb-p"><code class="${catCls(s.row.s)}">${esc(s.name)}</code>(${s.specs.map((sp, j) =>
+    `<input class="xb-a" data-si="${i}" data-ai="${j}" aria-label="${esc(s.name)}: ${esc(sp)}" value="${esc(s.args[j])}" placeholder="${esc(sp)}" spellcheck="false" style="width:${Math.max(6, s.args[j].length + 2)}ch">`).join(", ")})<button class="xb-x" data-rm="${i}" aria-label="Remove ${esc(s.name)}">×</button></div>`).join("");
+  b.innerHTML = `<div class="xb-h"><b>Composer</b><span class="dg-note">${xp.sel.length ? `${xp.sel.length} predicate${xp.sel.length > 1 ? "s" : ""}` : "tick predicates above"}</span>
+    <select id="xb-sample" aria-label="Sample to run against">${samples.map((s, i) => `<option value="${i}"${xp.sample && s.file === xp.sample.file ? " selected" : ""}>${esc(s.file.split("/").pop())}</option>`).join("")}</select>
+    <button class="cb-btn" data-xb="copy"${incomplete || !expr ? " disabled" : ""}>Copy</button><button class="cb-btn" data-xb="shell" title="Copy a one-shot shell command"${incomplete || !expr ? " disabled" : ""}>Shell</button>${xp.sel.length ? '<button class="cb-btn" data-xb="clear">Clear</button>' : ""}</div>
+    ${sel ? `<div class="xb-sel">${sel}</div>` : ""}<div class="dg-note xb-warn"${incomplete ? "" : " hidden"}>Fill in the marked arguments before copying.</div><pre class="xb-expr"><code>${expr ? toksHtml(hlCQ("match " + expr)) : "—"}</code></pre>`;
+  $("#xb-sample").addEventListener("change", e => { xp.sample = samples[+e.target.value]; });
+}
+function xpToggle(name, on) {
+  if (on) {
+    const p = predicatesFor(xp.cls).find(p => p.name === name);
+    if (!p || xp.sel.some(s => s.name === name)) return;
+    const specs = splitParams(p.row.p);
+    xp.sel.push({ name, row: p.row, specs, args: specs.map(paramDefault) });
+  } else xp.sel = xp.sel.filter(s => s.name !== name);
+  xpBuild();
+}
+async function xpCopy(kind) {
+  const expr = xpExpr();
+  if (!expr || xp.sel.some(s => s.args.some(a => !a.trim()))) return;
+  const code = "match " + expr;
+  const text = kind === "shell" ? oneShot({ code, sample: xp.sample || xpSamples()[0] }) : code;
+  if (await copyText(text)) toast(kind === "shell" ? "Copied shell command — run it from the lab root" : "Copied matcher");
+}
+
 /* ================= views ================= */
 const content = $("#content"), nav = $("#nav"), toc = $("#toc");
 let current = null, activeH2 = null;
@@ -1522,7 +1810,7 @@ function renderNav() {
         `<li><a href="#/${d.slug}/${s.id}" data-id="${s.id}" class="${done[s.sec] ? "done" : ""}${activeH2 === s.id ? " active" : ""}"><span class="sn">${s.sec}</span><span>${inline(s.text.replace(/^\d+\.\d+\s*[—-]\s*/, ""), { doc: d, depth: 1 })}</span></a></li>`).join("")}</ul>`;
     }
   }
-  html += `<div class="nav-group">Reference</div><a class="nav-item${current === bySlug.index ? " active" : ""}" href="#/index"><span class="nav-num">A–Z</span><span class="nav-t">Matcher index</span></a>`;
+  html += `<div class="nav-group">Reference</div><a class="nav-item${current === bySlug.index ? " active" : ""}" href="#/index"><span class="nav-num">A–Z</span><span class="nav-t">Matcher index</span></a><a class="nav-item${current === EXPLORER ? " active" : ""}" href="#/explorer"><span class="nav-num">⌥</span><span class="nav-t">AST explorer</span></a>`;
   nav.innerHTML = html;
   const a = nav.querySelector(".nav-item.active");
   if (a && !renderNav._scrolled) { a.scrollIntoView({ block: "center" }); renderNav._scrolled = true; }
@@ -1562,9 +1850,9 @@ function homeHero() {
 }
 
 function pager(doc) {
-  const seq = [bySlug.home, ...parts, bySlug.index];
+  const seq = [bySlug.home, ...parts, bySlug.index, EXPLORER];
   const k = seq.indexOf(doc), prev = seq[k - 1], next = seq[k + 1];
-  const lbl = d => d.num ? `Part ${d.num} — ${d.short}` : d === bySlug.home ? "Overview" : "Matcher index";
+  const lbl = d => d.num ? `Part ${d.num} — ${d.short}` : d === bySlug.home ? "Overview" : d === EXPLORER ? "Appendix — AST explorer" : "Matcher index";
   return `<nav class="pager">${prev ? `<a class="prev" href="#/${prev.slug}"><div class="pl">← Previous</div>${esc(lbl(prev))}</a>` : ""}${next ? `<a class="next" href="#/${next.slug}"><div class="pl">Next →</div>${esc(lbl(next))}</a>` : ""}</nav>`;
 }
 
@@ -1583,6 +1871,13 @@ function wrapEntries(root) {
 
 function render(doc) {
   current = doc; activeH2 = null; CODES.length = 0;
+  document.body.classList.toggle("wide", doc === EXPLORER);
+  if (doc === EXPLORER) {
+    renderExplorer();
+    $("#sample-pill").hidden = true; toc.innerHTML = "";
+    renderNav(); updateCrumbs();
+    return;
+  }
   const ctx = { doc, depth: 0, slug: makeSlugger(), sample: null };
   let html = renderBlocks(doc.md.split("\n"), ctx);
   if (doc.slug === "home") html = homeHero() + html.replace(/<header class="doc-head">[\s\S]*?<\/header>/, "");
@@ -1640,6 +1935,7 @@ function updateCrumbs() {
   let html = `<a href="#/home">Lab</a>`;
   if (current.num) html += `<span class="sep">/</span><a href="#/${current.slug}">Part ${current.num}</a>`;
   else if (current.slug === "index") html += `<span class="sep">/</span><span class="cur">Matcher index</span>`;
+  else if (current === EXPLORER) html += `<span class="sep">/</span><a href="#/explorer">AST explorer</a>${xp.cls ? `<span class="sep">/</span><span class="cur">${esc(xp.cls)}</span>` : ""}`;
   const h = activeH2 && document.getElementById(activeH2);
   if (h && current.num) html += `<span class="sep">/</span><span class="cur">${esc(h.querySelector(".h-text").textContent.replace(/#$/, "").replace(/^(\d+\.\d+)/, "$1 "))}</span>`;
   else if (current.num) html += `<span class="sep">/</span><span class="cur">${esc(current.short)}</span>`;
@@ -1678,6 +1974,7 @@ function route(smooth) {
   const changed = doc !== current;
   if (changed) render(doc);
   document.body.classList.remove("side-open");
+  if (doc === EXPLORER) { xpSelect(anchor || xp.cls || "FunctionDecl"); if (changed) scrollTo(0, 0); return; }
   const el = anchor && document.getElementById(anchor);
   if (el) {
     const target = el.closest(".entry-card") || el;
@@ -1702,6 +1999,7 @@ for (const d of [...parts, bySlug.index, bySlug.home]) for (const h of outline(d
   if (m) SEARCH.push({ key: m[1].toLowerCase(), label: m[1], sub: `${stripMd(h.text).replace(/^[^—]*—\s*/, "")} · ${ctxLabel}`, href: `#/${d.slug}/${h.id}`, cat: CAT[m[1]] || "section", rank: 0 });
   else SEARCH.push({ key: stripMd(h.text).toLowerCase(), label: stripMd(h.text), sub: d.num ? `Part ${d.num} — ${d.short}` : d.title, href: `#/${d.slug}/${h.id}`, cat: "section", rank: 1 });
 }
+for (const c of Object.keys(HIER)) SEARCH.push({ key: c.toLowerCase(), label: c, sub: `AST class · ${HIER[c].group} hierarchy`, href: `#/explorer/${c}`, cat: NODE_OF[c] ? "node" : "section", rank: 1 });
 let results = [], sel = 0;
 function doSearch() {
   const q = $("#q").value.trim().toLowerCase();
@@ -1781,7 +2079,7 @@ function showTip(el) {
      <div class="tip-meta"><span class="cat-tag ${r.s}">${r.s}</span>${r.ok ? "" : '<span class="badge-bad">not in clang-query 22</span>'}</div>
      <pre class="tip-doc">${esc(r.d)}</pre></div>`).join("") +
     (rows.length > 4 ? `<div class="tip-meta" style="color:var(--muted)">+${rows.length - 4} more overloads</div>` : "") +
-    (ents.length ? `<div class="tip-links">${ents.slice(0, 6).map(e => `<a href="#/${e.doc.slug}/${e.id}">Part ${e.doc.num}${e.sec && e.sec.sec ? " §" + e.sec.sec : ""} →</a>`).join("")}</div>` : "");
+    `<div class="tip-links">${ents.slice(0, 6).map(e => `<a href="#/${e.doc.slug}/${e.id}">Part ${e.doc.num}${e.sec && e.sec.sec ? " §" + e.sec.sec : ""} →</a>`).join("")}${(() => { const t = rows[0].s === "node" ? innerType(rows[0].p) : innerType(rows[0].r); return HIER[t] ? `<a href="#/explorer/${t}">Explore ${esc(t)} ⌥</a>` : ""; })()}</div>`;
   tip.classList.add("on");
   const r = el.getBoundingClientRect(), tw = tip.offsetWidth, th = tip.offsetHeight;
   let x = Math.min(Math.max(12, r.left), innerWidth - tw - 12);
@@ -1818,6 +2116,19 @@ tip.addEventListener("click", e => { if (e.target.closest("a")) { tip.classList.
 document.addEventListener("click", async e => {
   const a = e.target.closest('a[href^="#/"]');
   if (a && !e.metaKey && !e.ctrlKey && !e.shiftKey) { e.preventDefault(); go(a.getAttribute("href")); return; }
+  const xg = e.target.closest("[data-xg]");
+  if (xg) { xp.group = xg.dataset.xg; xp.filter = ""; $("#xp-filter").value = ""; xpList(); return; }
+  const xt = e.target.closest("[data-xt]");
+  if (xt) { const c = xt.dataset.xt; xp.open.has(c) ? xp.open.delete(c) : xp.open.add(c); xpList(); return; }
+  const xr = e.target.closest(".xr");
+  if (xr) { go(`#/explorer/${xr.dataset.cls}`); return; }
+  const xi = e.target.closest("[data-info]");
+  if (xi) { const m = xi.closest(".xp-p").querySelector(".xp-more"); m.hidden = !m.hidden; return; }
+  const xrm = e.target.closest("[data-rm]");
+  if (xrm) { const s = xp.sel[+xrm.dataset.rm]; xp.sel.splice(+xrm.dataset.rm, 1); const cb = document.querySelector(`[data-pick="${s.name}"]`); if (cb) cb.checked = false; xpBuild(); return; }
+  const xb = e.target.closest("[data-xb]");
+  if (xb) { if (xb.dataset.xb === "clear") { xp.sel = []; document.querySelectorAll("[data-pick]").forEach(c => c.checked = false); xpBuild(); } else xpCopy(xb.dataset.xb); return; }
+  if (e.target.closest(".xp-p label")) return;
   const tw = e.target.closest(".tw");
   if (tw) { tw.closest("li").classList.toggle("collapsed"); return; }
   const dgb = e.target.closest("[data-dg]");
@@ -1866,14 +2177,29 @@ function toggleSidebar() {
 }
 setCollapsed(!!store.get("collapsed", false));
 $("#menu-btn").onclick = toggleSidebar;
+document.addEventListener("change", e => { const cb = e.target.closest("[data-pick]"); if (cb) xpToggle(cb.dataset.pick, cb.checked); });
+document.addEventListener("input", e => {
+  const a = e.target.closest(".xb-a");
+  if (!a) return;
+  xp.sel[+a.dataset.si].args[+a.dataset.ai] = a.value;
+  a.style.width = Math.max(6, a.value.length + 2) + "ch";
+  const expr = xpExpr(), c = document.querySelector(".xb-expr code");
+  if (c) c.innerHTML = toksHtml(hlCQ("match " + expr));
+  const incomplete = xp.sel.some(s => s.args.some(v => !v.trim()));
+  document.querySelectorAll('[data-xb="copy"], [data-xb="shell"]').forEach(b => b.disabled = incomplete);
+  const warning = document.querySelector(".xb-warn");
+  if (warning) warning.hidden = !incomplete;
+});
 $("#collapse-btn").onclick = () => setCollapsed(true);
 
 /* ================= keyboard ================= */
 document.addEventListener("keydown", e => {
+  const xr = e.target.closest(".xr[data-cls]");
+  if (xr && e.target === xr && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); go(`#/explorer/${xr.dataset.cls}`); return; }
   if (e.target.matches("input, select, textarea")) return;
   if ((e.key === "k" && (e.metaKey || e.ctrlKey)) || e.key === "/") { e.preventDefault(); if (innerWidth <= 900) { document.body.classList.add("side-open"); scrim.classList.add("on"); } $("#q").focus(); $("#q").select(); return; }
   if (e.metaKey || e.ctrlKey || e.altKey) return;
-  const seq = [bySlug.home, ...parts, bySlug.index], k = seq.indexOf(current);
+  const seq = [bySlug.home, ...parts, bySlug.index, EXPLORER], k = seq.indexOf(current);
   if (e.key === "]" && seq[k + 1]) go("#/" + seq[k + 1].slug);
   else if (e.key === "[" && seq[k - 1]) go("#/" + seq[k - 1].slug);
   else if (e.key === "j" || e.key === "k") {
