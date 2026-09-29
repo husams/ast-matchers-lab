@@ -2,7 +2,7 @@
   "name": "astmatcher-dsl",
   "displayName": "AST Matcher DSL (clang-query)",
   "description": "Syntax highlighting, completion, hover and diagnostics for Clang AST matcher scripts (.query).",
-  "version": "1.9.4",
+  "version": "1.9.5",
   "publisher": "ast-matchers-lab",
   "license": "MIT",
   "private": true,
@@ -375,7 +375,7 @@
         "astmatcher.visibleColumns": {
           "type": "array",
           "items": { "type": "string", "enum": ["match", "kind", "semanticKind", "detail", "summary", "text", "location"] },
-          "default": ["match", "kind", "semanticKind", "detail", "location"],
+          "default": ["match", "kind", "summary", "text", "location"],
           "description": "Columns shown in AST Matches."
         },
         "astmatcher.cacheEnabled": {
@@ -528,7 +528,7 @@
     "viewsWelcome": [
       {
         "view": "astmatcher.bindings",
-        "contents": "Run a .query file (⌘↵) to list every match and its bound nodes here.\n[Run Query](command:astmatcher.runQuery)\n[Select Sample File…](command:astmatcher.selectSample)"
+        "contents": "Run a .query or .astmatcher file to list its bound nodes here.\n[Run Query](command:astmatcher.runQuery)\n[Select Sample File…](command:astmatcher.selectSample)"
       }
     ],
     "submenus": [
