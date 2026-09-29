@@ -123,6 +123,35 @@ class TestNativeBridge(unittest.TestCase):
                                            cwd=temporary, client=client)["ok"])
             self.assertEqual(len(client.inspect_requests), 1)
 
+    def test_inspect_record_preserves_template_relationships(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary) / "templates.cpp"
+            source.write_text("template<class T> struct Box {};\nBox<int> box;\n")
+            client = FakeClient({})
+            client.inspect_reply = {
+                "ok": True, "recordId": "n1", "truncated": False,
+                "nodes": [
+                    {"id": "n1", "kind": "CXXRecordDecl", "name": "Box",
+                     "recordKind": "struct", "recordIdentity": "Box<int>",
+                     "definitionStatus": "defined"},
+                    {"id": "n2", "kind": "CXXRecordDecl", "name": "Box",
+                     "recordKind": "struct", "recordIdentity": "Box<T>",
+                     "definitionStatus": "defined",
+                     "range": {"file": str(source),
+                               "start": {"line": 0, "character": 0},
+                               "end": {"line": 0, "character": 30}}}],
+                "edges": [{"from": "n1", "to": "n2", "kind": "instantiates"}],
+                "diagnostics": [], "stderr": ""}
+            result = inspect_record(str(source), str(source),
+                                    {"start": {"line": 0, "character": 0}},
+                                    client=client, record_identity="Box<int>")
+            self.assertTrue(result["ok"], result)
+            self.assertEqual(result["edges"],
+                             [{"from": "n1", "to": "n2", "kind": "instantiates"}])
+            self.assertEqual([node["recordIdentity"] for node in result["nodes"]],
+                             ["Box<int>", "Box<T>"])
+            self.assertEqual(result["nodes"][1]["uri"], source.resolve().as_uri())
+
     def test_progress_includes_current_file_and_elapsed_time(self):
         with tempfile.TemporaryDirectory() as temporary:
             source = Path(temporary) / "sample.cpp"

@@ -92,7 +92,7 @@ message GraphNode {
 message GraphEdge {
   string from = 1;
   string to = 2;
-  string kind = 3; // inherits, field, method, fieldType
+  string kind = 3; // inherits, field, method, fieldType, instantiates, specializes
   string access = 4;
   bool is_virtual = 5;
 }

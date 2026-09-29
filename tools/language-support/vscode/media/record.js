@@ -16,7 +16,8 @@
   let revealed = new Set();
   let pending = new Set();
   let compartments = new Map();
-  let filters = { bases: true, derived: true, outgoingFields: true, incomingFields: true };
+  let filters = { bases: true, derived: true, outgoingFields: true, incomingFields: true,
+    instantiates: true, instantiatedBy: true, specializes: true, specializedBy: true };
   let bounds = { x: -400, y: -300, w: 800, h: 600 };
   let view = { ...bounds };
   let maxViewWidth = 16000;
@@ -94,6 +95,10 @@
       if (edge.kind === "inherits" && members.has(edge.from) && members.has(edge.to)) {
         relations.push({ key: "inherits:" + index, kind: "inherits", from: edge.from,
           to: edge.to, evidenceId: edge.from, edge });
+      } else if ((edge.kind === "instantiates" || edge.kind === "specializes") &&
+          members.has(edge.from) && members.has(edge.to)) {
+        relations.push({ key: edge.kind + ":" + index, kind: edge.kind, from: edge.from,
+          to: edge.to, evidenceId: edge.from, edge });
       } else if (edge.kind === "fieldType" && ownerOf.has(edge.from) && members.has(edge.to)) {
         relations.push({ key: "fieldType:" + index, kind: "fieldType",
           from: ownerOf.get(edge.from), to: edge.to, memberId: edge.from,
@@ -122,6 +127,12 @@
     if (relation.kind === "inherits") {
       if (relation.from === id && relation.to === id) return filters.bases || filters.derived;
       return relation.from === id ? filters.bases : filters.derived;
+    }
+    if (relation.kind === "instantiates" || relation.kind === "specializes") {
+      const outgoing = relation.kind === "instantiates" ? "instantiates" : "specializes";
+      const incoming = relation.kind === "instantiates" ? "instantiatedBy" : "specializedBy";
+      if (relation.from === id && relation.to === id) return filters[outgoing] || filters[incoming];
+      return relation.from === id ? filters[outgoing] : filters[incoming];
     }
     if (relation.from === id && relation.to === id) {
       return filters.outgoingFields || filters.incomingFields;
@@ -209,7 +220,8 @@
         let delta;
         if (relation.from === id) {
           next = relation.to;
-          delta = relation.kind === "inherits" ? -1 : 1;
+          delta = relation.kind === "inherits" || relation.kind === "instantiates" ||
+            relation.kind === "specializes" ? -1 : 1;
         } else if (relation.to === id) {
           next = relation.from;
           delta = 1;
@@ -295,6 +307,8 @@
     const from = model.byId.get(relation.from);
     const to = model.byId.get(relation.to);
     if (relation.kind === "inherits") return nameOf(from) + " inherits " + nameOf(to);
+    if (relation.kind === "instantiates") return nameOf(from) + " instantiates " + nameOf(to);
+    if (relation.kind === "specializes") return nameOf(from) + " specializes " + nameOf(to);
     const field = model.byId.get(relation.memberId);
     return nameOf(from) + "." + (field?.name || "field") + " uses " + nameOf(to);
   }
@@ -314,13 +328,20 @@
         role: "button", tabindex: 0, "aria-label": relationName(relation) + ". Select for source evidence." });
       group.dataset.key = relation.key;
       group.append(svgEl("path", { d: geometry.d, class: "edge-line",
-        ...(relation.kind === "inherits" ? { "marker-end": "url(#generalization)" } : {}) }));
+        ...(relation.kind === "inherits" ? { "marker-end": "url(#generalization)" } : {}),
+        ...(relation.kind === "instantiates" ? { "marker-end": "url(#instantiation-arrow)" } : {}),
+        ...(relation.kind === "specializes" ? { "marker-end": "url(#specialization-arrow)" } : {}) }));
       group.append(svgEl("path", { d: geometry.d, class: "edge-hit" }));
       if (relation.kind === "fieldType") {
         const field = model.byId.get(relation.memberId);
         const label = svgEl("text", { x: geometry.x, y: geometry.y,
           class: "edge-label", "text-anchor": "middle" });
         label.textContent = short(field?.name || "field", 24);
+        group.append(label);
+      } else if (relation.kind === "instantiates" || relation.kind === "specializes") {
+        const label = svgEl("text", { x: geometry.x, y: geometry.y,
+          class: "edge-label", "text-anchor": "middle" });
+        label.textContent = relation.kind === "instantiates" ? "instantiates" : "specializes";
         group.append(label);
       }
       const title = svgEl("title");
@@ -630,7 +651,11 @@
         const other = model.byId.get(otherId);
         const direction = relation.kind === "inherits"
           ? (relation.from === id ? "Base: " : "Derived: ")
-          : (relation.from === id ? "Field type: " : "Used by field in: ");
+          : relation.kind === "instantiates"
+            ? (relation.from === id ? "Instantiates template: " : "Instance: ")
+            : relation.kind === "specializes"
+              ? (relation.from === id ? "Specializes template: " : "Specialization: ")
+              : (relation.from === id ? "Field type: " : "Used by field in: ");
         const item = el("li");
         const button = el("button", "relation", direction + nameOf(other));
         button.type = "button";
@@ -675,12 +700,18 @@
     const to = model.byId.get(relation.to);
     const evidence = model.byId.get(relation.evidenceId);
     const detail = beginDetail(relationName(relation));
-    addDetail(detail.dl, "Relation", relation.kind === "inherits" ? "Inheritance" : "Field type association");
+    const relationLabel = { inherits: "Inheritance", fieldType: "Field type association",
+      instantiates: "Template instantiation", specializes: "Template specialization" }[relation.kind];
+    addDetail(detail.dl, "Relation", relationLabel || relation.kind);
     addDetail(detail.dl, "From", nameOf(from));
     addDetail(detail.dl, "To", nameOf(to));
     if (relation.kind === "inherits") {
       addDetail(detail.dl, "Access", relation.edge.access);
       addDetail(detail.dl, "Virtual", relation.edge.virtual ? "Yes" : "No");
+    } else if (relation.kind === "instantiates" || relation.kind === "specializes") {
+      detail.content.append(el("p", "muted", relation.kind === "instantiates"
+        ? "This class instantiates the template pattern shown at the arrowhead."
+        : "This class specializes the template pattern shown at the arrowhead."));
     } else {
       const field = model.byId.get(relation.memberId);
       addDetail(detail.dl, "Evidence", (field?.name || "field") +
@@ -706,6 +737,16 @@
       markerUnits: "userSpaceOnUse", orient: "auto" });
     triangle.append(svgEl("path", { d: "M 0 0 L 13 7 L 0 14 Z", class: "triangle" }));
     defs.append(triangle);
+    const instantiationArrow = svgEl("marker", { id: "instantiation-arrow", viewBox: "0 0 10 10",
+      refX: 9, refY: 5, markerWidth: 10, markerHeight: 10,
+      markerUnits: "userSpaceOnUse", orient: "auto" });
+    instantiationArrow.append(svgEl("path", { d: "M 0 0 L 10 5 L 0 10 Z", class: "instantiation-arrow" }));
+    defs.append(instantiationArrow);
+    const specializationArrow = svgEl("marker", { id: "specialization-arrow", viewBox: "0 0 10 10",
+      refX: 9, refY: 5, markerWidth: 10, markerHeight: 10,
+      markerUnits: "userSpaceOnUse", orient: "auto" });
+    specializationArrow.append(svgEl("path", { d: "M 0 0 L 10 5 L 0 10 Z", class: "specialization-arrow" }));
+    defs.append(specializationArrow);
     svg.append(defs);
     drawEdges(relations);
     drawCards(records);
@@ -738,6 +779,10 @@
       ["derived", "Known derived", "inherits"],
       ["outgoingFields", "Field types", "fieldType"],
       ["incomingFields", "Known incoming fields", "fieldType"],
+      ["instantiates", "Instantiates template", "instantiates"],
+      ["instantiatedBy", "Known instances", "instantiates"],
+      ["specializes", "Specializes template", "specializes"],
+      ["specializedBy", "Known specializations", "specializes"],
     ]) {
       const wrapper = el("label", "filter");
       const input = el("input");

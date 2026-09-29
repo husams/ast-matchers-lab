@@ -182,6 +182,65 @@ test("projects raw AST members into bounded UML record cards with source-backed 
     "an already expanded root with all known neighbors visible has no reveal action");
 });
 
+test("template instantiation and specialization links point to patterns and navigate to source", () => {
+  const view = loadRecordView();
+  const source = "/project/templates.cpp";
+  const range = { start: { line: 5, character: 2 }, end: { line: 5, character: 20 } };
+  const record = (id, name) => ({ id, kind: "CXXRecordDecl", recordKind: "class", name,
+    definitionStatus: "defined", file: source, range });
+  const graph = { ok: true, recordId: "instance", expandedRecordIds: ["instance"], truncated: false,
+    nodes: [record("instance", "Box<int>"), record("pattern", "Box<T>"),
+      record("special", "Box<bool>")],
+    edges: [{ from: "instance", to: "pattern", kind: "instantiates" },
+      { from: "special", to: "pattern", kind: "specializes" }] };
+  view.sendGraph(graph);
+  assert.deepEqual(cardIds(view), ["instance", "pattern"]);
+  const instanceEdge = view.edges().find((edge) => edge.className.includes("instantiates"));
+  assert.equal(instanceEdge.attributes["aria-label"],
+    "Box<int> instantiates Box<T>. Select for source evidence.");
+  assert.equal(instanceEdge.find((entry) => entry.className === "edge-line")
+    .attributes["marker-end"], "url(#instantiation-arrow)");
+  assert.ok(instanceEdge.textContent.includes("instantiates"));
+  instanceEdge.fire("click");
+  assert.match(view.element("detail-content").textContent, /Template instantiation/);
+  assert.match(view.element("detail-content").textContent, /Box<int> instantiates Box<T>/);
+  buttonWithText(view.element("detail-content"), "Open source").fire("click");
+  assert.equal(view.messages.at(-1).id, "instance");
+
+  view.cards().find((card) => card.dataset.id === "pattern").fire("click");
+  buttonWithText(view.element("detail-content"), "Specialization: Box<bool>").fire("click");
+  view.cards().find((card) => card.dataset.id === "pattern").fire("click");
+  const specialEdge = view.edges().find((edge) => edge.className.includes("specializes"));
+  assert.equal(specialEdge.attributes["aria-label"],
+    "Box<bool> specializes Box<T>. Select for source evidence.");
+  assert.equal(specialEdge.find((entry) => entry.className === "edge-line")
+    .attributes["marker-end"], "url(#specialization-arrow)");
+  assert.ok(specialEdge.textContent.includes("specializes"));
+  const knownInstances = filterInput(view, "Known instances");
+  knownInstances.checked = false;
+  knownInstances.fire("change");
+  assert.ok(view.edges().find((edge) => edge.className.includes("instantiates"))
+    .className.includes("filtered-out"),
+  "incoming instantiation links obey the selected pattern's directional filter");
+  knownInstances.checked = true;
+  knownInstances.fire("change");
+  const knownSpecializations = filterInput(view, "Known specializations");
+  knownSpecializations.checked = false;
+  knownSpecializations.fire("change");
+  assert.ok(view.edges().find((edge) => edge.className.includes("specializes"))
+    .className.includes("filtered-out"),
+    "incoming specialization links obey the selected pattern's directional filter");
+  knownSpecializations.checked = true;
+  knownSpecializations.fire("change");
+  assert.deepEqual(cardIds(view), ["instance", "pattern", "special"]);
+  view.cards().find((card) => card.dataset.id === "special").fire("click");
+  assert.match(view.element("detail-content").textContent, /Specializes template: Box<T>/);
+  specialEdge.fire("click");
+  assert.match(view.element("detail-content").textContent, /Template specialization/);
+  buttonWithText(view.element("detail-content"), "Open source").fire("click");
+  assert.equal(view.messages.at(-1).id, "special");
+});
+
 test("multiple inheritance cards gain both parents' members without moving the selected view", () => {
   const view = loadRecordView();
   const source = "/project/multiple.cpp";

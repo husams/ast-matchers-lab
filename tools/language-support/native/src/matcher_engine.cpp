@@ -492,6 +492,7 @@ public:
     reply_.set_record_id(root);
     std::vector<const clang::RecordDecl *> records;
     collect_topology(&record, records);
+    add_template_relationships(records);
     add_members(records);
     add_field_types();
     reply_.set_ok(true);
@@ -583,6 +584,63 @@ private:
             pending.emplace_back(parent, depth + 1);
           }
         }
+      }
+    }
+  }
+
+  void add_template_relationships(
+      std::vector<const clang::RecordDecl *> &records) {
+    std::unordered_set<const clang::RecordDecl *> included(records.begin(), records.end());
+    const auto append_pattern = [&](const clang::RecordDecl *pattern) {
+      pattern = record_definition(pattern);
+      if (pattern && included.insert(pattern).second) records.push_back(pattern);
+    };
+
+    // Template patterns join the same bounded record list as inheritance
+    // records, so their relationships are expanded and their members are
+    // emitted with the rest of the diagram.
+    for (size_t index = 0; index < records.size(); ++index) {
+      const auto *record = records[index];
+      if (const auto *partial =
+              llvm::dyn_cast<clang::ClassTemplatePartialSpecializationDecl>(record)) {
+        const std::string partial_id = add_node(partial);
+        const auto *primary = partial->getSpecializedTemplate();
+        if (primary) {
+          const auto *primary_record = primary->getTemplatedDecl();
+          const std::string primary_id = add_node(primary_record);
+          add_edge(partial_id, primary_id, "specializes");
+          if (!primary_id.empty()) append_pattern(primary_record);
+        }
+        continue;
+      }
+
+      const auto *specialization =
+          llvm::dyn_cast<clang::ClassTemplateSpecializationDecl>(record);
+      if (!specialization) continue;
+
+      const auto kind = specialization->getSpecializationKind();
+      const bool instantiation = clang::isTemplateInstantiation(kind);
+      const auto *primary = specialization->getSpecializedTemplate();
+      const std::string owner = add_node(specialization);
+
+      // A partial specialization is the pattern actually instantiated, so
+      // show that edge and let the pattern's specializes edge lead to primary.
+      if (instantiation) {
+        const auto pattern = specialization->getInstantiatedFrom();
+        if (const auto *partial =
+                pattern.dyn_cast<clang::ClassTemplatePartialSpecializationDecl *>()) {
+          const std::string partial_id = add_node(partial);
+          add_edge(owner, partial_id, "instantiates");
+          if (!partial_id.empty()) append_pattern(partial);
+          continue;
+        }
+      }
+
+      if (primary) {
+        const auto *primary_record = primary->getTemplatedDecl();
+        const std::string primary_id = add_node(primary_record);
+        add_edge(owner, primary_id, instantiation ? "instantiates" : "specializes");
+        if (!primary_id.empty()) append_pattern(primary_record);
       }
     }
   }

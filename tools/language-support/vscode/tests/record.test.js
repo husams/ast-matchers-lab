@@ -269,6 +269,7 @@ test("inherited bases start expanded, backend errors preserve the view, and disp
     await run;
     assert.deepEqual(host.sent.at(-1).graph.expandedRecordIds, ["root", "base"]);
     assert.match(host.panel().webview.html, /Class relationship diagram/);
+    assert.match(host.panel().webview.html, /Template links point from a concrete class to its template pattern/);
     assert.match(host.panel().webview.html, /This translation unit only/);
     await host.receive({ type: "expand", id: "base" });
     assert.equal(host.requests.length, 1);

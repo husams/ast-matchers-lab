@@ -125,12 +125,14 @@ you need the matched text; selecting a result still highlights its source.
 Choose **Explore Record** on a record result, in the bindings tree, or at a
 class/struct/union in a C/C++ editor. A full editor tab shows a class diagram:
 records are cards, fields and methods appear inside their record, and lines
-connect inheritance and record-typed fields. Select a class or relationship for
+connect inheritance, record-typed fields, and class template relationships.
+An instantiated class links to the template pattern it uses; a specialization
+links to the template it specializes. Select a class or relationship for
 details and source evidence, then reveal a related class to inspect more of its
-neighborhood. Filter bases, known derived classes, field types, and known
-incoming field links from the selected class. Use **Open source**, zoom, pan,
-and Fit to navigate. The explorer inspects the selected translation unit with
-its compile options; it does not build a workspace-wide derived-class index or
+neighborhood. Filter bases, known derived classes, template links, field types,
+and known incoming field links from the selected class. Use **Open source**,
+zoom, pan, and Fit to navigate. The explorer inspects the selected translation
+unit with its compile options; it does not build a workspace-wide derived-class index or
 infer field ownership from a type alone. Unavailable definitions and bounded
 graphs are identified in the view.
 
