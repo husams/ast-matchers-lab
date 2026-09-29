@@ -77,6 +77,7 @@ def main():
         "catalog": load_catalog(),
         "progress": load_progress(),
         "steps": load_steps(),
+        "hier": json.loads((ROOT / "scripts" / "ast_hierarchy.json").read_text()),
     }
     payload = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
     html = TEMPLATE.read_text().replace("/*__LAB_DATA__*/null", payload)
