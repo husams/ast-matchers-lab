@@ -361,7 +361,7 @@ class RecordExplorer {
 <span class="scope">This translation unit only</span>
 </div>
 <svg id="graph" role="group" aria-label="Record class diagram relationships" tabindex="0"></svg>
-<p id="graph-help">Records are class diagram cards with fields and methods from this translation unit. Select a card for details or expand its related records; double-click to open source. Use +/− to zoom, arrow keys to pan, and 0 to fit.</p>
+<p id="graph-help">Records are class diagram cards with fields and methods from this translation unit. Template links point from a concrete class to its template pattern. Select a card for details or reveal related records; double-click to open source. Use +/− to zoom, arrow keys to pan, and 0 to fit.</p>
 </section><aside id="details"><h2>Entity details</h2><div id="detail-content" role="status">Select a record or relation.</div></aside></main>
 <script nonce="${nonce}" src="${script}"></script></body></html>`;
   }

@@ -441,7 +441,10 @@ os.kill(os.getpid(), signal.SIGTERM)
             template_source = Path(directory) / "templates.cpp"
             template_source.write_text(
                 "template<class T> struct Box { T value; };\n"
-                "Box<int> i; Box<long> l;\n"
+                "Box<int> i; Box<short> s;\n"
+                "template<> struct Box<long> { long value; };\n"
+                "template struct Box<double>;\n"
+                "Box<long> l;\n"
                 "template<class T> struct Choice { T value; };\n"
                 "template<class T> struct Choice<T*> { T* pointer; };\n"
                 "Choice<int*> choice;\n", encoding="utf-8")
@@ -453,9 +456,12 @@ os.kill(os.getpid(), signal.SIGTERM)
             specializations = [binding for match in template_query["queries"][0]["matches"]
                                for binding in match["bindings"] if binding["id"] == "record"]
             assert {binding["recordIdentity"] for binding in specializations} == {
-                "Box<int>", "Box<long>"}, specializations
-            assert len({json.dumps(binding["range"], sort_keys=True)
-                        for binding in specializations}) == 1, specializations
+                "Box<int>", "Box<short>", "Box<long>", "Box<double>"}, specializations
+            assert {
+                binding["recordIdentity"]: binding["range"]["start"]["line"]
+                for binding in specializations
+            } == {"Box<int>": 0, "Box<short>": 0,
+                  "Box<long>": 2, "Box<double>": 3}, specializations
             for binding in specializations:
                 selected = run_inspect(binary, socket, template_request | {
                     "file": str(template_source),
@@ -465,18 +471,66 @@ os.kill(os.getpid(), signal.SIGTERM)
                 selected_root = next(node for node in selected["nodes"]
                                      if node["id"] == selected["recordId"])
                 assert selected_root["recordIdentity"] == binding["recordIdentity"], selected
-                field_type = next(node["type"] for node in selected["nodes"]
-                                  if node["name"] == "value")
-                assert field_type in ("int", "long"), selected
+                graph_nodes = {node["id"]: node for node in selected["nodes"]}
+                template_edges = [edge for edge in selected["edges"]
+                                  if edge["from"] == selected["recordId"]]
+                field_type = next(graph_nodes[edge["to"]]["type"]
+                                  for edge in template_edges
+                                  if edge["kind"] == "field" and
+                                  graph_nodes[edge["to"]]["name"] == "value")
+                expected_field_type = binding["recordIdentity"][4:-1]
+                assert field_type == expected_field_type, selected
+                primary_edge = next(edge for edge in template_edges
+                                    if graph_nodes[edge["to"]]["recordIdentity"] == "Box")
+                assert primary_edge["kind"] == (
+                    "specializes" if binding["recordIdentity"] == "Box<long>"
+                    else "instantiates"), selected
             primary = run_inspect(binary, socket, template_request | {
                 "file": str(template_source), "position": {"line": 0, "character": 0}})
             assert primary["ok"], primary
             assert next(node for node in primary["nodes"]
                         if node["id"] == primary["recordId"])["recordIdentity"] == "Box", primary
             partial = run_inspect(binary, socket, template_request | {
-                "file": str(template_source), "position": {"line": 3, "character": 0}})
+                "file": str(template_source), "position": {"line": 6, "character": 0}})
             assert partial["ok"] and any(node["name"] == "pointer"
                                          for node in partial["nodes"]), partial
+            partial_nodes = {node["id"]: node for node in partial["nodes"]}
+            partial_primary = next(edge for edge in partial["edges"]
+                                   if edge["from"] == partial["recordId"] and
+                                   edge["kind"] == "specializes")
+            assert partial_nodes[partial_primary["from"]]["recordIdentity"] != "Choice", partial
+            assert partial_nodes[partial_primary["to"]]["recordIdentity"] == "Choice", partial
+
+            choice_query = run_query(binary, socket, template_request | {
+                "commands": [{"kind": "MATCH", "expression":
+                              'classTemplateSpecializationDecl(hasName("Choice")).bind("record")'}]})
+            choice_instances = [binding for match in choice_query["queries"][0]["matches"]
+                                for binding in match["bindings"]
+                                if binding["id"] == "record" and
+                                binding["recordIdentity"] != "Choice"]
+            choice_instance = next(binding for binding in choice_instances
+                                   if "int" in binding["recordIdentity"] and
+                                   "*" in binding["recordIdentity"])
+            choice_graph = run_inspect(binary, socket, template_request | {
+                "file": str(template_source), "position": choice_instance["range"]["start"],
+                "recordIdentity": choice_instance["recordIdentity"]})
+            assert choice_graph["ok"], choice_graph
+            choice_nodes = {node["id"]: node for node in choice_graph["nodes"]}
+            choice_relations = {(choice_nodes[edge["from"]]["recordIdentity"],
+                                 choice_nodes[edge["to"]]["recordIdentity"], edge["kind"])
+                                for edge in choice_graph["edges"]
+                                if choice_nodes[edge["from"]]["recordIdentity"] and
+                                choice_nodes[edge["to"]]["recordIdentity"]}
+            partial_identity = next(target for source, target, kind in choice_relations
+                                    if source == choice_instance["recordIdentity"] and
+                                    kind == "instantiates")
+            assert "*" in partial_identity, choice_graph
+            assert (partial_identity, "Choice", "specializes") in choice_relations, choice_graph
+            partial_node = next(node for node in choice_graph["nodes"]
+                                if node["recordIdentity"] == partial_identity)
+            assert any(edge["from"] == partial_node["id"] and edge["kind"] == "field"
+                       and choice_nodes[edge["to"]]["name"] == "pointer"
+                       for edge in choice_graph["edges"]), choice_graph
 
             large_source = Path(directory) / "large.cpp"
             large_source.write_text("".join(
