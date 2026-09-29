@@ -113,8 +113,9 @@ function loadRecordView() {
     document,
     messages,
     element: (id) => named.get(id),
-    sendGraph(graph, focusId) {
-      window.listeners.get("message")({ data: { type: "state", status: "ready", graph, focusId } });
+    sendGraph(graph, focusId, background = false) {
+      window.listeners.get("message")({ data: {
+        type: "state", status: "ready", graph, focusId, background } });
     },
     sendExpansionError(message) {
       window.listeners.get("message")({ data: { type: "expansionError", message } });
@@ -179,6 +180,47 @@ test("projects raw AST members into bounded UML record cards with source-backed 
   assert.ok(view.element("graph").textContent.includes("Grand"));
   assert.equal(buttonWithText(view.element("detail-content"), "Reveal related classes"), undefined,
     "an already expanded root with all known neighbors visible has no reveal action");
+});
+
+test("multiple inheritance cards gain both parents' members without moving the selected view", () => {
+  const view = loadRecordView();
+  const source = "/project/multiple.cpp";
+  const range = { start: { line: 1, character: 1 }, end: { line: 1, character: 8 } };
+  const record = (id, name) => ({ id, kind: "CXXRecordDecl", recordKind: "class", name,
+    definitionStatus: "defined", file: source, range });
+  const graph = { ok: true, recordId: "root", expandedRecordIds: ["root"], truncated: true,
+    nodes: [record("root", "Child"), record("left", "Left"), record("right", "Right")],
+    edges: [{ from: "root", to: "left", kind: "inherits" },
+      { from: "root", to: "right", kind: "inherits" }] };
+  view.sendGraph(graph);
+  assert.deepEqual(cardIds(view), ["root", "left", "right"]);
+  assert.equal(view.edges().length, 2);
+  view.element("zoom-in").fire("click");
+  const before = view.element("graph").attributes.viewBox;
+  for (const [parent, field, method] of [
+    ["left", "leftValue", "leftRun"], ["right", "rightValue", "rightRun"],
+  ]) {
+    graph.nodes.push({ id: field, kind: "FieldDecl", name: field, type: "int", file: source, range },
+      { id: method, kind: "CXXMethodDecl", name: method,
+        signature: `void ${method}()`, file: source, range });
+    graph.edges.push({ from: parent, to: field, kind: "field", access: "public" },
+      { from: parent, to: method, kind: "method", access: "public" });
+    graph.expandedRecordIds.push(parent);
+    view.sendGraph(graph, undefined, true);
+    if (parent === "left") {
+      assert.ok(view.cards().find((card) => card.dataset.id === "root").className.includes("selected"),
+        "loading the first parent keeps the root selected");
+      view.cards().find((card) => card.dataset.id === "right").fire("click");
+    }
+  }
+  assert.deepEqual(cardIds(view), ["root", "left", "right"]);
+  const rows = Array.from(view.element("graph").querySelectorAll(".member-row"));
+  assert.deepEqual(rows.map((row) => row.dataset.memberId),
+    ["leftValue", "leftRun", "rightValue", "rightRun"]);
+  assert.equal(view.element("graph").attributes.viewBox, before,
+    "background member loading retains the user's zoom and pan");
+  assert.ok(view.cards().find((card) => card.dataset.id === "right").className.includes("selected"));
+  assert.match(view.element("detail-content").textContent, /Attributes1Operations1/);
 });
 
 test("edge selection explains its evidence and navigates to the contributing source", () => {

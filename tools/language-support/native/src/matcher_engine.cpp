@@ -490,11 +490,19 @@ public:
     const std::string root = add_node(&record);
     if (root.empty()) return;
     reply_.set_record_id(root);
-    visit(&record, 0);
+    std::vector<const clang::RecordDecl *> records;
+    collect_topology(&record, records);
+    add_members(records);
+    add_field_types();
     reply_.set_ok(true);
   }
 
 private:
+  struct Member {
+    const clang::NamedDecl *decl;
+    llvm::StringRef kind;
+  };
+
   std::string add_node(const clang::Decl *decl) {
     if (const auto *record = llvm::dyn_cast<clang::RecordDecl>(decl)) {
       decl = record_definition(record);
@@ -551,37 +559,88 @@ private:
     edge->set_is_virtual(is_virtual);
   }
 
-  void visit(const clang::RecordDecl *record, unsigned depth) {
-    record = record_definition(record);
-    if (!expanded_.insert(record).second) return;
-    if (depth > kMaximumInheritanceDepth) {
-      reply_.set_truncated(true);
-      return;
-    }
-    const std::string owner = add_node(record);
-    if (const auto *cxx = llvm::dyn_cast<clang::CXXRecordDecl>(record)) {
-      for (const auto &base : cxx->bases()) {
-        const auto *parent = record_definition(base.getType()->getAsCXXRecordDecl());
-        if (!parent) continue;
-        const std::string parent_id = add_node(parent);
-        add_edge(owner, parent_id, "inherits", access_name(base.getAccessSpecifier()),
-                 base.isVirtual());
-        if (!parent_id.empty()) visit(parent, depth + 1);
+  void collect_topology(const clang::RecordDecl *root,
+                        std::vector<const clang::RecordDecl *> &records) {
+    root = record_definition(root);
+    std::vector<std::pair<const clang::RecordDecl *, unsigned>> pending{{root, 0}};
+    expanded_.insert(root);
+    for (size_t index = 0; index < pending.size(); ++index) {
+      const auto [record, depth] = pending[index];
+      if (depth > kMaximumInheritanceDepth) {
+        reply_.set_truncated(true);
+        continue;
+      }
+      records.push_back(record);
+      const std::string owner = add_node(record);
+      if (const auto *cxx = llvm::dyn_cast<clang::CXXRecordDecl>(record)) {
+        for (const auto &base : cxx->bases()) {
+          const auto *parent = record_definition(base.getType()->getAsCXXRecordDecl());
+          if (!parent) continue;
+          const std::string parent_id = add_node(parent);
+          add_edge(owner, parent_id, "inherits", access_name(base.getAccessSpecifier()),
+                   base.isVirtual());
+          if (!parent_id.empty() && expanded_.insert(parent).second) {
+            pending.emplace_back(parent, depth + 1);
+          }
+        }
       }
     }
-    for (const auto *field : record->fields()) {
-      if (field->isImplicit()) continue;
-      const std::string field_id = add_node(field);
-      add_edge(owner, field_id, "field", access_name(field->getAccess()));
-      if (const auto *target = field_record_type(field->getType())) {
-        add_edge(field_id, add_node(target), "fieldType");
+  }
+
+  void add_members(const std::vector<const clang::RecordDecl *> &records) {
+    std::vector<std::vector<Member>> members;
+    members.reserve(records.size());
+    for (const auto *record : records) {
+      std::vector<const clang::FieldDecl *> fields;
+      std::vector<const clang::CXXMethodDecl *> methods;
+      for (const auto *field : record->fields()) {
+        if (!field->isImplicit()) fields.push_back(field);
+      }
+      if (const auto *cxx = llvm::dyn_cast<clang::CXXRecordDecl>(record)) {
+        for (const auto *method : cxx->methods()) {
+          if (!method->isImplicit()) methods.push_back(method);
+        }
+      }
+      auto &record_members = members.emplace_back();
+      record_members.reserve(fields.size() + methods.size());
+      for (size_t index = 0; index < std::max(fields.size(), methods.size()); ++index) {
+        if (index < fields.size()) record_members.push_back({fields[index], "field"});
+        if (index < methods.size()) record_members.push_back({methods[index], "method"});
       }
     }
-    if (const auto *cxx = llvm::dyn_cast<clang::CXXRecordDecl>(record)) {
-      for (const auto *method : cxx->methods()) {
-        if (method->isImplicit()) continue;
-        add_edge(owner, add_node(method), "method", access_name(method->getAccess()));
+
+    std::vector<size_t> next_member(records.size(), 0);
+    bool remaining = true;
+    while (remaining) {
+      remaining = false;
+      for (size_t index = 0; index < records.size(); ++index) {
+        if (next_member[index] == members[index].size()) continue;
+        remaining = true;
+        if (reply_.nodes_size() >= static_cast<int>(kMaximumGraphNodes) ||
+            reply_.edges_size() >= static_cast<int>(kMaximumGraphEdges)) {
+          reply_.set_truncated(true);
+          return;
+        }
+        const auto &member = members[index][next_member[index]++];
+        const std::string member_id = add_node(member.decl);
+        add_edge(ids_.at(records[index]), member_id, member.kind,
+                 access_name(member.decl->getAccess()));
+        if (const auto *field = llvm::dyn_cast<clang::FieldDecl>(member.decl)) {
+          if (const auto *target = field_record_type(field->getType())) {
+            field_types_.emplace_back(member_id, target);
+          }
+        }
       }
+    }
+  }
+
+  void add_field_types() {
+    for (const auto &[field_id, target] : field_types_) {
+      if (reply_.edges_size() >= static_cast<int>(kMaximumGraphEdges)) {
+        reply_.set_truncated(true);
+        return;
+      }
+      add_edge(field_id, add_node(target), "fieldType");
     }
   }
 
@@ -591,6 +650,7 @@ private:
   std::unordered_map<const clang::Decl *, std::string> ids_;
   std::unordered_set<const clang::RecordDecl *> expanded_;
   std::set<std::tuple<std::string, std::string, std::string>> edges_;
+  std::vector<std::pair<std::string, const clang::RecordDecl *>> field_types_;
 };
 
 class RecordCollector final : public am::MatchFinder::MatchCallback {

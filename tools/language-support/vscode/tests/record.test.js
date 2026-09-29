@@ -212,11 +212,11 @@ test("merge uses source fallback, keeps distinct template identities, and bounds
     assert.deepEqual(merged.edges, [{ from: "fallback", to: "double", kind: "fieldType" }]);
     assert.deepEqual(merged.expandedRecordIds, ["r", "fallback"]);
     const full = { ...current, nodes: [record("r", "Root", 1),
-      ...Array.from({ length: 255 }, (_, i) => record(`old-${i}`, `Old${i}`, i + 10))] };
+      ...Array.from({ length: 4095 }, (_, i) => record(`old-${i}`, `Old${i}`, i + 10))] };
     const capped = mergeRecordGraphs(full, { ok: true, recordId: "x", nodes: [
       record("x", "Root", 1), record("new", "New", 300)],
     edges: [{ from: "x", to: "new", kind: "inherits" }], diagnostics: [] }, "r");
-    assert.equal(capped.nodes.length, 256);
+    assert.equal(capped.nodes.length, 4096);
     assert.equal(capped.edges.length, 0, "edges to omitted nodes are not retained");
     assert.equal(capped.truncated, true);
   });
@@ -315,7 +315,7 @@ test("separate expansion clicks are inspected serially without losing either req
   });
 });
 
-test("truncated inheritance leaves visible bases eligible for later inspection", async () => {
+test("truncated inheritance loads visible bases and newly discovered ancestors", async () => {
   const replies = [
     { ok: true, recordId: "root", nodes: [record("root", "Root", 1),
       record("base", "Base", 4)], edges: [{ from: "root", to: "base", kind: "inherits" }],
@@ -331,15 +331,81 @@ test("truncated inheritance leaves visible bases eligible for later inspection",
     const run = explorer.open(sourceTarget, {});
     host.receive({ type: "ready" });
     await run;
-    assert.deepEqual(host.sent.at(-1).graph.expandedRecordIds, ["root"]);
-    await host.receive({ type: "expand", id: "base" });
+    await new Promise((resolve) => setImmediate(resolve));
     const merged = host.sent.at(-1).graph;
     const deep = merged.nodes.find((node) => node.recordIdentity === "app::Deep");
-    assert.deepEqual(merged.expandedRecordIds, ["root", "base"]);
     assert.ok(deep, "the visible deeper base is retained");
-    await host.receive({ type: "expand", id: deep.id });
-    assert.equal(host.requests.length, 3, "both bases can be inspected on demand");
+    assert.equal(host.requests.length, 3, "both bases are inspected in the background");
     assert.deepEqual(host.sent.at(-1).graph.expandedRecordIds,
       ["root", "base", deep.id]);
+    assert.equal(host.sent.at(-1).background, true);
+    assert.equal(host.sent.at(-1).focusId, undefined);
+  });
+});
+
+test("a truncated 256-node graph loads fields and methods for both direct parents", async () => {
+  const filler = Array.from({ length: 253 }, (_, i) => ({ id: `f${i}`, kind: "FieldDecl",
+    name: `rootField${i}`, qualifiedName: `app::Root::rootField${i}`,
+    file: "/project/main.cpp", range: sourceRange(i + 20) }));
+  const initial = { ok: true, recordId: "root", nodes: [record("root", "Root", 1),
+    record("left", "Left", 4), record("right", "Right", 8), ...filler],
+  edges: [{ from: "root", to: "left", kind: "inherits" },
+    { from: "root", to: "right", kind: "inherits" },
+    ...filler.map((node) => ({ from: "root", to: node.id, kind: "field" }))],
+  diagnostics: [], truncated: true };
+  const parentReply = (name, line) => ({ ok: true, recordId: "local", nodes: [
+    record("local", name, line),
+    { id: "field", kind: "FieldDecl", name: name.toLowerCase() + "Value",
+      qualifiedName: `app::${name}::${name.toLowerCase()}Value`, type: "int",
+      file: "/project/main.cpp", range: sourceRange(line + 1) },
+    { id: "method", kind: "CXXMethodDecl", name: "run",
+      qualifiedName: `app::${name}::run`, signature: `void app::${name}::run()`,
+      file: "/project/main.cpp", range: sourceRange(line + 2) }],
+  edges: [{ from: "local", to: "field", kind: "field" },
+    { from: "local", to: "method", kind: "method" }],
+  diagnostics: [], truncated: false });
+  const replies = [initial, parentReply("Left", 4), parentReply("Right", 8)];
+  await withRecordExplorer(async () => replies.shift(), async (explorer, host) => {
+    const run = explorer.open(sourceTarget, {});
+    host.receive({ type: "ready" });
+    await run;
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(host.requests.map((request) => request.params.recordIdentity),
+      ["app::Root", "app::Left", "app::Right"]);
+    const state = host.sent.at(-1);
+    assert.equal(state.graph.recordId, "root");
+    assert.equal(state.graph.nodes.length, 260, "both parents add members beyond the first 256 nodes");
+    assert.deepEqual(state.graph.edges.filter((edge) => edge.kind === "inherits")
+      .map((edge) => edge.to), ["left", "right"]);
+    for (const id of ["left", "right"]) {
+      assert.equal(state.graph.edges.filter((edge) => edge.from === id && edge.kind === "field").length, 1);
+      assert.equal(state.graph.edges.filter((edge) => edge.from === id && edge.kind === "method").length, 1);
+      await host.receive({ type: "expand", id });
+    }
+    assert.equal(host.requests.length, 3, "loaded parents are not inspected twice");
+    assert.equal(state.background, true);
+    assert.equal(state.focusId, undefined);
+  });
+});
+
+test("automatic parent inspection is bounded while later parents remain manually inspectable", async () => {
+  const bases = Array.from({ length: 10 }, (_, i) => record(`base${i}`, `Base${i}`, i + 4));
+  const initial = { ok: true, recordId: "root", nodes: [record("root", "Root", 1), ...bases],
+    edges: bases.map((node) => ({ from: "root", to: node.id, kind: "inherits" })),
+    diagnostics: [], truncated: true };
+  await withRecordExplorer(async (_method, request) => request.recordIdentity === "app::Root"
+    ? initial : { ok: true, recordId: "local", nodes: [
+      record("local", request.recordIdentity.slice(5), request.range.start.line)],
+    edges: [], diagnostics: [], truncated: false }, async (explorer, host) => {
+    const run = explorer.open(sourceTarget, {});
+    host.receive({ type: "ready" });
+    await run;
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(host.requests.length, 9, "at most eight bases are inspected automatically");
+    assert.deepEqual(host.sent.at(-1).graph.expandedRecordIds,
+      ["root", ...bases.slice(0, 8).map((node) => node.id)]);
+    await host.receive({ type: "expand", id: "base8" });
+    assert.equal(host.requests.length, 10);
+    assert.equal(host.sent.at(-1).focusId, "base8");
   });
 });

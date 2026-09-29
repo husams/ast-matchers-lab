@@ -2,7 +2,7 @@
   "name": "astmatcher-dsl",
   "displayName": "AST Matcher DSL (clang-query)",
   "description": "Syntax highlighting, completion, hover and diagnostics for Clang AST matcher scripts (.query).",
-  "version": "1.9.3",
+  "version": "1.9.4",
   "publisher": "ast-matchers-lab",
   "license": "MIT",
   "private": true,
