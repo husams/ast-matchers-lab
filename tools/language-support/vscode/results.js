@@ -297,11 +297,6 @@ class BindingsTree {
         if (!groups.has(g.id)) groups.set(g.id, { id: g.id, nodes: [] });
         groups.get(g.id).nodes.push(n);
       }
-      for (const query of result.queries || []) {
-        const file = query.translationUnit;
-        if (file && (query.count > 0 || query.matches?.length) && !byFile.has(file))
-          byFile.set(file, new Map());
-      }
       return [...byFile].sort(([a], [b]) => a.localeCompare(b))
         .map(([file, groups]) => ({ type: "file", file,
           groups: [...groups.values()], generation: this.store.generation }));

@@ -237,7 +237,7 @@ def _native_diagnostic(diagnostic: dict, originals: list[Command],
 
 
 def _native_queries(reply: dict, originals: list[Command], doc: Document,
-                    working_directory: str, source_file: str) -> list[dict]:
+                    working_directory: str, source_file: str, scope: str) -> list[dict]:
     index = LineIndex(doc.text)
     main_file = str(Path(source_file).resolve())
     output = []
@@ -251,19 +251,19 @@ def _native_queries(reply: dict, originals: list[Command], doc: Document,
         for raw_match in raw_query.get("matches", []):
             bindings = [_native_binding(b, working_directory)
                         for b in raw_match.get("bindings", [])]
-            # clang visits declarations in included headers too. Keep only
-            # matches whose matched node is spelled in this translation unit,
-            # then omit any auxiliary bindings that point into included files.
-            root = next((binding for binding in bindings if binding["id"] == "root"), None)
-            main_bindings = [binding for binding in bindings
-                             if binding["file"] == main_file or
-                             (binding["file"] is None and binding["kind"] == "TranslationUnitDecl")]
-            if (bindings and root is not None and root["file"] != main_file and
-                    not (root["file"] is None and root["kind"] == "TranslationUnitDecl")):
-                continue
-            if bindings and root is None and not main_bindings:
-                continue
-            bindings = main_bindings
+            if scope != "file":
+                # Broad scans process many translation units. Keep matches
+                # spelled in each main file so included headers do not recur.
+                root = next((binding for binding in bindings if binding["id"] == "root"), None)
+                main_bindings = [binding for binding in bindings
+                                 if binding["file"] == main_file or
+                                 (binding["file"] is None and binding["kind"] == "TranslationUnitDecl")]
+                if (bindings and root is not None and root["file"] != main_file and
+                        not (root["file"] is None and root["kind"] == "TranslationUnitDecl")):
+                    continue
+                if bindings and root is None and not main_bindings:
+                    continue
+                bindings = main_bindings
             bindings.sort(key=lambda b: b["id"] != "root")
             query["matches"].append({"index": int(raw_match.get("index", 0)),
                                      "bindings": bindings})
@@ -527,9 +527,10 @@ def run_query(text: str, sample: str, flags: list[str] | None = None, *,
             if deps is not None:
                 import hashlib
                 h = hashlib.sha256()
-                h.update(b"astmatcher-native-result-cache-v8\0")
+                h.update(b"astmatcher-native-result-cache-v9\0")
                 h.update(text.encode())
-                h.update(json.dumps([source, tu_flags, effective_cwd, traversal],
+                h.update(json.dumps([source, tu_flags, effective_cwd, traversal,
+                                     normalized_target["scope"]],
                                     sort_keys=True).encode())
                 h.update(json.dumps(compiler_identity).encode())
                 try:
@@ -559,7 +560,7 @@ def run_query(text: str, sample: str, flags: list[str] | None = None, *,
         if cache_file and cache_file.is_file():
             try:
                 cached = json.loads(cache_file.read_text(encoding="utf-8"))
-                if not isinstance(cached, dict) or cached.get("schema") != 8:
+                if not isinstance(cached, dict) or cached.get("schema") != 9:
                     raise ValueError("unsupported cache schema")
                 parsed, tu_stderr, exit_code = (
                     cached["queries"], cached["stderr"], cached["exitCode"])
@@ -609,7 +610,8 @@ def run_query(text: str, sample: str, flags: list[str] | None = None, *,
                 continue
             if cancelled is not None and cancelled.is_set():
                 result["cancelled"] = True
-            parsed = _native_queries(reply, originals, doc, effective_cwd, source)
+            parsed = _native_queries(reply, originals, doc, effective_cwd, source,
+                                     normalized_target["scope"])
             result["truncated"] = bool(reply.get("truncated", False))
             tu_stderr = (reply.get("stderr") or "") + client_stderr
             diagnostics = [_native_diagnostic(d, originals, doc)
@@ -627,7 +629,7 @@ def run_query(text: str, sample: str, flags: list[str] | None = None, *,
                     cache_dir.mkdir(parents=True, exist_ok=True)
                     with tempfile.NamedTemporaryFile("w", dir=cache_dir, suffix=".tmp",
                                                      delete=False, encoding="utf-8") as tmp:
-                        tmp.write(json.dumps({"schema": 8, "queries": parsed,
+                        tmp.write(json.dumps({"schema": 9, "queries": parsed,
                                               "stderr": tu_stderr, "exitCode": exit_code}))
                         tmp_name = tmp.name
                     os.replace(tmp_name, cache_file)

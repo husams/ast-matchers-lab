@@ -98,8 +98,10 @@ panel, eye icon in the view title bars) brings it back.
 - **Source files**: selecting a node or binding opens its source file and
   highlights its matched regions; enclosing nodes and other bindings are not included.
 
-Directory and workspace runs discover C++ translation units and show matches
-spelled in each translation unit; declarations from included headers are omitted.
+File runs show matches from the selected translation unit, including declarations
+in directly or transitively included headers. Directory and workspace runs
+discover C++ translation units and show matches spelled in each translation
+unit; declarations from included headers are omitted.
 Source parse failures stay out of the matches table and bindings outline. The
 error count in the status bar lists failing files and causes on hover; click it
 to open the **AST Matcher Diagnostics** output channel with full paths and compiler output.

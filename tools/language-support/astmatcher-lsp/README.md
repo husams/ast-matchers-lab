@@ -45,17 +45,21 @@ server on a private Unix socket against
 the selected file, directory, or workspace roots; a new request cancels a run
 still in progress. `target` is `{scope: "file"|"directory"|"workspace",
 path, roots?}`. Directory/workspace discovery applies `.gitignore` files and
-the `exclusions` glob list. `compileCommands` accepts a compilation database
-file, a build directory, or `"auto"` (the nearest `compile_commands.json` at or
-above the source, including one in `build/` or `out/`); its per-source flags are
+the `exclusions` glob list. File targets include matches and bindings from
+direct and transitive headers, as clang-query does. Directory/workspace targets
+keep matches and bindings from each translation unit's main file to avoid
+repeating header results across source files. `compileCommands` accepts a
+compilation database file, a build directory, or `"auto"` (the nearest
+`compile_commands.json` at or above the source, including one in `build/` or
+`out/`); its per-source flags are
 used, with `flags` appended — except an explicit `-std=` when the database
 already sets one. A header has no entry of its own, so it takes the flags of
 the closest related translation unit: the same-stem source beside it, then any
 TU in that directory, then the nearest enclosing one. `traversal` accepts `AsIs` or
 `IgnoreUnlessSpelledInSource`. `cache` is `{enabled, location?}` and is off by
-default; when enabled, entries are keyed by query/tool/flags and the Clang
-dependency list, so included-header changes invalidate them. A TU is skipped
-from caching when dependency discovery fails. The answer includes `files`,
+default; when enabled, entries are keyed by query/tool/flags, target scope, and
+the Clang dependency list, so included-header changes invalidate them. A TU is
+skipped from caching when dependency discovery fails. The answer includes `files`,
 normalized `target`, cache hit/miss metadata, and `translationUnit` for each
 result. `semanticKind` identifies declaration meaning (for example `struct`,
 `union`, `function`, or `method`) and is empty for non-declarations.

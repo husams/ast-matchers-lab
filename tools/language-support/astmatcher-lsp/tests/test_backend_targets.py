@@ -152,7 +152,49 @@ class TestBackendTargets(unittest.TestCase):
             self.assertEqual(len(result["bindings"]["v"]), 1)
             self.assertNotIn("requires setup", result["stderr"])
 
-    def test_results_exclude_matches_spelled_in_included_headers(self):
+    def test_file_target_includes_matches_from_transitive_headers(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            deep = root / "deep.hpp"
+            deep.write_text("class Deep {};\n")
+            middle = root / "middle.hpp"
+            middle.write_text('#include "deep.hpp"\n')
+            source = root / "main.cpp"
+            source.write_text('#include "middle.hpp"\n')
+            query = ('match cxxRecordDecl(hasName("Deep"), isDefinition(), '
+                     'unless(isImplicit()))\n'
+                     'match cxxRecordDecl(hasName("Deep"), isDefinition(), '
+                     'unless(isImplicit())).bind("record")')
+            result = run_query(query, str(source), ["-std=c++23"])
+            self.assertTrue(result["ok"], result["errors"])
+            self.assertEqual([q["count"] for q in result["queries"]], [1, 1])
+            self.assertEqual(result["bindings"]["record"][0]["file"], str(deep.resolve()))
+            self.assertEqual(result["bindings"]["record"][0]["translationUnit"], str(source))
+
+    def test_file_target_preserves_header_bindings_for_main_file_matches(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            header = root / "model.hpp"
+            header.write_text("struct FromHeader {};\n")
+            source = root / "main.cpp"
+            source.write_text('#include "model.hpp"\nstruct Local { FromHeader member; };\n')
+            query = ('match fieldDecl(hasType(recordDecl(hasName("FromHeader"))'
+                     '.bind("header"))).bind("field")')
+            result = run_query(query, str(source), ["-std=c++23"])
+            self.assertTrue(result["ok"], result["errors"])
+            self.assertEqual(result["queries"][0]["count"], 1)
+            self.assertEqual(result["bindings"]["field"][0]["file"], str(source.resolve()))
+            self.assertEqual(result["bindings"]["header"][0]["file"], str(header.resolve()))
+
+            directory_result = run_query(
+                query, str(source), ["-std=c++23"],
+                target={"scope": "directory", "path": str(root)})
+            self.assertTrue(directory_result["ok"], directory_result["errors"])
+            self.assertEqual(directory_result["queries"][0]["count"], 1)
+            self.assertIn("field", directory_result["bindings"])
+            self.assertNotIn("header", directory_result["bindings"])
+
+    def test_directory_results_exclude_matches_spelled_in_included_headers(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             header = root / "model.hpp"
@@ -161,11 +203,40 @@ class TestBackendTargets(unittest.TestCase):
             source.write_text('#include "model.hpp"\nstruct Local {};\n')
             result = run_query(
                 'match cxxRecordDecl(isDefinition(), unless(isImplicit())).bind("record")',
-                str(source), ["-std=c++23"])
+                str(source), ["-std=c++23"],
+                target={"scope": "directory", "path": str(root)})
             self.assertTrue(result["ok"], result["errors"])
             self.assertEqual(len(result["bindings"]["record"]), 1)
             self.assertEqual(result["bindings"]["record"][0]["file"], str(source.resolve()))
             self.assertIn("Local", result["bindings"]["record"][0]["summary"])
+
+    def test_cache_distinguishes_file_from_directory_header_policy(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            header = root / "deep.hpp"
+            header.write_text("class Deep {};\n")
+            (root / "middle.hpp").write_text('#include "deep.hpp"\n')
+            source = root / "main.cpp"
+            source.write_text('#include "middle.hpp"\n')
+            query = ('match cxxRecordDecl(hasName("Deep"), isDefinition(), '
+                     'unless(isImplicit())).bind("record")')
+            options = {"cache": {"enabled": True, "location": str(root / "cache")}}
+            file_target = {"scope": "file", "path": str(source)}
+            directory_target = {"scope": "directory", "path": str(root)}
+            file_result = run_query(query, str(source), ["-std=c++23"],
+                                    target=file_target, **options)
+            self.assertTrue(file_result["ok"], file_result["errors"])
+            self.assertEqual(file_result["queries"][0]["count"], 1)
+            self.assertEqual(file_result["cache"]["misses"], 1)
+            directory_result = run_query(query, str(source), ["-std=c++23"],
+                                         target=directory_target, **options)
+            self.assertTrue(directory_result["ok"], directory_result["errors"])
+            self.assertEqual(directory_result["queries"][0]["count"], 0)
+            self.assertEqual(directory_result["cache"]["misses"], 1)
+            cached_file = run_query(query, str(source), ["-std=c++23"],
+                                    target=file_target, **options)
+            self.assertEqual(cached_file["queries"][0]["count"], 1)
+            self.assertEqual(cached_file["cache"]["hits"], 1)
 
     def test_parse_errors_keep_source_path_without_blocking_other_cpp_files(self):
         with tempfile.TemporaryDirectory() as temporary:
