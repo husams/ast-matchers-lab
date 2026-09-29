@@ -378,6 +378,8 @@ def inspect_record(translation_unit: str, file: str, source_range: dict,
             edge["access"] = raw["access"]
         if raw.get("isVirtual"):
             edge["virtual"] = True
+        if raw.get("ownership") in ("value", "indirect"):
+            edge["ownership"] = raw["ownership"]
         result["edges"].append(edge)
     result["recordId"] = reply.get("recordId") or None
     result["truncated"] = bool(reply.get("truncated", False))

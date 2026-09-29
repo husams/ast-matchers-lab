@@ -13,14 +13,17 @@ button:focus-visible, input:focus-visible, svg:focus-visible, .record-card:focus
 #notice.warning { color: var(--vscode-editorWarning-foreground); }
 #notice.loading, #notice.empty { color: var(--vscode-descriptionForeground); }
 main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 28%); min-height: calc(100vh - 91px); }
-#graph-pane { display: flex; flex-direction: column; min-width: 0; border-right: 1px solid var(--vscode-panel-border); }
-#legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; padding: 9px 16px 2px; color: var(--vscode-descriptionForeground); font-size: 0.9em; }
-#legend .scope { font-weight: 500; }
+#graph-pane { position: relative; display: flex; flex-direction: column; min-width: 0; border-right: 1px solid var(--vscode-panel-border); }
+#legend { position: absolute; z-index: 1; top: 8px; right: 8px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; box-sizing: border-box; width: min(440px, calc(100% - 16px)); max-height: calc(100% - 16px); overflow: auto; padding: 12px; border: 1px solid var(--vscode-panel-border); background: var(--vscode-editorWidget-background, var(--vscode-editor-background)); color: var(--vscode-foreground); font-size: 0.9em; }
+#legend[hidden] { display: none; }
+#legend .scope { width: 100%; color: var(--vscode-descriptionForeground); }
+#legend .scope:first-child { color: var(--vscode-foreground); font-weight: 600; }
 #legend .filter { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
 #legend input { margin: 0; accent-color: var(--vscode-focusBorder); }
 .swatch { display: inline-block; width: 20px; height: 0; border-top: 2px solid var(--vscode-charts-blue, var(--vscode-descriptionForeground)); }
 .swatch.inherits { border-top: 2px solid var(--vscode-charts-orange, var(--vscode-textLink-foreground)); }
 .swatch.fieldType { border-top-style: dashed; }
+.swatch.calls { border-top: 2px dotted var(--vscode-charts-red, var(--vscode-textLink-foreground)); }
 .swatch.instantiates { border-top: 2px dashed var(--vscode-charts-purple, var(--vscode-textLink-foreground)); }
 .swatch.specializes { border-top: 2px dotted var(--vscode-charts-green, var(--vscode-textLink-foreground)); }
 #graph { display: block; width: 100%; height: max(420px, calc(100vh - 164px)); cursor: grab; touch-action: none; }
@@ -43,6 +46,7 @@ main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 28%); 
 .relation-edge .edge-line { fill: none; stroke: var(--vscode-charts-blue, var(--vscode-descriptionForeground)); stroke-width: 2; }
 .relation-edge.inherits .edge-line { stroke: var(--vscode-charts-orange, var(--vscode-textLink-foreground)); stroke-width: 2.5; }
 .relation-edge.fieldType .edge-line { stroke-dasharray: 6 4; }
+.relation-edge.calls .edge-line { stroke: var(--vscode-charts-red, var(--vscode-textLink-foreground)); stroke-dasharray: 3 4; }
 .relation-edge.instantiates .edge-line { stroke: var(--vscode-charts-purple, var(--vscode-textLink-foreground)); stroke-dasharray: 8 3; }
 .relation-edge.specializes .edge-line { stroke: var(--vscode-charts-green, var(--vscode-textLink-foreground)); stroke-dasharray: 2 3; }
 .relation-edge .edge-hit { fill: none; stroke: transparent; stroke-width: 18; pointer-events: stroke; }
@@ -50,6 +54,10 @@ main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 28%); 
 .triangle { fill: var(--vscode-editor-background); stroke: var(--vscode-charts-orange, var(--vscode-textLink-foreground)); stroke-width: 1.8; }
 .instantiation-arrow { fill: var(--vscode-charts-purple, var(--vscode-textLink-foreground)); stroke: var(--vscode-editor-background); stroke-width: 0.5; }
 .specialization-arrow { fill: var(--vscode-charts-green, var(--vscode-textLink-foreground)); stroke: var(--vscode-editor-background); stroke-width: 0.5; }
+.call-arrow { fill: var(--vscode-charts-red, var(--vscode-textLink-foreground)); }
+.aggregation, .composition { stroke: var(--vscode-charts-blue, var(--vscode-descriptionForeground)); stroke-width: 1.5; }
+.aggregation { fill: var(--vscode-editor-background); }
+.composition { fill: var(--vscode-charts-blue, var(--vscode-descriptionForeground)); }
 .edge-label { fill: var(--vscode-foreground); stroke: var(--vscode-editor-background); stroke-width: 5; paint-order: stroke fill; font: 12px var(--vscode-editor-font-family); }
 .record-card { cursor: pointer; }
 .record-card .card-outline { fill: var(--vscode-editorWidget-background, var(--vscode-sideBar-background)); stroke: var(--vscode-panel-border); stroke-width: 1.5; }

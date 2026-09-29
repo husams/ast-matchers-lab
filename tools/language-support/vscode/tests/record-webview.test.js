@@ -100,11 +100,13 @@ function loadRecordView() {
     },
   };
   for (const id of ["graph", "graph-help", "title", "subtitle", "notice", "detail-content",
-    "legend", "zoom-in", "zoom-out", "fit"]) {
+    "legend", "toggle-options", "zoom-in", "zoom-out", "fit"]) {
     const element = new Element(id === "graph" ? "svg" : "div");
     element.id = id;
     named.set(id, element);
   }
+  named.get("legend").hidden = true;
+  named.get("toggle-options").setAttribute("aria-expanded", "false");
   const window = { listeners: new Map(), addEventListener(name, callback) { this.listeners.set(name, callback); } };
   const script = fs.readFileSync(path.join(__dirname, "../media/record.js"), "utf8");
   vm.runInNewContext(script, { document, window,
@@ -140,14 +142,14 @@ function fixture() {
       { id: "peer", kind: "CXXRecordDecl", recordKind: "class", name: "Peer",
         definitionStatus: "defined", file: source, range },
       { id: "field", kind: "FieldDecl", name: "next", type: "Peer *", file: source, range },
-      { id: "method", kind: "CXXMethodDecl", name: "run", signature: "void run()", file: source, range },
+      { id: "method", kind: "CXXMethodDecl", name: "run", signature: "void Root::run()", file: source, range },
     ],
     edges: [
       { from: "root", to: "base", kind: "inherits", access: "public", virtual: true },
       { from: "base", to: "grand", kind: "inherits", access: "protected" },
       { from: "root", to: "field", kind: "field", access: "private" },
       { from: "root", to: "method", kind: "method", access: "protected" },
-      { from: "field", to: "peer", kind: "fieldType" },
+      { from: "field", to: "peer", kind: "fieldType", ownership: "indirect" },
     ],
   };
 }
@@ -164,6 +166,24 @@ function filterInput(view, label) {
 }
 function shownEdges(view) { return view.edges().filter((edge) => !edge.className.includes("filtered-out")); }
 
+test("relationship options toggle without changing graph placement", () => {
+  const view = loadRecordView();
+  view.sendGraph(fixture());
+  const options = view.element("toggle-options");
+  const panel = view.element("legend");
+  const graphView = view.element("graph").attributes.viewBox;
+  assert.equal(panel.hidden, true);
+  options.fire("click");
+  assert.equal(panel.hidden, false);
+  assert.equal(options.attributes["aria-expanded"], "true");
+  assert.ok(filterInput(view, "Bases"));
+  panel.fire("keydown", { key: "Escape" });
+  assert.equal(panel.hidden, true);
+  assert.equal(options.attributes["aria-expanded"], "false");
+  assert.equal(view.document.activeElement, options);
+  assert.equal(view.element("graph").attributes.viewBox, graphView);
+});
+
 test("projects raw AST members into bounded UML record cards with source-backed edges", () => {
   const view = loadRecordView();
   view.sendGraph(fixture());
@@ -175,7 +195,8 @@ test("projects raw AST members into bounded UML record cards with source-backed 
   const rows = Array.from(view.element("graph").querySelectorAll(".member-row"));
   assert.equal(rows.length, 2);
   assert.match(rows.find((row) => row.dataset.memberId === "field").textContent, /− next: Peer \*/);
-  assert.match(rows.find((row) => row.dataset.memberId === "method").textContent, /# void run\(\)/);
+  assert.match(rows.find((row) => row.dataset.memberId === "method").textContent, /# run\(\)/);
+  assert.doesNotMatch(rows.find((row) => row.dataset.memberId === "method").textContent, /Root::/);
   assert.match(view.element("subtitle").textContent, /4 of 4 classes.*Translation unit only/);
   assert.ok(view.element("graph").textContent.includes("Grand"));
   assert.equal(buttonWithText(view.element("detail-content"), "Reveal related classes"), undefined,
@@ -290,7 +311,10 @@ test("edge selection explains its evidence and navigates to the contributing sou
   const detail = view.element("detail-content");
   assert.match(detail.textContent, /Field type association/);
   assert.match(detail.textContent, /next: Peer \*/);
-  assert.match(detail.textContent, /ownership and cardinality are not inferred/);
+  assert.match(detail.textContent, /structural aggregation; ownership is not inferred/);
+  assert.equal(association.find((entry) => entry.className === "edge-line")
+    .attributes["marker-start"], "url(#aggregation)");
+  assert.match(association.textContent, /◇ next/);
   buttonWithText(detail, "Open source").fire("click");
   assert.equal(view.messages.at(-1).id, "field");
   const inheritance = view.edges().find((edge) => edge.className.includes("inherits"));
@@ -299,6 +323,45 @@ test("edge selection explains its evidence and navigates to the contributing sou
   assert.match(detail.textContent, /VirtualYes/);
   buttonWithText(detail, "Open source").fire("click");
   assert.equal(view.messages.at(-1).id, "root");
+});
+
+test("value fields and direct calls show distinct symbols and source evidence", () => {
+  const view = loadRecordView();
+  const graph = fixture();
+  const source = "/project/records.cpp";
+  const range = { start: { line: 2, character: 1 }, end: { line: 2, character: 10 } };
+  graph.nodes.push(
+    { id: "value", kind: "FieldDecl", name: "owned", type: "Peer", file: source, range },
+    { id: "callee", kind: "CXXMethodDecl", name: "ping", signature: "void Peer::ping()",
+      file: source, range });
+  graph.edges.push(
+    { from: "root", to: "value", kind: "field" },
+    { from: "value", to: "peer", kind: "fieldType", ownership: "value" },
+    { from: "peer", to: "callee", kind: "method" },
+    { from: "method", to: "callee", kind: "calls" });
+  view.sendGraph(graph);
+  const composition = view.edges().find((edge) => edge.attributes["aria-label"].includes("Root.owned"));
+  assert.equal(composition.find((entry) => entry.className === "edge-line")
+    .attributes["marker-start"], "url(#composition)");
+  assert.match(composition.textContent, /◆ owned/);
+  composition.fire("click");
+  assert.match(view.element("detail-content").textContent, /filled diamond marks composition/);
+  const call = view.edges().find((edge) => edge.className.includes("calls"));
+  assert.equal(call.attributes["aria-label"],
+    "Root.run calls Peer.ping. Select for source evidence.");
+  assert.equal(call.find((entry) => entry.className === "edge-line")
+    .attributes["marker-end"], "url(#call-arrow)");
+  call.fire("click");
+  assert.match(view.element("detail-content").textContent, /Method call/);
+  assert.match(view.element("detail-content").textContent, /void Root::run\(\)/);
+  buttonWithText(view.element("detail-content"), "Open source").fire("click");
+  assert.equal(view.messages.at(-1).id, "method");
+  view.cards().find((card) => card.dataset.id === "peer").fire("click");
+  const incoming = filterInput(view, "Known callers");
+  incoming.checked = false;
+  incoming.fire("change");
+  assert.ok(view.edges().find((edge) => edge.className.includes("calls"))
+    .className.includes("filtered-out"));
 });
 
 test("explicit reveal requests expansion once and retains discoveries after the host merges data", () => {

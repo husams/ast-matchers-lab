@@ -329,7 +329,7 @@ class RecordExplorer {
       ? vscode.Uri.parse(node.uri).fsPath : "");
     if (!file || !path.isAbsolute(file)) return;
     const editor = await vscode.window.showTextDocument(vscode.Uri.file(file), {
-      viewColumn: vscode.ViewColumn.Beside, preserveFocus: true, preview: false,
+      viewColumn: vscode.ViewColumn.Active, preserveFocus: false, preview: false,
     });
     if (node.range) {
       const { start, end } = node.range;
@@ -350,14 +350,16 @@ class RecordExplorer {
 <body>
 <header><div><h1>Class relationship diagram: <span id="title">Record Explorer</span></h1><p id="subtitle">Inspecting record relationships…</p></div>
 <div class="controls" role="group" aria-label="Graph controls">
+<button id="toggle-options" type="button" aria-label="Relationship options" aria-controls="legend" aria-expanded="false" title="Relationship options">⚙</button>
 <button id="zoom-out" type="button" aria-label="Zoom out" title="Zoom out">−</button>
 <button id="zoom-in" type="button" aria-label="Zoom in" title="Zoom in">+</button>
 <button id="fit" type="button" title="Fit graph to view">Fit</button></div></header>
 <div id="notice" role="status"></div>
 <main><section id="graph-pane" aria-label="Record class diagram">
-<div id="legend" aria-label="Relationship legend">
+<div id="legend" aria-label="Relationship options" hidden>
 <span><i class="swatch inherits" aria-hidden="true"></i> Generalization: derived to base</span>
-<span><i class="swatch fieldType" aria-hidden="true"></i> Field association</span>
+<span><i class="swatch fieldType" aria-hidden="true"></i> Field relation: filled diamond for value, hollow for pointer/reference</span>
+<span><i class="swatch calls" aria-hidden="true"></i> Direct method call</span>
 <span class="scope">This translation unit only</span>
 </div>
 <svg id="graph" role="group" aria-label="Record class diagram relationships" tabindex="0"></svg>

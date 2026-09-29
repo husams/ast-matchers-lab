@@ -155,7 +155,11 @@ The opaque `runQuery` node ID is never used for this lookup.
 
 Graph IDs are local to one reply. `inherits` points from derived to base;
 `field` and `method` point from a record to its members; `fieldType` points
-from a field to its record type. `instantiates` points from an instantiated
+from a field to its record type. Its `ownership` is `value` for direct value
+members (composition) and `indirect` for pointer or reference members
+(structural aggregation; ownership is not inferred). `calls` points from a
+caller method to a directly called method; the member edges identify their
+owning records. `instantiates` points from an instantiated
 class to the primary or partial template pattern used to form it; `specializes`
 points from an explicit or partial specialization to its primary template.
 Template edges connect records in the selected translation unit, including
@@ -163,8 +167,9 @@ the pattern's own source location when available. Inheritance and member edges
 include declared `access` when Clang supplies it. Nodes include optional `type`, `signature`,
 `recordIdentity`, and source location fields. Record nodes report
 `definitionStatus: "defined"|"unresolved"`; unresolved nodes can represent
-forward-declared field types. The graph includes transitive bases and members
-of those bases. It stops at 256 nodes, 512 edges, or 32 inheritance levels
+forward-declared field types. The graph includes transitive bases and explicit
+fields and methods of every displayed record with an available definition.
+It stops at 256 nodes, 512 edges, or 32 inheritance levels
 and sets `truncated` when a limit is reached. A missing or ambiguous record
 returns `ok: false` with a diagnostic.
 
