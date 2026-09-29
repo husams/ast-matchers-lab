@@ -14,7 +14,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 
 from astmatcher_lsp.native_client import NativeClientError, native_binary_path  # noqa: E402
-from astmatcher_lsp.run import run_query  # noqa: E402
+from astmatcher_lsp.run import inspect_record, run_query  # noqa: E402
 from astmatcher_lsp.server import DEFERRED, Server, TextDocument  # noqa: E402
 from astmatcher_lsp.targets import discover_target  # noqa: E402
 
@@ -170,6 +170,48 @@ class TestBackendTargets(unittest.TestCase):
             self.assertEqual([q["count"] for q in result["queries"]], [1, 1])
             self.assertEqual(result["bindings"]["record"][0]["file"], str(deep.resolve()))
             self.assertEqual(result["bindings"]["record"][0]["translationUnit"], str(source))
+
+    def test_transitive_header_record_binding_inspects_all_ancestors_and_members(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            deep = root / "deep.hpp"
+            deep.write_text("\n".join(
+                f"class {name} : public {parent} {{ public: int {name.lower()}Field; "
+                f"void {name.lower()}Method(); }};"
+                if parent else
+                f"class {name} {{ public: int {name.lower()}Field; "
+                f"void {name.lower()}Method(); }};"
+                for name, parent in (("Root", None), ("First", "Root"),
+                                     ("Second", "First"), ("Third", "Second"),
+                                     ("Target", "Third"))) + "\n")
+            (root / "middle.hpp").write_text('#include "deep.hpp"\n')
+            source = root / "main.cpp"
+            source.write_text('#include "middle.hpp"\n')
+            query = ('match cxxRecordDecl(hasName("Target"), isDefinition(), '
+                     'unless(isImplicit())).bind("record")')
+
+            result = run_query(query, str(source), ["-std=c++23"])
+            self.assertTrue(result["ok"], result["errors"])
+            self.assertEqual(result["queries"][0]["count"], 1)
+            binding = result["bindings"]["record"][0]
+            self.assertEqual(binding["file"], str(deep.resolve()))
+            self.assertEqual(binding["translationUnit"], str(source))
+
+            graph = inspect_record(binding["translationUnit"], binding["file"],
+                                   binding["range"], flags=["-std=c++23"],
+                                   record_identity=binding["recordIdentity"])
+            self.assertTrue(graph["ok"], graph)
+            self.assertFalse(graph["truncated"], graph)
+            nodes = {node["id"]: node for node in graph["nodes"]}
+            self.assertEqual(nodes[graph["recordId"]]["name"], "Target")
+            relations = {(nodes[edge["from"]]["name"], nodes[edge["to"]]["name"],
+                          edge["kind"]) for edge in graph["edges"]}
+            for child, parent in (("Target", "Third"), ("Third", "Second"),
+                                  ("Second", "First"), ("First", "Root")):
+                self.assertIn((child, parent, "inherits"), relations)
+            for name in ("Target", "Third", "Second", "First", "Root"):
+                self.assertIn((name, f"{name.lower()}Field", "field"), relations)
+                self.assertIn((name, f"{name.lower()}Method", "method"), relations)
 
     def test_file_target_preserves_header_bindings_for_main_file_matches(self):
         with tempfile.TemporaryDirectory() as temporary:

@@ -35,6 +35,10 @@ let activeRunId;
 let activeRunCancelRequested = false;
 let activeRunRequestSent = false;
 let activeRunCancellationObserved = false;
+let resultDocumentVersions = new Map();
+const changedResultFiles = new Set();
+let resultFileStats = new Map();
+let resultStatsCaptured = false;
 
 function setCancellationContext(enabled) {
   vscode.commands.executeCommand("setContext", "astmatcher.queryCancellable", enabled);
@@ -74,6 +78,15 @@ const RELATIVE_SERVER = path.join(
 
 function config() {
   return vscode.workspace.getConfiguration("astmatcher");
+}
+
+function fileStamp(file) {
+  try {
+    const stat = fs.statSync(file);
+    return `${stat.ino}:${stat.size}:${stat.mtimeMs}:${stat.ctimeMs}`;
+  } catch {
+    return undefined;
+  }
 }
 
 function renderRunDiagnostics(result) {
@@ -464,6 +477,10 @@ async function runQuery(arg) {
   }
   const runningLabel = target.scope === "workspace"
     ? "all workspace folders" : path.basename(target.path);
+  changedResultFiles.clear();
+  resultDocumentVersions = new Map();
+  resultFileStats = new Map();
+  resultStatsCaptured = true;
   const serial = ++runSerial;
   activeRunId = undefined;
   activeRunCancelRequested = false;
@@ -520,6 +537,12 @@ async function runQuery(arg) {
       totalFiles: result.totalFiles ?? store.running?.totalFiles };
   }
   store.set(result);
+  resultDocumentVersions = new Map((vscode.workspace.textDocuments || [])
+    .filter((doc) => doc.uri?.fsPath && Number.isInteger(doc.version))
+    .map((doc) => [doc.uri.fsPath, doc.version]));
+  const recordFiles = new Set(Object.values(result.bindings || {}).flat()
+    .filter(isRecordBinding).map((binding) => binding.file).filter(Boolean));
+  resultFileStats = new Map([...recordFiles].map((file) => [file, fileStamp(file)]));
   renderRunDiagnostics(result);
   queryDiagnostics.set(document.uri, result.errors.filter((e) => e.range).map((e) => {
     const r = e.range;
@@ -533,6 +556,75 @@ async function runQuery(arg) {
   if (!result.ok && result.errors.length) return;
   vscode.window.setStatusBarMessage(
     `$(search) ${total} match${total === 1 ? "" : "es"} in ${path.basename(result.sample)}`, 5000);
+}
+
+function samePosition(a, b) {
+  return a?.line === b?.line && a?.character === b?.character;
+}
+
+function unqualifiedRecordName(qualified) {
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < qualified.length - 1; i++) {
+    if (qualified[i] === "<") depth++;
+    else if (qualified[i] === ">") depth = Math.max(0, depth - 1);
+    else if (depth === 0 && qualified.slice(i, i + 2) === "::") {
+      start = i + 2;
+      i++;
+    }
+  }
+  return qualified.slice(start).split("<")[0];
+}
+
+function cursorOnRecordName(editor, binding) {
+  const selection = editor.selection;
+  const range = binding.range;
+  if (!samePosition(selection.start, selection.end) ||
+      selection.start.line !== range.start.line) return false;
+  const name = unqualifiedRecordName(binding.qualifiedName || binding.recordIdentity || "");
+  if (!/^[_A-Za-z][_A-Za-z0-9]*$/.test(name) ||
+      typeof editor.document.lineAt !== "function") return false;
+  const line = editor.document.lineAt(range.start.line).text;
+  const start = range.start.character;
+  const brace = line.indexOf("{", start);
+  const semicolon = line.indexOf(";", start);
+  const end = Math.min(...[brace, semicolon, line.length].filter((n) => n >= 0));
+  const head = line.slice(start, end);
+  const pattern = new RegExp(`(^|[^_A-Za-z0-9])(${name})(?=$|[^_A-Za-z0-9])`);
+  const match = pattern.exec(head);
+  if (!match) return false;
+  const nameStart = start + match.index + match[1].length;
+  return selection.start.character >= nameStart &&
+    selection.start.character <= nameStart + name.length;
+}
+
+function editorRecordContext(editor) {
+  const result = store.result;
+  const file = editor.document.uri.fsPath;
+  const selection = editor.selection;
+  if (!result?.bindings || !selection || editor.document.isDirty ||
+      changedResultFiles.has(file) ||
+      (resultStatsCaptured &&
+       (!resultFileStats.has(file) || !resultFileStats.get(file) ||
+        resultFileStats.get(file) !== fileStamp(file))) ||
+      (resultDocumentVersions.has(file) &&
+       resultDocumentVersions.get(file) !== editor.document.version)) return undefined;
+  const onRecord = (binding) => {
+    if (!isRecordBinding(binding) || binding.file !== file || !binding.range) return false;
+    const range = binding.range;
+    return (samePosition(selection.start, range.start) &&
+      samePosition(selection.end, range.end)) || cursorOnRecordName(editor, binding);
+  };
+  const selected = store.selected;
+  const selectedBinding = selected?.generation === store.generation &&
+    Number.isInteger(selected.q) && Number.isInteger(selected.m) &&
+    Number.isInteger(selected.b) ? store.binding(selected) : undefined;
+  if (onRecord(selectedBinding)) return selectedBinding;
+
+  const matches = Object.values(result.bindings).flat().filter(onRecord);
+  const unique = new Map(matches.map((binding) =>
+    [`${binding.translationUnit || ""}\0${binding.recordIdentity || ""}`, binding]));
+  return unique.size === 1 ? [...unique.values()][0] : undefined;
 }
 
 async function exploreRecord(input) {
@@ -572,13 +664,20 @@ async function exploreRecord(input) {
       return;
     }
     const selection = editor.selection;
-    target = { file, translationUnit: file,
-      range: { start: { line: selection.start.line, character: selection.start.character },
-               end: { line: selection.end.line, character: selection.end.character } } };
-    const query = queryDocument();
-    const sample = query && samples.resolve(query);
-    flags = sample?.absolute === file ? sample.flags : samples.defaultFlags(file);
-    cwd = vscode.workspace.getWorkspaceFolder(editor.document.uri)?.uri.fsPath || path.dirname(file);
+    const resultBinding = editorRecordContext(editor);
+    if (resultBinding?.translationUnit) {
+      target = resultBinding;
+      flags = store.result.flags || config().get("flags") || [];
+      cwd = store.result.cwd || path.dirname(resultBinding.translationUnit);
+    } else {
+      target = { file, translationUnit: file,
+        range: { start: { line: selection.start.line, character: selection.start.character },
+                 end: { line: selection.end.line, character: selection.end.character } } };
+      const query = queryDocument();
+      const sample = query && samples.resolve(query);
+      flags = sample?.absolute === file ? sample.flags : samples.defaultFlags(file);
+      cwd = vscode.workspace.getWorkspaceFolder(editor.document.uri)?.uri.fsPath || path.dirname(file);
+    }
   }
   const nativeServerPath = config().get("nativeServerPath");
   const options = { cwd, flags, compileCommands: config().get("compileCommands") || "",
@@ -777,6 +876,10 @@ function quote(value) {
 }
 
 async function activate(context) {
+  changedResultFiles.clear();
+  resultDocumentVersions = new Map();
+  resultFileStats = new Map();
+  resultStatsCaptured = false;
   contextStoragePath = context.globalStorageUri && context.globalStorageUri.fsPath;
   samples = new Samples(context);
   targets = new RunTarget();
@@ -816,6 +919,9 @@ async function activate(context) {
     vscode.window.onDidChangeActiveTextEditor(track),
     vscode.workspace.onDidChangeTextDocument((e) => {
       if (e.document === lastQueryDoc) queryDiagnostics.delete(e.document.uri);
+      const file = e.document.uri?.fsPath;
+      if (file && SOURCE_EXTS.has(path.extname(file).toLowerCase()) &&
+          (store.result || activeRunId)) changedResultFiles.add(file);
     }),
     samples.onDidChange(updateStatus),
     vscode.workspace.onDidChangeConfiguration((e) => {

@@ -389,6 +389,69 @@ test("a truncated 256-node graph loads fields and methods for both direct parent
   });
 });
 
+test("truncated transitive-header inspections complete every ancestor's members", async () => {
+  const header = "/project/include/deep.hpp";
+  const names = ["Child", "Base2", "Base1", "Base0"];
+  const classLine = Object.fromEntries(names.map((name, i) => [name, i * 1000 + 1]));
+  const member = (id, name, kind, index) => {
+    const isField = kind === "FieldDecl";
+    const symbol = `${isField ? "field" : "method"}${index}`;
+    return { id, kind, name: symbol, qualifiedName: `app::${name}::${symbol}`,
+      ...(isField ? { type: "int" } : { signature: `void app::${name}::${symbol}()` }),
+      file: header, range: sourceRange(classLine[name] + (isField ? 1 : 201) + index) };
+  };
+  const inspection = (focusIndex) => {
+    const nodes = [];
+    const edges = [];
+    const records = names.slice(focusIndex).map((name, i) => {
+      const id = `reply${focusIndex}-record${i}`;
+      nodes.push(record(id, name, classLine[name], { file: header }));
+      return { id, name };
+    });
+    for (let i = 0; i + 1 < records.length; i++) {
+      edges.push({ from: records[i].id, to: records[i + 1].id, kind: "inherits" });
+    }
+    records.forEach(({ id, name }, depth) => {
+      const count = depth === 0 ? 100 : depth === 1 ? 24 : 1;
+      for (let i = 0; i < count; i++) {
+        for (const [kind, relation, suffix] of [
+          ["FieldDecl", "field", "f"], ["CXXMethodDecl", "method", "m"],
+        ]) {
+          const node = member(`reply${focusIndex}-${name}-${suffix}${i}`, name, kind, i);
+          nodes.push(node);
+          edges.push({ from: id, to: node.id, kind: relation });
+        }
+      }
+    });
+    return { ok: true, recordId: records[0].id, nodes, edges, diagnostics: [],
+      truncated: focusIndex !== names.length - 1 };
+  };
+  const replies = names.map((_, i) => inspection(i));
+  assert.equal(replies[0].nodes.length, 256, "the first inspection hits the native node cap");
+  await withRecordExplorer(async () => replies.shift(), async (explorer, host) => {
+    const target = { ...sourceTarget, file: header, range: sourceRange(classLine.Child),
+      recordIdentity: "app::Child" };
+    const run = explorer.open(target, { flags: ["-std=c++23"] });
+    host.receive({ type: "ready" });
+    await run;
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(host.requests.map((request) => request.params.recordIdentity),
+      names.map((name) => `app::${name}`));
+    assert.ok(host.requests.every((request) =>
+      request.params.translationUnit === "/project/main.cpp" && request.params.file === header));
+    const graph = host.sent.at(-1).graph;
+    assert.equal(graph.nodes.length, 804, "all 800 members are retained beside four records");
+    for (const name of names) {
+      const id = graph.nodes.find((node) => node.recordIdentity === `app::${name}`).id;
+      assert.equal(graph.edges.filter((edge) => edge.from === id && edge.kind === "field").length,
+        100, `${name} fields are complete`);
+      assert.equal(graph.edges.filter((edge) => edge.from === id && edge.kind === "method").length,
+        100, `${name} methods are complete`);
+      assert.ok(graph.expandedRecordIds.includes(id), `${name} was inspected`);
+    }
+  });
+});
+
 test("automatic parent inspection is bounded while later parents remain manually inspectable", async () => {
   const bases = Array.from({ length: 10 }, (_, i) => record(`base${i}`, `Base${i}`, i + 4));
   const initial = { ok: true, recordId: "root", nodes: [record("root", "Root", 1), ...bases],

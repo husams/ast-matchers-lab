@@ -668,26 +668,44 @@ private:
     }
 
     std::vector<size_t> next_member(records.size(), 0);
+    const auto add_next_member = [&](size_t index) {
+      if (reply_.nodes_size() >= static_cast<int>(kMaximumGraphNodes) ||
+          reply_.edges_size() >= static_cast<int>(kMaximumGraphEdges)) {
+        reply_.set_truncated(true);
+        return false;
+      }
+      const auto &member = members[index][next_member[index]++];
+      const std::string member_id = add_node(member.decl);
+      add_edge(ids_.at(records[index]), member_id, member.kind,
+               access_name(member.decl->getAccess()));
+      if (const auto *field = llvm::dyn_cast<clang::FieldDecl>(member.decl)) {
+        if (const auto *target = field_record_type(field->getType())) {
+          field_types_.emplace_back(member_id, target);
+        }
+      }
+      return true;
+    };
+
+    // Keep the first field and method visible on each related record, then
+    // spend the remaining node budget on the requested record's own members.
+    // Follow-up inspections can focus each ancestor to retrieve its members.
+    for (size_t index = 0; index < records.size(); ++index) {
+      for (size_t first = 0; first < 2 && next_member[index] < members[index].size();
+           ++first) {
+        if (!add_next_member(index)) return;
+      }
+    }
+    while (next_member[0] < members[0].size()) {
+      if (!add_next_member(0)) return;
+    }
+
     bool remaining = true;
     while (remaining) {
       remaining = false;
-      for (size_t index = 0; index < records.size(); ++index) {
+      for (size_t index = 1; index < records.size(); ++index) {
         if (next_member[index] == members[index].size()) continue;
         remaining = true;
-        if (reply_.nodes_size() >= static_cast<int>(kMaximumGraphNodes) ||
-            reply_.edges_size() >= static_cast<int>(kMaximumGraphEdges)) {
-          reply_.set_truncated(true);
-          return;
-        }
-        const auto &member = members[index][next_member[index]++];
-        const std::string member_id = add_node(member.decl);
-        add_edge(ids_.at(records[index]), member_id, member.kind,
-                 access_name(member.decl->getAccess()));
-        if (const auto *field = llvm::dyn_cast<clang::FieldDecl>(member.decl)) {
-          if (const auto *target = field_record_type(field->getType())) {
-            field_types_.emplace_back(member_id, target);
-          }
-        }
+        if (!add_next_member(index)) return;
       }
     }
   }
