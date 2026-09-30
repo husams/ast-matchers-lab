@@ -162,7 +162,7 @@ class MatcherClient:
         if not math.isfinite(timeout) or not 0 < timeout <= 3600:
             raise ValueError("timeout must be between 0 and 3600 seconds")
         await self.start()
-        request = query.request()
+        request = await asyncio.to_thread(query.request)
         process = await asyncio.create_subprocess_exec(
             self._find_binary(), "query", "--socket", self._socket,
             "--timeout-ms", str(max(1, math.ceil(timeout * 1000))),
