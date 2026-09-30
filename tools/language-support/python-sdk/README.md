@@ -4,14 +4,14 @@ An async, declarative Python 3.14+ client for the native AST matcher service.
 The client starts a private local server, chooses its Unix socket, and closes
 both when the context exits. Python dependencies are not required.
 
-For each source file, the SDK automatically finds the nearest
-`compile_commands.json` beside or above that file, including conventional
-`build/`, `out/`, `cmake-build-debug/`, and `cmake-build-release/`
-directories. It uses the source's database flags and working directory;
-a header borrows the closest related
-translation unit. Without a database, `MatcherQuery.flags` is used. Set
-`compile_commands` to a file or build directory for a nonstandard location,
-or to `None` to disable discovery.
+By default, the SDK looks for `compile_commands.json` in the process's
+current directory and its `build/`, `out/`, `cmake-build-debug/`, and
+`cmake-build-release/` directories. Set `MatcherQuery.workspace` to look
+there instead; a relative `source` is then resolved from that workspace.
+The source's database entry supplies flags and working directory, while a
+header borrows the closest related translation unit. Without a database,
+`MatcherQuery.flags` is used. Set `compile_commands` to a file or build
+directory for a nonstandard location, or to `None` to disable discovery.
 
 Install the native `astmatcher-native` executable from
 [`../native`](../native/README.md) on `PATH`, or set `ASTMATCHER_NATIVE`

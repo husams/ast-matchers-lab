@@ -1,7 +1,7 @@
 """Find source-specific Clang flags in a compilation database.
 
-The search order and related-header selection follow the lab's LSP target
-resolver; this module lives in the wheel so applications need no LSP install.
+Entry selection and related-header flags follow the lab's LSP target resolver;
+this module lives in the wheel so applications need no LSP install.
 """
 
 import json
@@ -19,13 +19,12 @@ _OUTPUT_OPTIONS = {"-o", "-MF", "-MT", "-MQ"}
 _BUILD_ONLY_OPTIONS = {"-c", "-MMD", "-MD", "-MP"}
 
 
-def find_compile_database(source: Path) -> Path | None:
-    """Find the nearest database beside or above the source, including build dirs."""
-    for directory in (source.parent, *source.parent.parents):
-        for build in DATABASE_DIRECTORIES:
-            candidate = directory / build / "compile_commands.json"
-            if candidate.is_file():
-                return candidate
+def find_compile_database(root: Path) -> Path | None:
+    """Find a database in the current directory or selected workspace."""
+    for build in DATABASE_DIRECTORIES:
+        candidate = root / build / "compile_commands.json"
+        if candidate.is_file():
+            return candidate
     return None
 
 
@@ -93,17 +92,18 @@ def compile_flags(
     source: Path,
     explicit: tuple[str, ...],
     working_directory: Path,
+    search_root: Path,
 ) -> tuple[list[str], Path]:
     """Resolve the database entry and preserve its directory for relative flags."""
     if database is None:
         return list(explicit), working_directory
     if database == "auto":
-        path = find_compile_database(source)
+        path = find_compile_database(search_root)
         if path is None:
             return list(explicit), working_directory
     else:
         raw = Path(database)
-        path = (raw if raw.is_absolute() else working_directory / raw).resolve()
+        path = (raw if raw.is_absolute() else search_root / raw).resolve()
         if path.is_dir():
             path /= "compile_commands.json"
     try:

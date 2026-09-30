@@ -2,6 +2,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from astmatcher_sdk import Definition, MatcherClient, MatcherError, MatcherQuery
 
@@ -11,7 +12,7 @@ SAMPLE = ROOT / "manifests" / "intro.cpp"
 
 
 class QueryTests(unittest.TestCase):
-    def test_discovers_nearest_build_database(self) -> None:
+    def test_workspace_build_database(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             source = root / "src" / "unit.cpp"
@@ -25,12 +26,38 @@ class QueryTests(unittest.TestCase):
                 "arguments": ["clang++", "-DFEATURE", "-std=c++23", "-c",
                               str(source), "-o", "unit.o"],
             }]))
-            request = MatcherQuery(
-                source=source, matches=("functionDecl()",),
-                flags=("-Wall", "-std=c++20"),
-            ).request()
+            other = root / "other"
+            other.mkdir()
+            (other / "compile_commands.json").write_text(json.dumps([{
+                "directory": str(other), "file": str(source),
+                "arguments": ["clang++", "-DWRONG", "-c", str(source)],
+            }]))
+            with patch.object(Path, "cwd", return_value=other):
+                request = MatcherQuery(
+                    source="src/unit.cpp", matches=("functionDecl()",),
+                    flags=("-Wall", "-std=c++20"),
+                    workspace=root,
+                ).request()
+            self.assertEqual(request["sourcePath"], str(source.resolve()))
             self.assertEqual(request["workingDirectory"], str(build.resolve()))
             self.assertEqual(request["flags"], ["-DFEATURE", "-std=c++23", "-Wall"])
+
+    def test_current_directory_is_default_search_root(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "workspace"
+            root.mkdir()
+            source = Path(temporary) / "other" / "unit.cpp"
+            source.parent.mkdir()
+            (root / "compile_commands.json").write_text(json.dumps([{
+                "directory": str(root), "file": str(source),
+                "arguments": ["clang++", "-DCURRENT_DIRECTORY", "-c", str(source)],
+            }]))
+            with patch.object(Path, "cwd", return_value=root):
+                request = MatcherQuery(
+                    source=source, matches=("functionDecl()",),
+                ).request()
+            self.assertEqual(request["sourcePath"], str(source.resolve()))
+            self.assertEqual(request["flags"], ["-DCURRENT_DIRECTORY"])
 
     def test_header_uses_related_translation_unit(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -50,11 +77,11 @@ class QueryTests(unittest.TestCase):
 
     def test_no_database_keeps_explicit_flags(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            request = MatcherQuery(
-                source=Path(temporary) / "unit.cpp",
-                matches=("functionDecl()",),
-                flags=("-std=c++23",),
-            ).request()
+            with patch.object(Path, "cwd", return_value=Path(temporary)):
+                request = MatcherQuery(
+                    source="unit.cpp", matches=("functionDecl()",),
+                    flags=("-std=c++23",),
+                ).request()
             self.assertEqual(request["flags"], ["-std=c++23"])
 
     def test_declarative_request_orders_definitions_before_matches(self) -> None:
@@ -70,7 +97,7 @@ class QueryTests(unittest.TestCase):
              "expression": 'functionDecl(hasName("add"))'},
             {"kind": "MATCH", "expression": "named"},
         ])
-        self.assertEqual(request["workingDirectory"], str(SAMPLE.parent))
+        self.assertEqual(request["workingDirectory"], str(Path.cwd().resolve()))
 
     def test_rejects_empty_matcher_and_invalid_limit(self) -> None:
         with self.assertRaisesRegex(ValueError, "at least one"):
@@ -98,6 +125,7 @@ class NativeIntegrationTests(unittest.IsolatedAsyncioTestCase):
             async with MatcherClient() as client:
                 result = await client.run(MatcherQuery(
                     source=source, matches=('functionDecl(hasName("enabled"))',),
+                    workspace=root,
                 ))
             self.assertEqual(result.queries[0].count, 1)
 

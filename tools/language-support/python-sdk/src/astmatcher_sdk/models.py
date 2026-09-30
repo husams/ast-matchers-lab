@@ -29,6 +29,7 @@ class MatcherQuery:
     max_matches: int = 1000
     working_directory: str | Path | None = None
     compile_commands: str | Path | None = "auto"
+    workspace: str | Path | None = None
 
     def __post_init__(self) -> None:
         if isinstance(self.matches, str):
@@ -46,10 +47,19 @@ class MatcherQuery:
             raise ValueError("max_matches must be between 0 and 10000")
 
     def request(self) -> dict[str, object]:
-        source = Path(self.source).expanduser().resolve()
-        cwd = (Path(self.working_directory).expanduser().resolve()
-               if self.working_directory else source.parent)
-        flags, cwd = compile_flags(self.compile_commands, source, self.flags, cwd)
+        root = (Path(self.workspace).expanduser().resolve()
+                if self.workspace is not None else Path.cwd().resolve())
+        if not root.is_dir():
+            raise ValueError(f"workspace is not a directory: {root}")
+        raw_source = Path(self.source).expanduser()
+        source = (raw_source if raw_source.is_absolute()
+                  else root / raw_source).resolve()
+        raw_cwd = (Path(self.working_directory).expanduser()
+                   if self.working_directory else root)
+        cwd = (raw_cwd if raw_cwd.is_absolute() else root / raw_cwd).resolve()
+        flags, cwd = compile_flags(
+            self.compile_commands, source, self.flags, cwd, root
+        )
         return {
             "sourcePath": str(source),
             "workingDirectory": str(cwd),
