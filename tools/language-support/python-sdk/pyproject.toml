@@ -1,0 +1,18 @@
+[project]
+name = "astmatcher-sdk"
+version = "0.1.0"
+description = "Async declarative Python client for the native AST matcher"
+readme = "README.md"
+requires-python = ">=3.14"
+authors = [{name = "AST Matchers Lab"}]
+dependencies = []
+
+[build-system]
+requires = ["setuptools>=80"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.uv]
+package = true

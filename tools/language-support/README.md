@@ -10,6 +10,7 @@ the generated matcher catalog, and native C++ executes queries:
 | [`astmatcher-lsp/`](astmatcher-lsp/) | editor-agnostic LSP server + batch checker | Python 3.10+, nothing else |
 | [`vim/`](vim/) | syntax file, ftdetect/ftplugin, dictionary completion | Vim 8 or Neovim |
 | [`native/`](native/) | Clang matcher engine and gRPC server on a Unix socket | CMake, Clang/LLVM development files, Protobuf, gRPC |
+| [`python-sdk/`](python-sdk/) | pip-installable async Python API for native matcher queries and server status | Python 3.14+, `uv`, native executable |
 
 Everything is generated from `scripts/catalog.json` (all 726 AST Matcher
 Reference rows) plus the real clang class hierarchies read out of the Homebrew
@@ -48,6 +49,10 @@ existing results panel. Set `astmatcher.nativeServerPath` or
 `ASTMATCHER_NATIVE` when the native binary is outside the in-tree build,
 installed sibling directory, or `PATH`. A missing native binary is an error;
 query execution never silently switches to `clang-query`.
+
+For scripts and applications, [the Python SDK](python-sdk/) accepts immutable
+query specifications, starts and connects to the native service automatically,
+and reports its live status through an async API.
 
 On RHEL/Rocky/Alma 9, run the installer from the repository with no options:
 
@@ -149,6 +154,7 @@ tools/language-support/
 │   └── enums.json         cast kinds, attributes, operators, settings
 ├── astmatcher-lsp/        the language server (stdlib-only Python)
 ├── native/                C++ Clang matcher engine and Unix socket gRPC server
+├── python-sdk/            uv project and pip-installable async Python client
 ├── vscode/                extension: grammar, snippets, LSP client, run command
 └── vim/                   syntax, ftdetect, ftplugin, autoload, dictionary
 ```
