@@ -1,0 +1,22 @@
+set traversal IgnoreUnlessSpelledInSource
+set output diag
+
+# cond: is<Name>Void()
+let isVoidCall cxxMemberCallExpr(
+    argumentCountIs(0),
+    callee(cxxMethodDecl(matchesName("::is[A-Za-z0-9_]*Void$"))))
+
+# true branch: std::string()
+let emptyString cxxTemporaryObjectExpr(
+    argumentCountIs(0),
+    hasType(cxxRecordDecl(hasName("::std::string"))))
+
+# false branch: get<Name>AsString()
+let asStringCall cxxMemberCallExpr(
+    argumentCountIs(0),
+    callee(cxxMethodDecl(matchesName("::get[A-Za-z0-9_]*AsString$"))))
+
+match conditionalOperator(
+    hasCondition(isVoidCall),
+    hasTrueExpression(emptyString),
+    hasFalseExpression(asStringCall))
