@@ -1,3 +1,5 @@
+import json
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -9,6 +11,52 @@ SAMPLE = ROOT / "manifests" / "intro.cpp"
 
 
 class QueryTests(unittest.TestCase):
+    def test_discovers_nearest_build_database(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "src" / "unit.cpp"
+            source.parent.mkdir()
+            source.write_text("int enabled() { return 1; }")
+            build = root / "build"
+            build.mkdir()
+            (build / "compile_commands.json").write_text(json.dumps([{
+                "directory": str(build),
+                "file": str(source),
+                "arguments": ["clang++", "-DFEATURE", "-std=c++23", "-c",
+                              str(source), "-o", "unit.o"],
+            }]))
+            request = MatcherQuery(
+                source=source, matches=("functionDecl()",),
+                flags=("-Wall", "-std=c++20"),
+            ).request()
+            self.assertEqual(request["workingDirectory"], str(build.resolve()))
+            self.assertEqual(request["flags"], ["-DFEATURE", "-std=c++23", "-Wall"])
+
+    def test_header_uses_related_translation_unit(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "widget.cpp"
+            header = root / "widget.hpp"
+            database = root / "compile_commands.json"
+            database.write_text(json.dumps([{
+                "directory": str(root), "file": str(source),
+                "command": f"clang++ -DHEADER_FLAG -c {source} -o widget.o",
+            }]))
+            request = MatcherQuery(
+                source=header, matches=("recordDecl()",),
+                compile_commands=database,
+            ).request()
+            self.assertEqual(request["flags"], ["-DHEADER_FLAG"])
+
+    def test_no_database_keeps_explicit_flags(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            request = MatcherQuery(
+                source=Path(temporary) / "unit.cpp",
+                matches=("functionDecl()",),
+                flags=("-std=c++23",),
+            ).request()
+            self.assertEqual(request["flags"], ["-std=c++23"])
+
     def test_declarative_request_orders_definitions_before_matches(self) -> None:
         query = MatcherQuery(
             source=SAMPLE,
@@ -33,6 +81,26 @@ class QueryTests(unittest.TestCase):
 
 
 class NativeIntegrationTests(unittest.IsolatedAsyncioTestCase):
+    async def test_native_query_uses_discovered_database_flags(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "unit.cpp"
+            source.write_text(
+                "#ifdef FEATURE\nint enabled() { return 1; }\n#endif\n"
+            )
+            build = root / "build"
+            build.mkdir()
+            (build / "compile_commands.json").write_text(json.dumps([{
+                "directory": str(root), "file": str(source),
+                "arguments": ["clang++", "-DFEATURE", "-std=c++23",
+                              "-c", str(source)],
+            }]))
+            async with MatcherClient() as client:
+                result = await client.run(MatcherQuery(
+                    source=source, matches=('functionDecl(hasName("enabled"))',),
+                ))
+            self.assertEqual(result.queries[0].count, 1)
+
     async def test_unavailable_binary_reports_status(self) -> None:
         client = MatcherClient(binary="/missing/astmatcher-native")
         status = await client.status()

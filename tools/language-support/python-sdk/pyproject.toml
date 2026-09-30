@@ -1,6 +1,6 @@
 [project]
 name = "astmatcher-sdk"
-version = "0.1.0"
+version = "0.1.1"
 description = "Async declarative Python client for the native AST matcher"
 readme = "README.md"
 requires-python = ">=3.14"

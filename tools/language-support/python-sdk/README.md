@@ -4,6 +4,15 @@ An async, declarative Python 3.14+ client for the native AST matcher service.
 The client starts a private local server, chooses its Unix socket, and closes
 both when the context exits. Python dependencies are not required.
 
+For each source file, the SDK automatically finds the nearest
+`compile_commands.json` beside or above that file, including conventional
+`build/`, `out/`, `cmake-build-debug/`, and `cmake-build-release/`
+directories. It uses the source's database flags and working directory;
+a header borrows the closest related
+translation unit. Without a database, `MatcherQuery.flags` is used. Set
+`compile_commands` to a file or build directory for a nonstandard location,
+or to `None` to disable discovery.
+
 Install the native `astmatcher-native` executable from
 [`../native`](../native/README.md) on `PATH`, or set `ASTMATCHER_NATIVE`
 to its path. The native service is a C++ program and is not bundled into the
@@ -13,7 +22,7 @@ Python wheel.
 cd tools/language-support/python-sdk
 uv sync
 uv build
-uv pip install --python /path/to/venv/bin/python dist/astmatcher_sdk-0.1.0-py3-none-any.whl
+uv pip install --python /path/to/venv/bin/python dist/astmatcher_sdk-0.1.1-py3-none-any.whl
 ```
 
 ```python

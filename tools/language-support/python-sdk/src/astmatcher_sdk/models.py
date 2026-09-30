@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+from .compile_database import compile_flags
+
 
 @dataclass(frozen=True, slots=True)
 class Definition:
@@ -26,6 +28,7 @@ class MatcherQuery:
     traversal: Literal["AsIs", "IgnoreUnlessSpelledInSource"] = "AsIs"
     max_matches: int = 1000
     working_directory: str | Path | None = None
+    compile_commands: str | Path | None = "auto"
 
     def __post_init__(self) -> None:
         if isinstance(self.matches, str):
@@ -46,10 +49,11 @@ class MatcherQuery:
         source = Path(self.source).expanduser().resolve()
         cwd = (Path(self.working_directory).expanduser().resolve()
                if self.working_directory else source.parent)
+        flags, cwd = compile_flags(self.compile_commands, source, self.flags, cwd)
         return {
             "sourcePath": str(source),
             "workingDirectory": str(cwd),
-            "flags": list(self.flags),
+            "flags": flags,
             "traversal": self.traversal,
             "maxMatches": self.max_matches,
             "commands": [
