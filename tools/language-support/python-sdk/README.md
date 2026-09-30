@@ -58,6 +58,13 @@ positions use zero-based UTF-16 columns and exclusive ends.
 
 For development, run `uv run python -m unittest discover -s tests -v`.
 
+The commented [function-query example](examples/query_functions.py) runs from
+any C++ project. To try it on this lab's sample from the SDK directory:
+
+```sh
+uv run python examples/query_functions.py manifests/intro.cpp --workspace ../../..
+```
+
 To add the SDK to another uv project on the same machine, run
 `uv add --editable /absolute/path/to/ast-matchers-lab/tools/language-support/python-sdk`
 from that project's directory. The project must support Python 3.14 or newer.
