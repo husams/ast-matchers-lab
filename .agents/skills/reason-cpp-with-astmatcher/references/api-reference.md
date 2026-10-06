@@ -11,21 +11,43 @@
 
 ## Environment
 
-Use the installed `astmatcher-sdk` package (import `astmatcher_sdk`), Python
-3.14 or newer, and a separately installed native `astmatcher-native` executable.
-Use `MatcherClient(binary="/absolute/path/to/astmatcher-native")` or the
-`ASTMATCHER_NATIVE` environment variable when it is not on PATH. The SDK can
-also find the repository's local native build. Native Clang/LLVM 22+, protobuf,
-and gRPC are build dependencies; see the existing
-[native setup](../../../../tools/language-support/native/README.md) and
-[SDK setup](../../../../tools/language-support/python-sdk/README.md).
+Assume `astmatcher_sdk` is already installed in the deployed uv project and
+that deployment configures the native backend. Run all examples from that uv
+project with `uv run python`; use the default `MatcherClient()` and normal
+imports. Do not install packages, build a backend, activate a virtual environment,
+add module search paths, or set executable/catalog locations yourself.
 
-The LSP bridge is a separate stdlib-only Python 3.10+ module tree. Put
-`tools/language-support/astmatcher-lsp` on `PYTHONPATH`, or use the installed
-module tree from the deployment. Set `ASTMATCHER_DATA` to the accompanying
-`tools/language-support/data` directory if generated catalog data is elsewhere.
-Import the module; do not run its CLI for source analysis. See the existing
-[bridge contract](../../../../tools/language-support/astmatcher-lsp/README.md).
+The optional `astmatcher_lsp` bridge must also be supplied by the project's
+deployment before using its examples. It is separate from the SDK wheel. If an
+import or backend status fails, report the deployment error; do not find a source
+checkout or alter the environment to bypass it.
+
+Check the deployed SDK without any target-source access:
+
+```bash
+uv run python - <<'PY'
+import asyncio
+from astmatcher_sdk import MatcherClient
+
+async def probe():
+    client = MatcherClient()
+    try:
+        status = await client.status()
+        print(status.state, status.version, status.compiler_path, status.detail)
+    finally:
+        await client.close()
+
+asyncio.run(probe())
+PY
+```
+
+`stopped` is normal before the first query; `unavailable` indicates a deployment
+problem. Let `run()` or the async context start the configured backend when needed.
+
+For examples that accept arguments, set `analysis_workspace` and
+`analysis_source` from the user's request or API discovery. Set `record_name`
+from the requested qualified symbol. These are analysis inputs, not installation
+paths; no example assumes a particular checkout or deployment directory.
 
 ## Async SDK
 
@@ -35,7 +57,7 @@ on first use without a context manager; explicitly `await client.close()` then.
 
 | API | Contract |
 | --- | --- |
-| `MatcherClient(*, binary=None)` | Optional executable path; no socket configuration |
+| `MatcherClient()` | Use the executable and socket configuration provided by deployment |
 | `await client.start()` | Start or reuse the private server; return `ServerStatus` |
 | `await client.status()` | `stopped`, `ready`, or `unavailable`; version, compiler path, detail; does not start it |
 | `client.watch_status(interval=1.0)` | Async iterator of changed statuses |
@@ -66,10 +88,12 @@ Prefer an exact source entry: related-TU selection is heuristic even for an
 unlisted source. Use `query.request()` to inspect resolved paths, flags, and
 command order without reading C++ contents yourself.
 
-Executable function-discovery pattern (supply the actual paths):
+Run function discovery with the source workspace and selected file as runtime arguments:
 
-```python
+```bash
+uv run python - "$analysis_workspace" "$analysis_source" <<'PY'
 import asyncio
+import sys
 from astmatcher_sdk import Definition, MatcherClient, MatcherQuery
 
 async def find_functions(workspace: str, source: str):
@@ -107,8 +131,8 @@ async def find_functions(workspace: str, source: str):
             print(location, function.signature or function.summary, function.text)
     return result
 
-# In a script: asyncio.run(find_functions("/absolute/project", "src/unit.cpp"))
-# In an existing event loop: await find_functions(workspace, source)
+asyncio.run(find_functions(sys.argv[1], sys.argv[2]))
+PY
 ```
 
 Handle `MatcherError` for native service failures, `ValueError`/`TypeError` for
@@ -135,8 +159,10 @@ Pass `compile_commands="auto"` explicitly for bridge database discovery.
 The bridge searches at or above each source, unlike SDK workspace-only discovery.
 Use `asyncio.to_thread()` when invoking it inside an async application.
 
-```python
-from astmatcher_lsp.native_client import NativeClient, native_binary_path
+```bash
+uv run python - "$analysis_workspace" <<'PY'
+import sys
+from astmatcher_lsp.native_client import close_global
 from astmatcher_lsp.run import run_query
 from astmatcher_lsp.targets import discover_target
 
@@ -145,9 +171,8 @@ def scan_calls(workspace: str):
         {"scope": "workspace", "path": workspace, "roots": [workspace]},
         sample=workspace,
         cwd=workspace,
-        exclusions=["build/**", "vendor/**"],
+        exclusions=[],
     )
-    client = NativeClient(native_binary_path())
     try:
         result = run_query(
             'match callExpr(callee(functionDecl(hasName("::app::Service::start"))), '
@@ -155,18 +180,21 @@ def scan_calls(workspace: str):
             sample=workspace,
             cwd=workspace,
             target=target,
-            exclusions=["build/**", "vendor/**"],
+            exclusions=[],
             compile_commands="auto",
             traversal="IgnoreUnlessSpelledInSource",
             max_matches=5000,
             cache={"enabled": False},
-            client=client,
         )
     finally:
-        client.close()
+        close_global()
     print(result["ok"], result["errors"], result["stderr"])
     print(result.get("completedFiles", 0), len(files), result["truncated"])
+    print(result["queries"])
     return result
+
+scan_calls(sys.argv[1])
+PY
 ```
 
 Use `scope="directory"` with one `path`, or `scope="file"` for a selected TU
@@ -188,10 +216,11 @@ use a file-scope request with a `callee` binding to recover its declaration.
 Bridge query `count` is the retained match-list length, not the native full
 count. Check truncation and completed-file coverage separately.
 
-Reuse optional `cache={"enabled": True, "location": "/absolute/cache"}` for
-repeated scans; it uses compiler dependency information. SDK queries have no
-cache field. A threading `Event` can be passed as `cancelled`; `on_progress`
-accepts start, file-start, heartbeat, and completed-file records.
+Reuse optional `cache={"enabled": True}` for repeated scans with the default
+location managed by the API; it uses compiler dependency information. Do not
+supply a hard-coded cache directory. SDK queries have no cache field. A threading
+`Event` can be passed as `cancelled`; `on_progress` accepts start, file-start,
+heartbeat, and completed-file records.
 
 ## Record graphs
 
@@ -200,35 +229,68 @@ The SDK has no record-inspection method. Use the bridge
 compile_commands=None, native_server=None, timeout=120.0, client=None,
 record_identity=None)`.
 
-Take the locator from a returned record definition binding and preserve its TU
-and configuration. This pattern accepts an SDK `Binding` and a known TU:
+Query the requested record through the SDK, then pass its returned locator and
+resolved compilation context to the bridge. Supply all analysis paths and the
+qualified record name as runtime arguments:
 
-```python
-from astmatcher_lsp.native_client import NativeClient, native_binary_path
+```bash
+uv run python - "$analysis_workspace" "$analysis_source" "$record_name" <<'PY'
+import asyncio
+import json
+import sys
+from astmatcher_sdk import MatcherClient, MatcherQuery
+from astmatcher_lsp.native_client import close_global
 from astmatcher_lsp.run import inspect_record
 
-def record_graph(workspace: str, translation_unit: str, record):
-    if record.range is None:
-        raise ValueError("Record binding has no source locator")
-    span = record.range
-    client = NativeClient(native_binary_path())
+async def record_graph(workspace: str, source: str, qualified_name: str):
+    query = MatcherQuery(
+        workspace=workspace,
+        source=source,
+        matches=(
+            'cxxRecordDecl(isDefinition(), unless(isImplicit()), '
+            f'hasName({json.dumps(qualified_name)})).bind("record")',
+        ),
+        compile_commands="auto",
+        traversal="IgnoreUnlessSpelledInSource",
+    )
+    context = query.request()
+    async with MatcherClient() as client:
+        result = await client.run(query)
+    if result.diagnostics or result.truncated:
+        raise RuntimeError((result.diagnostics, result.truncated, result.stderr))
+    if result.stderr:
+        print("Compiler diagnostics:", result.stderr)
     try:
-        return inspect_record(
-            translation_unit, span.file,
-            {"start": {"line": span.start.line, "character": span.start.character}},
-            cwd=workspace,
-            compile_commands="auto",
-            record_identity=record.record_identity or None,
-            client=client,
-        )
+        for found in result.queries:
+            for match in found.matches:
+                record = next(b for b in match.bindings if b.id == "record")
+                if record.range is None:
+                    print("Record binding has no source locator", record.summary)
+                    continue
+                span = record.range
+                graph = await asyncio.to_thread(
+                    inspect_record,
+                    context["sourcePath"], span.file,
+                    {"start": {"line": span.start.line,
+                               "character": span.start.character}},
+                    flags=context["flags"],
+                    cwd=context["workingDirectory"],
+                    compile_commands=None,
+                    record_identity=record.record_identity or None,
+                )
+                print(graph)
     finally:
-        client.close()
+        close_global()
+
+asyncio.run(record_graph(sys.argv[1], sys.argv[2], sys.argv[3]))
+PY
 ```
 
-Supply the same explicit database path and supplemental flags used by the
-preceding query when applicable. Check `ok`, `diagnostics`, `stderr`, and
-`truncated` before interpreting the graph. IDs are local to this graph reply;
-`recordIdentity` selects specializations sharing a source anchor.
+The example reuses the SDK-resolved source, flags, and working directory, with
+bridge database rediscovery disabled to preserve that compilation context.
+Check graph `ok`, `diagnostics`, `stderr`, and `truncated` before interpreting it.
+IDs are local to this graph reply; `recordIdentity` selects specializations
+sharing a source anchor.
 
 | Edge kind | Direction and interpretation |
 | --- | --- |
@@ -247,24 +309,28 @@ whole-program graphs; virtual calls and indirect field types require care.
 
 Validate only generated matcher text with the Python language APIs:
 
-```python
+```bash
+uv run python - <<'PY'
 from astmatcher_lsp.analyze import analyze
 from astmatcher_lsp.catalog import load
 from astmatcher_lsp.parser import parse
 
 diagnostics, analyzer = analyze(load(), parse('match functionDecl().bind("f")'))
 print(diagnostics)
+PY
 ```
 
 Inspect `load().matchers[name].signatures` to discover overloads rather than
 guessing them. Static acceptance does not prove native registration or C++
-behavior; treat native diagnostics as authoritative. Configure catalog data
-for the installed backend version when available.
+behavior; treat native diagnostics as authoritative. Use the catalog supplied
+by deployment and report version mismatches without changing catalog paths.
 
 ## Recovery
 
-For missing modules/binaries, report the failed import/status and the setup
-needed. For compilation errors, inspect API-returned flags, working directory,
+For missing modules/backends, report the failed import/status in the selected
+uv project. Leave dependency installation and backend configuration to deployment;
+do not add source checkout paths or create a replacement environment.
+For compilation errors, inspect API-returned flags, working directory,
 and diagnostics, then correct the context and retry. For matcher errors,
 simplify the expression, inspect catalog signatures, and rebuild incrementally.
 For capped evidence, narrow the symbol, request fewer MATCH commands, or divide
