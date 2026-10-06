@@ -9,20 +9,26 @@
 - [Chained investigations](#chained-investigations)
 - [Evidence limits](#evidence-limits)
 
-Use these as SDK expressions in `MatcherQuery.matches`; add a `match ` prefix
-only for bridge scripts. Replace the example qualified symbols with the
-user's targets. Pass sequences such as `(expression,)`, not a single string.
-Check all runtime diagnostics and truncation as instructed in the main skill.
+Run these expression-preparation examples with `uv run python` in the deployed
+project. They prepare SDK expressions for `MatcherQuery.matches`; they do not
+inspect source on their own. Pass the prepared expressions to the uv-launched
+API examples in [API reference](api-reference.md). Add a `match ` prefix only
+for bridge scripts. Replace example qualified symbols with the user's targets.
+Pass sequences such as `(expression,)`, not a single string. Check all runtime
+diagnostics and truncation as instructed in the main skill.
 
 ## Declarations and class use
 
 Find a class definition:
 
-```python
+```bash
+uv run python - <<'PY'
 expression = (
     'cxxRecordDecl(isDefinition(), unless(isImplicit()), '
     'hasName("::app::Service")).bind("record")'
 )
+print(expression)
+PY
 ```
 
 Run `inspect_record()` on the returned binding to enumerate members, base
@@ -33,21 +39,27 @@ the definition was parsed.
 
 Find direct value variables of a record type:
 
-```python
+```bash
+uv run python - <<'PY'
 expression = (
     'varDecl(hasType(cxxRecordDecl(hasName("::app::Service"))))'
     '.bind("object")'
 )
+print(expression)
+PY
 ```
 
 Find fields of that type and derived classes:
 
-```python
+```bash
+uv run python - <<'PY'
 expressions = (
     'fieldDecl(hasType(cxxRecordDecl(hasName("::app::Service")))).bind("field")',
     'cxxRecordDecl(isDefinition(), unless(isImplicit()), '
     'isDerivedFrom("::app::Service")).bind("derived")',
 )
+print(expressions)
+PY
 ```
 
 Treat these type-use matchers as specific categories, not an exhaustive set of
@@ -61,12 +73,15 @@ only if the user specifically asks about uses spelled in that CPP file.
 Bind each direct call, the resolved target declaration, and its enclosing
 function in the same match:
 
-```python
+```bash
+uv run python - <<'PY'
 expression = (
     'callExpr(callee(functionDecl(hasName("::app::Service::start"))'
     '.bind("callee")), forFunction(functionDecl().bind("caller")))'
     '.bind("call")'
 )
+print(expression)
+PY
 ```
 
 `functionDecl` includes methods. Narrow the callee with `cxxMethodDecl`,
@@ -77,11 +92,14 @@ match this recipe; query `callExpr(callee(...)).bind("call")` separately if need
 
 Enumerate direct callees in one function:
 
-```python
+```bash
+uv run python - <<'PY'
 expression = (
     'callExpr(forFunction(functionDecl(hasName("::app::process"))'
     '.bind("caller")), callee(functionDecl().bind("callee"))).bind("call")'
 )
+print(expression)
+PY
 ```
 
 Use `forFunction` to select the semantic enclosing function instead of a broad
@@ -92,7 +110,8 @@ queries and cannot establish one concrete runtime target from this recipe.
 
 Compose reusable callee matchers with SDK definitions:
 
-```python
+```bash
+uv run python - <<'PY'
 from astmatcher_sdk import Definition
 
 definitions = (
@@ -100,6 +119,8 @@ definitions = (
     Definition("calls_target", 'callExpr(callee(target)).bind("call")'),
 )
 matches = ("calls_target",)
+print(definitions, matches)
+PY
 ```
 
 These are reusable expressions, not a pipeline of captured nodes. A second
@@ -112,7 +133,8 @@ bindings from headers.
 Bind a non-static local variable first and join its uses by declaration identity within
 one matcher, so a same-name variable in a nested block cannot be mistaken for it:
 
-```python
+```bash
+uv run python - <<'PY'
 expression = (
     'functionDecl(isDefinition(), hasName("::app::process"), '
     'forEachDescendant(varDecl(hasLocalStorage(), unless(parmVarDecl()), '
@@ -121,6 +143,8 @@ expression = (
     'forEachDescendant(declRefExpr(to(varDecl(equalsBoundNode("variable"))))'
     '.bind("reference"))).bind("function")'
 )
+print(expression)
+PY
 ```
 
 Read each match's `variable` and `reference` together. Multiple local
@@ -143,11 +167,14 @@ argument association, not aliasing, mutation, execution, or the callee's effects
 
 Bind a field declaration and its member-access expression:
 
-```python
+```bash
+uv run python - <<'PY'
 expression = (
     'memberExpr(member(fieldDecl(hasName("::app::Service::state"))'
     '.bind("field"))).bind("access")'
 )
+print(expression)
+PY
 ```
 
 Refine with surrounding AST relationships to distinguish assignment sites
@@ -156,12 +183,15 @@ and field-type relationships through `inspect_record()` when appropriate.
 
 Find a particular callable shape:
 
-```python
+```bash
+uv run python - <<'PY'
 expression = (
     'functionDecl(hasName("::app::process"), parameterCountIs(1), '
     'hasParameter(0, parmVarDecl(hasType(asString("int")))), '
     'returns(asString("bool"))).bind("function")'
 )
+print(expression)
+PY
 ```
 
 Prefer semantic type matchers when aliases or qualifiers matter. `asString`

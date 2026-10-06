@@ -1,4 +1,4 @@
 interface:
   display_name: "Reason about C++ with AST Matchers"
-  short_description: "Use native matcher APIs for C++ code reasoning"
-  default_prompt: "Use $reason-cpp-with-astmatcher to trace C++ declarations, calls, and references through the native APIs."
+  short_description: "Analyze C++ through installed APIs with uv"
+  default_prompt: "Use $reason-cpp-with-astmatcher to investigate C++ through the installed APIs with uv run python."

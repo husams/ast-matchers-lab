@@ -13,8 +13,8 @@ The skill covers declarations, calls, references, workspace scans, and record
 graphs, with all source inspection performed through API-returned evidence.
 It lives in `.agents/skills/` for repository discovery; to use it in another
 workspace, copy the whole `reason-cpp-with-astmatcher` directory into your
-agent's skills directory and install the SDK/native backend described in its
-API reference.
+agent's skills directory. Run its examples with `uv run python` in a project
+whose deployment already provides the installed SDK and API dependencies.
 
 Prefer a browser? Open [`web/index.html`](web/index.html) — a self-contained,
 dark-mode lesson viewer (search, progress, sample viewer, copyable

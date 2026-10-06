@@ -5,6 +5,24 @@ description: Reason about C++ source using ast-matchers-lab's native Clang match
 
 # Reason about C++ through native matcher APIs
 
+## Use the deployed uv project
+
+Assume the SDK and native backend are already installed and configured by the
+project's deployment. Run every Python invocation with `uv run python` from that
+uv project's execution directory, including scripts and stdin snippets. Import
+installed APIs normally and use `MatcherClient()` with its deployment defaults.
+
+Do not hard-code SDK, executable, checkout, catalog, or cache installation paths;
+do not modify module search paths, create or activate a virtual environment, or
+install/build dependencies. Take source-workspace and source-file paths from the
+request or API discovery and pass them as runtime inputs. The uv project and the
+C++ workspace may be different directories; do not confuse their roles.
+
+Use the separate `astmatcher_lsp` APIs only when provided by the deployed uv
+project; they are not bundled in the SDK wheel. If a deployed API/backend is
+missing, report the import/status failure and stop that operation instead of
+locating a checkout or changing deployment settings.
+
 ## Enforce the source-access boundary
 
 - Use `astmatcher_sdk` and the documented `astmatcher_lsp` Python APIs for all
@@ -16,9 +34,9 @@ description: Reason about C++ source using ast-matchers-lab's native Clang match
   GitHub file tools, web browsing, or a separate parser. Do not read an entire
   file as a fallback when a query fails or a snippet is incomplete.
 - Read this skill, its references, API documentation, and environment metadata
-  as needed. Configure paths and dependencies without inspecting target-source
-  contents. Use the target-discovery API for source inventories.
-- Run Python that calls these APIs and post-processes their structured results.
+  as needed. Use runtime analysis inputs without changing the deployed uv
+  environment. Use the target-discovery API for source inventories.
+- Use `uv run python` to call these APIs and post-process their structured results.
   Do not invoke `clang-query`, native CLI commands, or raw gRPC yourself; the
   Python clients manage the native bridge, sockets, and server lifecycle.
 - If an API or backend is unavailable, report the concrete missing prerequisite
@@ -27,7 +45,7 @@ description: Reason about C++ source using ast-matchers-lab's native Clang match
 
 ## Choose the API
 
-Read [API reference](references/api-reference.md) for setup, exact signatures,
+Read [API reference](references/api-reference.md) for uv execution, exact signatures,
 response fields, and executable patterns. Read
 [reasoning recipes](references/reasoning-recipes.md) for matcher expressions
 and follow-up strategies.
