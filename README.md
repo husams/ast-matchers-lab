@@ -7,6 +7,15 @@ verified example.
 Start at [`docs/README.md`](docs/README.md). Agent guide: [`CLAUDE.md`](CLAUDE.md).
 Doc conventions: [`AUTHORING.md`](AUTHORING.md). Validate: `scripts/check.sh`.
 
+For C++ source analysis through the native Python APIs, use
+[`reason-cpp-with-astmatcher`](.agents/skills/reason-cpp-with-astmatcher/SKILL.md).
+The skill covers declarations, calls, references, workspace scans, and record
+graphs, with all source inspection performed through API-returned evidence.
+It lives in `.agents/skills/` for repository discovery; to use it in another
+workspace, copy the whole `reason-cpp-with-astmatcher` directory into your
+agent's skills directory and install the SDK/native backend described in its
+API reference.
+
 Prefer a browser? Open [`web/index.html`](web/index.html) — a self-contained,
 dark-mode lesson viewer (search, progress, sample viewer, copyable
 `clang-query` commands, "How this result is reached" breakdowns, and an AST

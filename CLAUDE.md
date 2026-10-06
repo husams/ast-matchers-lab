@@ -9,6 +9,14 @@ a verified `clang-query` example.
 The lab runs **entirely locally on macOS** against Homebrew LLVM 22. No VM,
 no build step — samples have no `#include`, so no SDK plumbing is needed.
 
+## C++ source analysis through the Python APIs
+
+For agent-driven source analysis (rather than presenting the interactive lab),
+use [.agents/skills/reason-cpp-with-astmatcher/SKILL.md](.agents/skills/reason-cpp-with-astmatcher/SKILL.md).
+It covers the async Python SDK, workspace query bridge, and record graphs.
+Obtain target C++ evidence only through these APIs and their returned bindings;
+do not read or search source files directly while following that skill.
+
 ## Response Style (strict)
 
 Default to a **single short sentence** per response. Only expand into
@@ -54,7 +62,7 @@ examples + coverage) and fix every failure before finishing. Read
 
 ```
 ast-matchers-lab/
-├── CLAUDE.md                 ← this file
+├── AGENTS.md                 ← this file
 ├── AUTHORING.md              ← doc conventions enforced by the scripts
 ├── README.md                 ← root pointer to docs/
 ├── docs/
